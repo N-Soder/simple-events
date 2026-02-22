@@ -53,6 +53,9 @@ const EventPage = () => {
     if (hash) {
       setPassword(hash);
       loadEvent(hash);
+    } else {
+      const saved = localStorage.getItem(`event_pw_${id}`);
+      if (saved) loadEvent(saved);
     }
   }, [id]);
 
@@ -64,7 +67,9 @@ const EventPage = () => {
       setData(result);
       setAuthenticated(true);
       setPassword(pw);
+      if (id) localStorage.setItem(`event_pw_${id}`, pw);
     } catch {
+      if (id) localStorage.removeItem(`event_pw_${id}`);
       toast({ title: "Invalid password", variant: "destructive" });
       setAuthenticated(false);
     } finally {
