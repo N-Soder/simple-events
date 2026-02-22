@@ -21,6 +21,7 @@ interface EventData {
     location: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
+    bring_list_enabled: boolean;
   };
   rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
   bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
@@ -269,7 +270,7 @@ const EventPage = () => {
         </Card>
 
         {/* Bring List */}
-        {bring_items.length > 0 && (
+        {event.bring_list_enabled && bring_items.length > 0 && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">

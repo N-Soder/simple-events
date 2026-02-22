@@ -50,6 +50,7 @@ export type Database = {
         Row: {
           admin_token: string
           banner_url: string | null
+          bring_list_enabled: boolean
           created_at: string
           description: string | null
           event_date: string
@@ -64,6 +65,7 @@ export type Database = {
         Insert: {
           admin_token?: string
           banner_url?: string | null
+          bring_list_enabled?: boolean
           created_at?: string
           description?: string | null
           event_date: string
@@ -78,6 +80,7 @@ export type Database = {
         Update: {
           admin_token?: string
           banner_url?: string | null
+          bring_list_enabled?: boolean
           created_at?: string
           description?: string | null
           event_date?: string

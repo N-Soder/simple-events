@@ -25,6 +25,7 @@ export async function createEvent(params: {
   banner_url?: string;
   password: string;
   guest_visibility: "full" | "count_only" | "hidden";
+  bring_list_enabled?: boolean;
   bring_items: string[];
 }) {
   return apiFetch("create", { method: "POST", body: JSON.stringify(params) });

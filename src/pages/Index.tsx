@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { createEvent, uploadBanner } from "@/lib/api";
@@ -29,6 +30,7 @@ type FormData = z.infer<typeof schema>;
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [bringListEnabled, setBringListEnabled] = useState(true);
   const [bringItems, setBringItems] = useState<string[]>([]);
   const [newItem, setNewItem] = useState("");
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -78,8 +80,9 @@ const Index = () => {
         location: data.location,
         password: data.password,
         guest_visibility: data.guest_visibility,
+        bring_list_enabled: bringListEnabled,
         banner_url,
-        bring_items: bringItems,
+        bring_items: bringListEnabled ? bringItems : [],
       });
 
       navigate(`/created?id=${result.id}&token=${result.admin_token}`);
@@ -221,7 +224,15 @@ const Index = () => {
 
               {/* Bring List */}
               <div>
-                <Label className="mb-2 block">Bring List</Label>
+                <div className="mb-3 flex items-center justify-between">
+                  <Label>Bring List</Label>
+                  <Switch checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
+                </div>
+                {!bringListEnabled && (
+                  <p className="text-sm text-muted-foreground">Bring list is disabled — guests won't see it.</p>
+                )}
+                {bringListEnabled && (
+                  <>
                 <p className="mb-3 text-sm text-muted-foreground">Add items guests can volunteer to bring.</p>
                 <div className="flex gap-2">
                   <Input
@@ -245,6 +256,8 @@ const Index = () => {
                       </span>
                     ))}
                   </div>
+                )}
+                  </>
                 )}
               </div>
 
