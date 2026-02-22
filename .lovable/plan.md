@@ -1,55 +1,23 @@
 
 
-# Markdown Description Editor
+# Store Event Password Locally
 
-Add markdown editing and rendering for event descriptions across all three pages.
+After a guest successfully enters the event password, save it in `localStorage` so they don't need to re-enter it when revisiting the same event on the same device.
 
-## New Dependency
-- `react-markdown` -- lightweight markdown renderer
+## How It Works
 
-## New Files
+1. On page load, check `localStorage` for a saved password for this event ID (key: `event_pw_{eventId}`)
+2. If found, attempt to load the event with that password automatically
+3. If the stored password fails (e.g., event creator changed it), clear it and show the password gate as usual
+4. After successful authentication (either from localStorage, URL hash, or manual input), save the password to `localStorage`
 
-### `src/components/MarkdownEditor.tsx`
-A textarea with a simple toolbar above it. Four buttons:
-- **B** (Bold) -- wraps selected text in `**...**`
-- **I** (Italic) -- wraps selected text in `*...*`
-- **Link** -- wraps selected text in `[text](url)`
-- **List** -- prepends `- ` to current line
+## Changes
 
-Uses standard textarea `selectionStart`/`selectionEnd` APIs to insert syntax around the cursor or selection. Props: `value`, `onChange`, `placeholder`, `rows`.
+**`src/pages/EventPage.tsx`**
 
-### `src/components/MarkdownContent.tsx`
-Wraps `react-markdown` with Tailwind prose-like styles:
-- Bold/italic rendered naturally
-- Links styled with `text-primary underline`, open in new tab (`target="_blank"`, `rel="noopener noreferrer"`)
-- Lists get standard bullet styling
-- Paragraphs get proper spacing
+- In the `useEffect` that runs on mount, add a fallback: if no URL hash is present, check `localStorage.getItem(\`event_pw_\${id}\`)` and call `loadEvent()` with that value
+- In `loadEvent()`, after successful authentication (`setAuthenticated(true)`), add `localStorage.setItem(\`event_pw_\${id}\`, pw)`
+- In the `catch` block of `loadEvent()`, add `localStorage.removeItem(\`event_pw_\${id}\`)` to clear stale passwords
 
-Props: `content: string | null`.
+No other files need changes.
 
-## Changed Files
-
-### `src/pages/Index.tsx` (Create Event)
-- Replace the `<Textarea>` for description (line 145) with `<MarkdownEditor>`
-- Since `react-hook-form` uses `register("description")`, switch to using `watch("description")` + `setValue("description", ...)` to control the value manually
-- Add helper text below: "Supports **bold**, *italic*, [links], and lists"
-
-### `src/pages/EventPage.tsx` (Guest View)
-- Replace `<p className="whitespace-pre-wrap">{event.description}</p>` with `<MarkdownContent content={event.description} />`
-
-### `src/pages/AdminPage.tsx` (Admin Edit)
-- Replace the description `<Textarea>` with `<MarkdownEditor>` (value/onChange already use state, so straightforward swap)
-
-## Technical Details
-
-### MarkdownEditor toolbar implementation
-- The toolbar is a row of small icon buttons above the textarea
-- Each button calls a helper function that reads `textareaRef.current.selectionStart/End`, constructs the new string with markdown syntax inserted, calls `onChange` with the new value, and restores cursor position via `setTimeout` + `setSelectionRange`
-- The textarea ref is obtained via `useRef<HTMLTextAreaElement>`
-
-### MarkdownContent rendering
-- Uses `react-markdown` with custom component overrides:
-  - `a` renders with `className="text-primary underline"` and `target="_blank"`
-  - `ul` renders with `className="list-disc pl-6"`
-  - `p` renders with `className="mb-2 last:mb-0"`
-- Wrapped in a div with `className="text-foreground/80 whitespace-pre-wrap"`
