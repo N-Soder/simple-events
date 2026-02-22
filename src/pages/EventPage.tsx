@@ -1,0 +1,299 @@
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { getEvent, submitRsvp, claimItem, addCustomItem, verifyPassword } from "@/lib/api";
+import { format } from "date-fns";
+
+interface EventData {
+  event: {
+    id: string;
+    name: string;
+    description: string | null;
+    event_date: string;
+    event_time: string | null;
+    location: string | null;
+    banner_url: string | null;
+    guest_visibility: "full" | "count_only" | "hidden";
+  };
+  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
+  bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
+}
+
+const EventPage = () => {
+  const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
+  const [password, setPassword] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [data, setData] = useState<EventData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // RSVP form
+  const [guestName, setGuestName] = useState("");
+  const [adults, setAdults] = useState(1);
+  const [kids, setKids] = useState(0);
+  const [honeypot, setHoneypot] = useState("");
+  const [submittingRsvp, setSubmittingRsvp] = useState(false);
+
+  // Bring list
+  const [claimName, setClaimName] = useState("");
+  const [customItem, setCustomItem] = useState("");
+
+  // Check URL hash for password
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      setPassword(hash);
+      loadEvent(hash);
+    }
+  }, [id]);
+
+  const loadEvent = async (pw: string) => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const result = await getEvent(id, pw);
+      setData(result);
+      setAuthenticated(true);
+      setPassword(pw);
+    } catch {
+      toast({ title: "Invalid password", variant: "destructive" });
+      setAuthenticated(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadEvent(passwordInput);
+  };
+
+  const handleRsvp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !guestName.trim()) return;
+    setSubmittingRsvp(true);
+    try {
+      await submitRsvp({ event_id: id, password, guest_name: guestName.trim(), adults, kids, honeypot });
+      toast({ title: "RSVP submitted!" });
+      setGuestName("");
+      setAdults(1);
+      setKids(0);
+      loadEvent(password);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmittingRsvp(false);
+    }
+  };
+
+  const handleClaim = async (itemId: string) => {
+    if (!id || !claimName.trim()) {
+      toast({ title: "Enter your name first", variant: "destructive" });
+      return;
+    }
+    try {
+      await claimItem(id, password, itemId, claimName.trim());
+      loadEvent(password);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleAddCustom = async () => {
+    if (!id || !customItem.trim()) return;
+    try {
+      await addCustomItem(id, password, customItem.trim(), claimName.trim() || undefined);
+      setCustomItem("");
+      loadEvent(password);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // Password Gate
+  if (!authenticated) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <CardTitle>Enter Password</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <Input
+                type="password"
+                placeholder="Event password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                autoFocus
+              />
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Verifying..." : "Enter"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!data) return null;
+  const { event, rsvps, bring_items } = data;
+  const totalAdults = rsvps.reduce((s, r) => s + r.adults, 0);
+  const totalKids = rsvps.reduce((s, r) => s + r.kids, 0);
+
+  return (
+    <main className="min-h-screen bg-background">
+      {/* Banner */}
+      {event.banner_url && (
+        <div className="h-56 w-full overflow-hidden sm:h-72">
+          <img src={event.banner_url} alt="Event banner" className="h-full w-full object-cover" />
+        </div>
+      )}
+
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
+        <h1 className="text-3xl font-bold sm:text-4xl">{event.name}</h1>
+
+        <div className="mt-4 flex flex-wrap gap-4 text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <CalendarDays className="h-4 w-4" />
+            {format(new Date(event.event_date), "EEEE, MMMM d, yyyy")}
+          </span>
+          {event.event_time && (
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4" />
+              {event.event_time}
+            </span>
+          )}
+          {event.location && (
+            <span className="flex items-center gap-1.5">
+              <MapPin className="h-4 w-4" />
+              {event.location}
+            </span>
+          )}
+        </div>
+
+        {event.description && <p className="mt-4 whitespace-pre-wrap text-foreground/80">{event.description}</p>}
+
+        {/* Guest Info Section */}
+        {event.guest_visibility !== "hidden" && rsvps.length > 0 && (
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="h-5 w-5" />
+                {event.guest_visibility === "full" ? "Guest List" : "Attending"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {event.guest_visibility === "full" ? (
+                <ul className="space-y-2">
+                  {rsvps.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
+                      <span className="font-medium">{r.guest_name}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {r.adults} adult{r.adults !== 1 ? "s" : ""}{r.kids > 0 ? `, ${r.kids} kid${r.kids !== 1 ? "s" : ""}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">
+                  {totalAdults} adult{totalAdults !== 1 ? "s" : ""}{totalKids > 0 ? ` and ${totalKids} kid${totalKids !== 1 ? "s" : ""}` : ""} attending
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* RSVP Form */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-lg">RSVP</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleRsvp} className="space-y-4">
+              {/* Honeypot - hidden from humans */}
+              <div className="absolute -left-[9999px]" aria-hidden="true">
+                <input tabIndex={-1} value={honeypot} onChange={(e) => setHoneypot(e.target.value)} autoComplete="off" />
+              </div>
+
+              <div>
+                <Label htmlFor="guest_name">Your Name *</Label>
+                <Input id="guest_name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Your name" className="mt-1.5" required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="adults">Adults</Label>
+                  <Input id="adults" type="number" min={1} max={20} value={adults} onChange={(e) => setAdults(parseInt(e.target.value) || 1)} className="mt-1.5" />
+                </div>
+                <div>
+                  <Label htmlFor="kids">Kids</Label>
+                  <Input id="kids" type="number" min={0} max={20} value={kids} onChange={(e) => setKids(parseInt(e.target.value) || 0)} className="mt-1.5" />
+                </div>
+              </div>
+              <Button type="submit" disabled={submittingRsvp}>
+                {submittingRsvp ? "Submitting..." : "Submit RSVP"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Bring List */}
+        {bring_items.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <UtensilsCrossed className="h-5 w-5" />
+                Bring List
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="claim_name">Your name (to claim items)</Label>
+                <Input id="claim_name" value={claimName} onChange={(e) => setClaimName(e.target.value)} placeholder="Enter your name" className="mt-1.5" />
+              </div>
+
+              <ul className="space-y-2">
+                {bring_items.map((item) => (
+                  <li key={item.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                    <div>
+                      <span className="font-medium">{item.item_name}</span>
+                      {item.claimed_by && (
+                        <span className="ml-2 text-sm text-muted-foreground">— {item.claimed_by}</span>
+                      )}
+                    </div>
+                    {!item.claimed_by && (
+                      <Button size="sm" variant="outline" onClick={() => handleClaim(item.id)}>
+                        I'll bring it
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <div className="flex gap-2 pt-2">
+                <Input
+                  placeholder="Add your own item..."
+                  value={customItem}
+                  onChange={(e) => setCustomItem(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCustom(); } }}
+                />
+                <Button variant="outline" size="icon" onClick={handleAddCustom}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </main>
+  );
+};
+
+export default EventPage;
