@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     // POST /create - Create a new event
     if (req.method === "POST" && path === "create") {
       const body = await req.json();
-      const { name, description, event_date, event_time, location, banner_url, password, guest_visibility, bring_items } = body;
+      const { name, description, event_date, event_time, location, banner_url, password, guest_visibility, bring_items, bring_list_enabled } = body;
 
       if (!name || !event_date || !password) {
         return error("name, event_date, and password are required");
@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
           banner_url: banner_url || null,
           password_hash: "placeholder",
           guest_visibility: guest_visibility || "full",
+          bring_list_enabled: bring_list_enabled !== undefined ? bring_list_enabled : true,
         })
         .select("id, admin_token")
         .single();
@@ -110,7 +111,7 @@ Deno.serve(async (req) => {
       // Fetch event (exclude password_hash and admin_token)
       const { data: event } = await supabase
         .from("events")
-        .select("id, name, description, event_date, event_time, location, banner_url, guest_visibility, created_at")
+        .select("id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, created_at")
         .eq("id", event_id)
         .single();
 
@@ -141,7 +142,7 @@ Deno.serve(async (req) => {
 
       const { data: event } = await supabase
         .from("events")
-        .select("id, name, description, event_date, event_time, location, banner_url, guest_visibility, admin_token, created_at")
+        .select("id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, admin_token, created_at")
         .eq("id", event_id)
         .eq("admin_token", token)
         .single();
@@ -240,7 +241,7 @@ Deno.serve(async (req) => {
 
       // Filter allowed fields
       const allowed: Record<string, unknown> = {};
-      for (const key of ["name", "description", "event_date", "event_time", "location", "banner_url", "guest_visibility"]) {
+      for (const key of ["name", "description", "event_date", "event_time", "location", "banner_url", "guest_visibility", "bring_list_enabled"]) {
         if (updates[key] !== undefined) allowed[key] = updates[key];
       }
 

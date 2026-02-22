@@ -4,6 +4,7 @@ import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -27,6 +28,7 @@ interface EventData {
     location: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
+    bring_list_enabled: boolean;
     admin_token: string;
   };
   rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
@@ -49,6 +51,7 @@ const AdminPage = () => {
   const [eventTime, setEventTime] = useState("");
   const [location, setLocation] = useState("");
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
+  const [bringListEnabled, setBringListEnabled] = useState(true);
   const [newItem, setNewItem] = useState("");
 
   const loadData = async () => {
@@ -63,6 +66,7 @@ const AdminPage = () => {
       setEventTime(result.event.event_time || "");
       setLocation(result.event.location || "");
       setVisibility(result.event.guest_visibility);
+      setBringListEnabled(result.event.bring_list_enabled);
     } catch {
       toast({ title: "Invalid admin link", variant: "destructive" });
     } finally {
@@ -77,7 +81,7 @@ const AdminPage = () => {
     setSaving(true);
     try {
       await updateEvent(id, token, {
-        name, description, event_date: eventDate, event_time: eventTime || null, location, guest_visibility: visibility,
+        name, description, event_date: eventDate, event_time: eventTime || null, location, guest_visibility: visibility, bring_list_enabled: bringListEnabled,
       });
       toast({ title: "Event updated!" });
       loadData();
@@ -238,11 +242,15 @@ const AdminPage = () => {
         </Card>
 
         {/* Bring List */}
-        <Card>
+        <Card className={!bringListEnabled ? "opacity-60" : ""}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <UtensilsCrossed className="h-5 w-5" />
               Bring List
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-sm font-normal text-muted-foreground">{bringListEnabled ? "Visible to guests" : "Hidden from guests"}</span>
+                <Switch checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
