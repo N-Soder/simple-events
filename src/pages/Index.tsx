@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { createEvent, uploadBanner } from "@/lib/api";
+import MarkdownEditor from "@/components/MarkdownEditor";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Event name is required").max(200),
@@ -142,7 +143,12 @@ const Index = () => {
               {/* Description */}
               <div>
                 <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Tell your guests what to expect..." {...register("description")} className="mt-1.5" rows={3} />
+                <MarkdownEditor
+                  value={watch("description") || ""}
+                  onChange={(v) => setValue("description", v)}
+                  placeholder="Tell your guests what to expect..."
+                  rows={3}
+                />
               </div>
 
               {/* Date & Time */}

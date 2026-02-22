@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { getEvent, submitRsvp, claimItem, addCustomItem } from "@/lib/api";
 import { format } from "date-fns";
+import MarkdownContent from "@/components/MarkdownContent";
 
 interface EventData {
   event: {
@@ -193,7 +194,11 @@ const EventPage = () => {
           )}
         </div>
 
-        {event.description && <p className="mt-4 whitespace-pre-wrap text-foreground/80">{event.description}</p>}
+        {event.description && (
+          <div className="mt-4">
+            <MarkdownContent content={event.description} />
+          </div>
+        )}
 
         {/* Guest Info Section */}
         {event.guest_visibility !== "hidden" && rsvps.length > 0 && (
