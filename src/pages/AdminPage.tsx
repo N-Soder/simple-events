@@ -15,6 +15,7 @@ import {
   adminDeleteBringItem,
   adminDeleteRsvp,
 } from "@/lib/api";
+import MarkdownEditor from "@/components/MarkdownEditor";
 
 interface EventData {
   event: {
@@ -158,7 +159,7 @@ const AdminPage = () => {
             </div>
             <div>
               <Label>Description</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1.5" rows={3} />
+              <MarkdownEditor value={description} onChange={setDescription} placeholder="Event description..." rows={3} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
