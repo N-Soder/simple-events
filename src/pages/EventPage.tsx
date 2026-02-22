@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, X } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { getEvent, submitRsvp, claimItem, addCustomItem, verifyPassword } from "@/lib/api";
+import { getEvent, submitRsvp, claimItem, addCustomItem } from "@/lib/api";
 import { format } from "date-fns";
 
 interface EventData {
@@ -40,9 +41,10 @@ const EventPage = () => {
   const [honeypot, setHoneypot] = useState("");
   const [submittingRsvp, setSubmittingRsvp] = useState(false);
 
-  // Bring list
-  const [claimName, setClaimName] = useState("");
-  const [customItem, setCustomItem] = useState("");
+  // Bring list (batched)
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [customItems, setCustomItems] = useState<string[]>([]);
+  const [customItemInput, setCustomItemInput] = useState("");
 
   // Check URL hash for password
   useEffect(() => {
@@ -80,10 +82,27 @@ const EventPage = () => {
     setSubmittingRsvp(true);
     try {
       await submitRsvp({ event_id: id, password, guest_name: guestName.trim(), adults, kids, honeypot });
-      toast({ title: "RSVP submitted!" });
+
+      // Batch claim selected items
+      const claimPromises = Array.from(selectedItems).map((itemId) =>
+        claimItem(id, password, itemId, guestName.trim()).catch(() => null)
+      );
+      const customPromises = customItems.map((name) =>
+        addCustomItem(id, password, name, guestName.trim()).catch(() => null)
+      );
+      const results = await Promise.all([...claimPromises, ...customPromises]);
+      const failures = results.filter((r) => r === null).length;
+      if (failures > 0) {
+        toast({ title: "RSVP submitted!", description: `${failures} item(s) couldn't be claimed.`, variant: "default" });
+      } else {
+        toast({ title: "RSVP submitted!" });
+      }
+
       setGuestName("");
       setAdults(1);
       setKids(0);
+      setSelectedItems(new Set());
+      setCustomItems([]);
       loadEvent(password);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -92,28 +111,23 @@ const EventPage = () => {
     }
   };
 
-  const handleClaim = async (itemId: string) => {
-    if (!id || !claimName.trim()) {
-      toast({ title: "Enter your name first", variant: "destructive" });
-      return;
-    }
-    try {
-      await claimItem(id, password, itemId, claimName.trim());
-      loadEvent(password);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+  const toggleItem = (itemId: string) => {
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
   };
 
-  const handleAddCustom = async () => {
-    if (!id || !customItem.trim()) return;
-    try {
-      await addCustomItem(id, password, customItem.trim(), claimName.trim() || undefined);
-      setCustomItem("");
-      loadEvent(password);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+  const handleAddCustom = () => {
+    if (!customItemInput.trim()) return;
+    setCustomItems((prev) => [...prev, customItemInput.trim()]);
+    setCustomItemInput("");
+  };
+
+  const removeCustomItem = (index: number) => {
+    setCustomItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Password Gate
@@ -254,25 +268,33 @@ const EventPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="claim_name">Your name (to claim items)</Label>
-                <Input id="claim_name" value={claimName} onChange={(e) => setClaimName(e.target.value)} placeholder="Enter your name" className="mt-1.5" />
-              </div>
-
               <ul className="space-y-2">
                 {bring_items.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                    <div>
-                      <span className="font-medium">{item.item_name}</span>
-                      {item.claimed_by && (
-                        <span className="ml-2 text-sm text-muted-foreground">— {item.claimed_by}</span>
-                      )}
-                    </div>
-                    {!item.claimed_by && (
-                      <Button size="sm" variant="outline" onClick={() => handleClaim(item.id)}>
-                        I'll bring it
-                      </Button>
+                  <li key={item.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
+                    {item.claimed_by ? (
+                      <>
+                        <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="font-medium">{item.item_name}</span>
+                        <span className="ml-auto text-sm text-muted-foreground">— {item.claimed_by}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Checkbox
+                          checked={selectedItems.has(item.id)}
+                          onCheckedChange={() => toggleItem(item.id)}
+                        />
+                        <span className="font-medium">{item.item_name}</span>
+                      </>
                     )}
+                  </li>
+                ))}
+                {customItems.map((name, i) => (
+                  <li key={`custom-${i}`} className="flex items-center gap-3 rounded-md border border-dashed px-3 py-2">
+                    <Check className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="font-medium">{name}</span>
+                    <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => removeCustomItem(i)}>
+                      <X className="h-3 w-3" />
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -280,8 +302,8 @@ const EventPage = () => {
               <div className="flex gap-2 pt-2">
                 <Input
                   placeholder="Add your own item..."
-                  value={customItem}
-                  onChange={(e) => setCustomItem(e.target.value)}
+                  value={customItemInput}
+                  onChange={(e) => setCustomItemInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCustom(); } }}
                 />
                 <Button variant="outline" size="icon" onClick={handleAddCustom}>
