@@ -1,52 +1,62 @@
 
-# Toggle Bring List Visibility
+# Add Quantity Support for Bring List Items
 
-Add a boolean `bring_list_enabled` flag to events so hosts can show or hide the entire bring list section for guests.
+Allow the event host to request multiple of the same item (e.g., "Salad x2") by adding a `quantity` column to bring list items.
+
+## How It Works
+
+- Each bring list item gets a `quantity` field (default 1)
+- On the admin page, when adding an item, the host can specify how many are needed (e.g., "Salad" with quantity 2)
+- On the guest page, each "slot" appears as a separate claimable checkbox. So "Salad x2" shows as two claimable rows: "Salad (1/2)" and "Salad (2/2)"
+- Guests claim individual slots, not the whole quantity at once
 
 ## Database Change
 
-Add a new column to the `events` table:
-
 ```sql
-ALTER TABLE public.events ADD COLUMN bring_list_enabled boolean NOT NULL DEFAULT true;
+ALTER TABLE public.bring_list_items ADD COLUMN quantity integer NOT NULL DEFAULT 1;
 ```
 
-Default is `true` so existing events keep their bring list visible.
+This stores how many of each item the host wants. Each row still represents one claimable slot. When the admin adds "Salad x2", it inserts 2 separate rows with `item_name = 'Salad'`. This keeps claiming logic unchanged -- each row is independently claimable.
 
-## Edge Function (`supabase/functions/event-api/index.ts`)
+## Changes
 
-- In the `POST /create` handler, accept `bring_list_enabled` from the request body and include it in the insert (default `true`)
-- In the `GET /event` handler, include `bring_list_enabled` in the selected fields for the event
-- In the `GET /admin` handler, include `bring_list_enabled` in the selected fields
-- In the `PUT /admin/update` handler, allow updating `bring_list_enabled`
+### Edge Function (`supabase/functions/event-api/index.ts`)
 
-## Frontend Changes
+- `POST /create`: When processing `bring_items`, accept objects with `{ name, quantity }` instead of plain strings. Insert `quantity` rows for each item.
+- `POST /admin/add-bring-item`: Accept an optional `quantity` param (default 1). Insert that many rows with the same `item_name`.
 
-### `src/pages/Index.tsx` (Create Event)
-- Add a `Switch` toggle above the bring list section labeled "Enable Bring List"
-- Default to off (no bring list items by default) -- or on, depending on preference. Since the current flow already shows the bring list input, keep it defaulting to on.
-- When toggled off, hide the bring list input and items
-- Pass `bring_list_enabled` in the create event API call
+### Admin Page (`src/pages/AdminPage.tsx`)
 
-### `src/pages/AdminPage.tsx` (Admin Edit)
-- Add `bringListEnabled` to local state, initialized from the event data
-- Add a `Switch` toggle in the event edit form to enable/disable the bring list
-- Include `bring_list_enabled` in the save payload
-- When disabled, the bring list management section can still be shown to the admin (so they can pre-fill items) but with a note that it's hidden from guests
+- Add a small quantity input (number, min 1, max 20) next to the "Add item" text input
+- When adding, call the API which inserts multiple rows
+- In the item list, group items by name and show count, e.g., "Salad (2 requested, 1 claimed)"
+- Delete button removes individual rows as before
 
-### `src/pages/EventPage.tsx` (Guest View)
-- Read `bring_list_enabled` from the event data
-- Only render the bring list card and the bring list checkboxes in the RSVP form when `bring_list_enabled` is `true`
+### Create Event Page (`src/pages/Index.tsx`)
 
-### `src/lib/api.ts`
-- Add `bring_list_enabled` to the `createEvent` payload type
-- Add `bring_list_enabled` to the `updateEvent` payload type
+- Add a quantity input next to each bring list item input
+- Store bring items as `{ name: string, quantity: number }[]` instead of `string[]`
+- Pass the structured data to the API
 
-### Type Updates
-- Add `bring_list_enabled: boolean` to the event interfaces in `EventPage.tsx`, `AdminPage.tsx`, and any shared types
+### Guest Page (`src/pages/EventPage.tsx`)
+
+- No structural changes needed -- each row is already independently claimable
+- Items with the same name will naturally appear as separate rows guests can each claim
+
+### API Types (`src/lib/api.ts`)
+
+- Update `CreateEventPayload.bring_items` from `string[]` to `Array<{ name: string; quantity: number }>`
 
 ## Technical Details
 
-- The `Switch` component from `@/components/ui/switch` is already available
-- The column defaults to `true` so no migration issues with existing data
-- The edge function's `GET /event` response already returns all event columns via `select("*")` or explicit fields -- `bring_list_enabled` needs to be added to the select list if fields are explicit
+### Why multiple rows instead of a quantity column with partial claims?
+
+Using one row per claimable slot keeps the claiming logic simple: each row has a single `claimed_by` field. No need for tracking partial claims, array columns, or join tables. The quantity is effectively the count of rows with the same `item_name` for that event.
+
+### Admin grouping display
+
+On the admin page, items are grouped visually by name for clarity:
+- "Salad" -- 2 total, 1 claimed (by Alice)
+- "Dessert" -- 2 total, 0 claimed
+
+Each individual row still has its own delete button.
