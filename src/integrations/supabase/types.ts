@@ -21,6 +21,7 @@ export type Database = {
           event_id: string
           id: string
           item_name: string
+          quantity: number
         }
         Insert: {
           claimed_by?: string | null
@@ -28,6 +29,7 @@ export type Database = {
           event_id: string
           id?: string
           item_name: string
+          quantity?: number
         }
         Update: {
           claimed_by?: string | null
@@ -35,6 +37,7 @@ export type Database = {
           event_id?: string
           id?: string
           item_name?: string
+          quantity?: number
         }
         Relationships: [
           {

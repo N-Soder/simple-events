@@ -69,13 +69,17 @@ Deno.serve(async (req) => {
 
       if (hashErr) return error(hashErr.message, 500);
 
-      // Add bring list items
+      // Add bring list items (supports { name, quantity } objects or plain strings)
       if (bring_items && Array.isArray(bring_items) && bring_items.length > 0) {
-        const items = bring_items.map((item: string) => ({
-          event_id: eventRows.id,
-          item_name: item,
-        }));
-        await supabase.from("bring_list_items").insert(items);
+        const rows: { event_id: string; item_name: string }[] = [];
+        for (const item of bring_items) {
+          const itemName = typeof item === "string" ? item : item.name;
+          const qty = typeof item === "string" ? 1 : Math.min(Math.max(item.quantity || 1, 1), 20);
+          for (let i = 0; i < qty; i++) {
+            rows.push({ event_id: eventRows.id, item_name: itemName });
+          }
+        }
+        if (rows.length > 0) await supabase.from("bring_list_items").insert(rows);
       }
 
       return json({ id: eventRows.id, admin_token: eventRows.admin_token });
@@ -253,15 +257,17 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
-    // POST /admin/add-bring-item - Admin add bring list item
+    // POST /admin/add-bring-item - Admin add bring list item (supports quantity)
     if (req.method === "POST" && path === "admin/add-bring-item") {
-      const { event_id, admin_token, item_name } = await req.json();
+      const { event_id, admin_token, item_name, quantity } = await req.json();
       if (!event_id || !admin_token || !item_name) return error("All fields required");
 
       const { data: event } = await supabase.from("events").select("id").eq("id", event_id).eq("admin_token", admin_token).single();
       if (!event) return error("Invalid admin token", 403);
 
-      const { data, error: err } = await supabase.from("bring_list_items").insert({ event_id, item_name }).select().single();
+      const qty = Math.min(Math.max(quantity || 1, 1), 20);
+      const rows = Array.from({ length: qty }, () => ({ event_id, item_name }));
+      const { data, error: err } = await supabase.from("bring_list_items").insert(rows).select();
       if (err) return error(err.message, 500);
       return json(data);
     }

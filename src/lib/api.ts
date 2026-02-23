@@ -26,7 +26,7 @@ export async function createEvent(params: {
   password: string;
   guest_visibility: "full" | "count_only" | "hidden";
   bring_list_enabled?: boolean;
-  bring_items: string[];
+  bring_items: Array<{ name: string; quantity: number }>;
 }) {
   return apiFetch("create", { method: "POST", body: JSON.stringify(params) });
 }
@@ -75,10 +75,10 @@ export async function updateEvent(event_id: string, admin_token: string, updates
   });
 }
 
-export async function adminAddBringItem(event_id: string, admin_token: string, item_name: string) {
+export async function adminAddBringItem(event_id: string, admin_token: string, item_name: string, quantity = 1) {
   return apiFetch("admin/add-bring-item", {
     method: "POST",
-    body: JSON.stringify({ event_id, admin_token, item_name }),
+    body: JSON.stringify({ event_id, admin_token, item_name, quantity }),
   });
 }
 
