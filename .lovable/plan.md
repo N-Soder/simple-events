@@ -1,43 +1,65 @@
 
-# Add Editable Bring List Message
+# Optional Password with Embed-in-URL Toggle
 
-When the bring list toggle is enabled, show an editable text field with default copy that guests will see above the bring list on the event page.
+Make the guest password optional and, when a password is set, let the host choose whether to embed it directly in the guest link.
 
 ## What Changes
 
-### Database
-- Add a `bring_list_message` text column to the `events` table, defaulting to `NULL` (the app will use boilerplate text when null)
-
-### Default Message
-When no custom message has been set, the following boilerplate will display:
-
-> "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!"
-
-### Edge Function
-- `POST /create`: Accept optional `bring_list_message` and store it
-- `GET /event` and `GET /admin`: Include `bring_list_message` in the response
-- `PUT /admin/update`: Allow updating `bring_list_message`
-
 ### Create Event Page (`Index.tsx`)
-- When bring list is enabled, show a small text area below the toggle pre-filled with the default boilerplate
-- The host can edit it or leave the default
-- Pass `bring_list_message` in the create payload
+- Change the password field from required to optional
+- Add a toggle: "Require password" (default off). When enabled, show the password input
+- Below the password input, add a second toggle: "Embed password in guest link" (default on). This controls whether the created-page guest link includes `#password` in the URL
+- Update the Zod schema to make `password` optional (empty string or undefined when disabled)
+- Pass a new flag `embed_password` (and the raw password value) to the `/created` page via search params so it can build the correct guest link
 
-### Admin Page (`AdminPage.tsx`)
-- Add a `bringListMessage` state field, initialized from event data (or the default boilerplate if null)
-- Show the editable text area in the Bring List card when the toggle is on
-- Include `bring_list_message` in the save payload
+### Event Created Page (`EventCreated.tsx`)
+- Read `password` and `embed` from the search params (passed from the create flow)
+- If a password was set and embed is enabled: guest link becomes `/event/{id}#password`
+- If a password was set but embed is disabled: guest link stays `/event/{id}` with a note that guests will need to enter the password manually
+- If no password was set: guest link is just `/event/{id}` with a note that the event is open to anyone with the link
+- Update the descriptive copy under the guest link card accordingly
+
+### Edge Function (`event-api/index.ts`)
+- `POST /create`: Make `password` optional. When no password is provided, store a `NULL` password hash (or a sentinel value)
+- `POST /verify`: If the event has no password hash, return `{ valid: true }` immediately
+- `GET /event`: If the event has no password, skip password verification and return the data directly (accept requests without a `password` param)
+- `POST /rsvp`, `POST /claim-item`, `POST /add-item`: Same -- skip password check when the event has no password
 
 ### Guest Event Page (`EventPage.tsx`)
-- Display the message (or the default boilerplate) as a paragraph above the bring list items
-- Uses the `MarkdownContent` component so hosts can use bold, links, etc.
+- On load, check if the event requires a password (new lightweight endpoint or try loading without password first)
+- If the event has no password, load directly without showing the password gate
+- If it has a password, behave as today (check URL hash, localStorage, or prompt)
 
 ### API (`api.ts`)
-- Add `bring_list_message` to the create and update payload types
+- Update `createEvent` to accept `password` as optional
+- Add a `getEventPublic(id)` function or modify `getEvent` to work without a password for public events
+
+## Database Change
+- Make `password_hash` nullable: `ALTER TABLE public.events ALTER COLUMN password_hash DROP NOT NULL;`
+- Set a default of `NULL`: `ALTER TABLE public.events ALTER COLUMN password_hash SET DEFAULT NULL;`
+- The existing placeholder-then-update flow still works; when no password is provided, we simply leave it `NULL`
 
 ## Technical Details
 
-- Column: `bring_list_message text DEFAULT NULL` on `public.events`
-- Frontend default constant: `DEFAULT_BRING_LIST_MESSAGE` defined in a shared location or inline
-- The `MarkdownEditor` component (already used for event description) will be used for editing the message on create and admin pages
-- The `MarkdownContent` component (already used on EventPage) will render the message for guests
+### Password flow logic
+
+```text
+Creating an event:
+  Password toggle OFF --> password_hash = NULL in DB
+  Password toggle ON  --> password_hash = hashed value
+
+Guest accessing event:
+  password_hash IS NULL --> skip password gate, load event directly
+  password_hash IS NOT NULL --> existing flow (hash check, URL fragment, localStorage)
+
+EventCreated page (guest link):
+  No password           --> /event/{id}  (copy: "Anyone with this link can view")
+  Password + embed ON   --> /event/{id}#thepassword  (copy: "Password is embedded in the link")
+  Password + embed OFF  --> /event/{id}  (copy: "Guests will need to enter: [password]")
+```
+
+### Search params passed to `/created`
+The create page will navigate to `/created?id=X&token=Y&password=Z&embed=1` (or omit password/embed when no password is set). The password is passed in the URL only transiently so the created page can build the embedded guest link -- the user is already warned to save these links.
+
+### Edge function changes for passwordless events
+In every endpoint that currently calls `__verify_event_password`, we first check if the event has a `password_hash`. If it is `NULL`, we skip verification. This is done by fetching the event row and checking the field before calling the RPC.
