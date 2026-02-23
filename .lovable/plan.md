@@ -1,62 +1,43 @@
 
-# Add Quantity Support for Bring List Items
+# Add Editable Bring List Message
 
-Allow the event host to request multiple of the same item (e.g., "Salad x2") by adding a `quantity` column to bring list items.
+When the bring list toggle is enabled, show an editable text field with default copy that guests will see above the bring list on the event page.
 
-## How It Works
+## What Changes
 
-- Each bring list item gets a `quantity` field (default 1)
-- On the admin page, when adding an item, the host can specify how many are needed (e.g., "Salad" with quantity 2)
-- On the guest page, each "slot" appears as a separate claimable checkbox. So "Salad x2" shows as two claimable rows: "Salad (1/2)" and "Salad (2/2)"
-- Guests claim individual slots, not the whole quantity at once
+### Database
+- Add a `bring_list_message` text column to the `events` table, defaulting to `NULL` (the app will use boilerplate text when null)
 
-## Database Change
+### Default Message
+When no custom message has been set, the following boilerplate will display:
 
-```sql
-ALTER TABLE public.bring_list_items ADD COLUMN quantity integer NOT NULL DEFAULT 1;
-```
+> "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!"
 
-This stores how many of each item the host wants. Each row still represents one claimable slot. When the admin adds "Salad x2", it inserts 2 separate rows with `item_name = 'Salad'`. This keeps claiming logic unchanged -- each row is independently claimable.
+### Edge Function
+- `POST /create`: Accept optional `bring_list_message` and store it
+- `GET /event` and `GET /admin`: Include `bring_list_message` in the response
+- `PUT /admin/update`: Allow updating `bring_list_message`
 
-## Changes
+### Create Event Page (`Index.tsx`)
+- When bring list is enabled, show a small text area below the toggle pre-filled with the default boilerplate
+- The host can edit it or leave the default
+- Pass `bring_list_message` in the create payload
 
-### Edge Function (`supabase/functions/event-api/index.ts`)
+### Admin Page (`AdminPage.tsx`)
+- Add a `bringListMessage` state field, initialized from event data (or the default boilerplate if null)
+- Show the editable text area in the Bring List card when the toggle is on
+- Include `bring_list_message` in the save payload
 
-- `POST /create`: When processing `bring_items`, accept objects with `{ name, quantity }` instead of plain strings. Insert `quantity` rows for each item.
-- `POST /admin/add-bring-item`: Accept an optional `quantity` param (default 1). Insert that many rows with the same `item_name`.
+### Guest Event Page (`EventPage.tsx`)
+- Display the message (or the default boilerplate) as a paragraph above the bring list items
+- Uses the `MarkdownContent` component so hosts can use bold, links, etc.
 
-### Admin Page (`src/pages/AdminPage.tsx`)
-
-- Add a small quantity input (number, min 1, max 20) next to the "Add item" text input
-- When adding, call the API which inserts multiple rows
-- In the item list, group items by name and show count, e.g., "Salad (2 requested, 1 claimed)"
-- Delete button removes individual rows as before
-
-### Create Event Page (`src/pages/Index.tsx`)
-
-- Add a quantity input next to each bring list item input
-- Store bring items as `{ name: string, quantity: number }[]` instead of `string[]`
-- Pass the structured data to the API
-
-### Guest Page (`src/pages/EventPage.tsx`)
-
-- No structural changes needed -- each row is already independently claimable
-- Items with the same name will naturally appear as separate rows guests can each claim
-
-### API Types (`src/lib/api.ts`)
-
-- Update `CreateEventPayload.bring_items` from `string[]` to `Array<{ name: string; quantity: number }>`
+### API (`api.ts`)
+- Add `bring_list_message` to the create and update payload types
 
 ## Technical Details
 
-### Why multiple rows instead of a quantity column with partial claims?
-
-Using one row per claimable slot keeps the claiming logic simple: each row has a single `claimed_by` field. No need for tracking partial claims, array columns, or join tables. The quantity is effectively the count of rows with the same `item_name` for that event.
-
-### Admin grouping display
-
-On the admin page, items are grouped visually by name for clarity:
-- "Salad" -- 2 total, 1 claimed (by Alice)
-- "Dessert" -- 2 total, 0 claimed
-
-Each individual row still has its own delete button.
+- Column: `bring_list_message text DEFAULT NULL` on `public.events`
+- Frontend default constant: `DEFAULT_BRING_LIST_MESSAGE` defined in a shared location or inline
+- The `MarkdownEditor` component (already used for event description) will be used for editing the message on create and admin pages
+- The `MarkdownContent` component (already used on EventPage) will render the message for guests
