@@ -1,5 +1,5 @@
 import { useSearchParams } from "react-router-dom";
-import { Check, Copy, Link, Shield } from "lucide-react";
+import { Check, Copy, Link, Shield, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState } from "react";
@@ -8,8 +8,12 @@ const EventCreated = () => {
   const [params] = useSearchParams();
   const eventId = params.get("id");
   const adminToken = params.get("token");
+  const password = params.get("password"); // null if no password
+  const embed = params.get("embed") === "1";
 
-  const guestLink = `${window.location.origin}/event/${eventId}`;
+  // Build guest link
+  const baseGuestLink = `${window.location.origin}/event/${eventId}`;
+  const guestLink = password && embed ? `${baseGuestLink}#${password}` : baseGuestLink;
   const adminLink = `${window.location.origin}/admin/${eventId}?token=${adminToken}`;
 
   const [copiedGuest, setCopiedGuest] = useState(false);
@@ -29,6 +33,16 @@ const EventCreated = () => {
     );
   }
 
+  // Determine guest link description
+  let guestDescription: string;
+  if (!password) {
+    guestDescription = "Anyone with this link can view your event — no password required.";
+  } else if (embed) {
+    guestDescription = "The password is embedded in this link. Guests can open it directly without typing anything.";
+  } else {
+    guestDescription = `Guests will need to enter the password "${password}" to view your event.`;
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-xl px-4 py-12 sm:py-20">
@@ -44,12 +58,12 @@ const EventCreated = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Link className="h-5 w-5 text-primary" />
+                {password ? <Link className="h-5 w-5 text-primary" /> : <Globe className="h-5 w-5 text-primary" />}
                 Guest Link
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="mb-3 text-sm text-muted-foreground">Share this with your guests. They'll need the password you set to access the event.</p>
+              <p className="mb-3 text-sm text-muted-foreground">{guestDescription}</p>
               <div className="flex gap-2">
                 <code className="flex-1 overflow-hidden truncate rounded-md bg-muted px-3 py-2 text-sm">{guestLink}</code>
                 <Button variant="outline" size="icon" onClick={() => copyToClipboard(guestLink, "guest")}>

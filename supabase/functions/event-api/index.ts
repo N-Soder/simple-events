@@ -23,6 +23,27 @@ function getServiceClient() {
   );
 }
 
+/** Check if an event requires a password. Returns true if password_hash is set. */
+async function eventRequiresPassword(supabase: ReturnType<typeof getServiceClient>, eventId: string): Promise<boolean | null> {
+  const { data } = await supabase
+    .from("events")
+    .select("password_hash")
+    .eq("id", eventId)
+    .single();
+  if (!data) return null; // event not found
+  return data.password_hash !== null;
+}
+
+/** Verify password for an event. Skips check if event has no password. Returns true if valid. */
+async function verifyEventPassword(supabase: ReturnType<typeof getServiceClient>, eventId: string, password?: string): Promise<boolean> {
+  const requires = await eventRequiresPassword(supabase, eventId);
+  if (requires === null) return false; // event not found
+  if (!requires) return true; // no password needed
+  if (!password) return false; // password needed but not provided
+  const { data } = await supabase.rpc("__verify_event_password", { event_uuid: eventId, pw: password });
+  return data === true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -36,13 +57,12 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const { name, description, event_date, event_time, location, banner_url, password, guest_visibility, bring_items, bring_list_enabled, bring_list_message } = body;
 
-      if (!name || !event_date || !password) {
-        return error("name, event_date, and password are required");
+      if (!name || !event_date) {
+        return error("name and event_date are required");
       }
 
-      // Hash the password
-      const { data: hashResult } = await supabase.rpc("__hash_password", { pw: password }).maybeSingle();
-      // Fallback: use raw SQL
+      const hasPassword = !!password;
+
       const { data: eventRows, error: insertErr } = await supabase
         .from("events")
         .insert({
@@ -52,7 +72,7 @@ Deno.serve(async (req) => {
           event_time: event_time || null,
           location: location || null,
           banner_url: banner_url || null,
-          password_hash: "placeholder",
+          password_hash: hasPassword ? "placeholder" : null,
           guest_visibility: guest_visibility || "full",
           bring_list_enabled: bring_list_enabled !== undefined ? bring_list_enabled : true,
           bring_list_message: bring_list_message || null,
@@ -62,15 +82,16 @@ Deno.serve(async (req) => {
 
       if (insertErr) return error(insertErr.message, 500);
 
-      // Update password hash using raw SQL (pgcrypto)
-      const { error: hashErr } = await supabase.rpc("__update_event_password", {
-        event_uuid: eventRows.id,
-        pw: password,
-      });
+      // Update password hash using pgcrypto (only if password provided)
+      if (hasPassword) {
+        const { error: hashErr } = await supabase.rpc("__update_event_password", {
+          event_uuid: eventRows.id,
+          pw: password,
+        });
+        if (hashErr) return error(hashErr.message, 500);
+      }
 
-      if (hashErr) return error(hashErr.message, 500);
-
-      // Add bring list items (supports { name, quantity } objects or plain strings)
+      // Add bring list items
       if (bring_items && Array.isArray(bring_items) && bring_items.length > 0) {
         const rows: { event_id: string; item_name: string }[] = [];
         for (const item of bring_items) {
@@ -89,13 +110,17 @@ Deno.serve(async (req) => {
     // POST /verify - Verify event password
     if (req.method === "POST" && path === "verify") {
       const { event_id, password } = await req.json();
-      if (!event_id || !password) return error("event_id and password are required");
+      if (!event_id) return error("event_id is required");
 
+      const requires = await eventRequiresPassword(supabase, event_id);
+      if (requires === null) return error("Event not found", 404);
+      if (!requires) return json({ valid: true });
+
+      if (!password) return json({ valid: false });
       const { data, error: err } = await supabase.rpc("__verify_event_password", {
         event_uuid: event_id,
         pw: password,
       });
-
       if (err) return error(err.message, 500);
       return json({ valid: data === true });
     }
@@ -103,17 +128,12 @@ Deno.serve(async (req) => {
     // GET /event?id=...&password=... - Get event data (guest view)
     if (req.method === "GET" && path === "event") {
       const event_id = url.searchParams.get("id");
-      const password = url.searchParams.get("password");
-      if (!event_id || !password) return error("id and password are required");
+      if (!event_id) return error("id is required");
 
-      // Verify password
-      const { data: valid } = await supabase.rpc("__verify_event_password", {
-        event_uuid: event_id,
-        pw: password,
-      });
+      const password = url.searchParams.get("password") || undefined;
+      const valid = await verifyEventPassword(supabase, event_id, password);
       if (!valid) return error("Invalid password", 403);
 
-      // Fetch event (exclude password_hash and admin_token)
       const { data: event } = await supabase
         .from("events")
         .select("id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, created_at")
@@ -122,14 +142,12 @@ Deno.serve(async (req) => {
 
       if (!event) return error("Event not found", 404);
 
-      // Fetch RSVPs
       const { data: rsvps } = await supabase
         .from("rsvps")
         .select("id, guest_name, adults, kids, created_at")
         .eq("event_id", event_id)
         .order("created_at", { ascending: true });
 
-      // Fetch bring list
       const { data: bringItems } = await supabase
         .from("bring_list_items")
         .select("id, item_name, claimed_by, created_at")
@@ -172,13 +190,10 @@ Deno.serve(async (req) => {
     // POST /rsvp - Add RSVP
     if (req.method === "POST" && path === "rsvp") {
       const { event_id, password, guest_name, adults, kids, honeypot } = await req.json();
-      
-      // Honeypot check
-      if (honeypot) return json({ success: true }); // Silently accept but don't save
+      if (honeypot) return json({ success: true });
+      if (!event_id || !guest_name) return error("event_id and guest_name are required");
 
-      if (!event_id || !password || !guest_name) return error("event_id, password, and guest_name are required");
-
-      const { data: valid } = await supabase.rpc("__verify_event_password", { event_uuid: event_id, pw: password });
+      const valid = await verifyEventPassword(supabase, event_id, password);
       if (!valid) return error("Invalid password", 403);
 
       const { data, error: err } = await supabase
@@ -194,9 +209,9 @@ Deno.serve(async (req) => {
     // POST /claim-item - Claim a bring list item
     if (req.method === "POST" && path === "claim-item") {
       const { event_id, password, item_id, claimed_by } = await req.json();
-      if (!event_id || !password || !item_id || !claimed_by) return error("All fields required");
+      if (!event_id || !item_id || !claimed_by) return error("event_id, item_id, and claimed_by are required");
 
-      const { data: valid } = await supabase.rpc("__verify_event_password", { event_uuid: event_id, pw: password });
+      const valid = await verifyEventPassword(supabase, event_id, password);
       if (!valid) return error("Invalid password", 403);
 
       const { data, error: err } = await supabase
@@ -214,9 +229,9 @@ Deno.serve(async (req) => {
     // POST /add-item - Add custom bring list item
     if (req.method === "POST" && path === "add-item") {
       const { event_id, password, item_name, claimed_by } = await req.json();
-      if (!event_id || !password || !item_name) return error("event_id, password, and item_name are required");
+      if (!event_id || !item_name) return error("event_id and item_name are required");
 
-      const { data: valid } = await supabase.rpc("__verify_event_password", { event_uuid: event_id, pw: password });
+      const valid = await verifyEventPassword(supabase, event_id, password);
       if (!valid) return error("Invalid password", 403);
 
       const { data, error: err } = await supabase
@@ -234,7 +249,6 @@ Deno.serve(async (req) => {
       const { event_id, admin_token, ...updates } = await req.json();
       if (!event_id || !admin_token) return error("event_id and admin_token required");
 
-      // Verify admin
       const { data: event } = await supabase
         .from("events")
         .select("id")
@@ -244,7 +258,6 @@ Deno.serve(async (req) => {
 
       if (!event) return error("Invalid admin token", 403);
 
-      // Filter allowed fields
       const allowed: Record<string, unknown> = {};
       for (const key of ["name", "description", "event_date", "event_time", "location", "banner_url", "guest_visibility", "bring_list_enabled", "bring_list_message"]) {
         if (updates[key] !== undefined) allowed[key] = updates[key];
@@ -258,7 +271,7 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
-    // POST /admin/add-bring-item - Admin add bring list item (supports quantity)
+    // POST /admin/add-bring-item
     if (req.method === "POST" && path === "admin/add-bring-item") {
       const { event_id, admin_token, item_name, quantity } = await req.json();
       if (!event_id || !admin_token || !item_name) return error("All fields required");
@@ -273,7 +286,7 @@ Deno.serve(async (req) => {
       return json(data);
     }
 
-    // DELETE /admin/delete-bring-item - Admin delete bring list item
+    // DELETE /admin/delete-bring-item
     if (req.method === "DELETE" && path === "admin/delete-bring-item") {
       const { event_id, admin_token, item_id } = await req.json();
       if (!event_id || !admin_token || !item_id) return error("All fields required");
@@ -285,7 +298,7 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
-    // DELETE /admin/delete-rsvp - Admin delete RSVP
+    // DELETE /admin/delete-rsvp
     if (req.method === "DELETE" && path === "admin/delete-rsvp") {
       const { event_id, admin_token, rsvp_id } = await req.json();
       if (!event_id || !admin_token || !rsvp_id) return error("All fields required");
