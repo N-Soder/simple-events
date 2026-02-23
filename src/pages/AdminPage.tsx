@@ -52,6 +52,7 @@ const AdminPage = () => {
   const [location, setLocation] = useState("");
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
   const [bringListEnabled, setBringListEnabled] = useState(true);
+  const [bringListMessage, setBringListMessage] = useState("If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
 
@@ -68,6 +69,7 @@ const AdminPage = () => {
       setLocation(result.event.location || "");
       setVisibility(result.event.guest_visibility);
       setBringListEnabled(result.event.bring_list_enabled);
+      setBringListMessage(result.event.bring_list_message || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
     } catch {
       toast({ title: "Invalid admin link", variant: "destructive" });
     } finally {
@@ -82,7 +84,7 @@ const AdminPage = () => {
     setSaving(true);
     try {
       await updateEvent(id, token, {
-        name, description, event_date: eventDate, event_time: eventTime || null, location, guest_visibility: visibility, bring_list_enabled: bringListEnabled,
+        name, description, event_date: eventDate, event_time: eventTime || null, location, guest_visibility: visibility, bring_list_enabled: bringListEnabled, bring_list_message: bringListMessage,
       });
       toast({ title: "Event updated!" });
       loadData();
@@ -256,6 +258,15 @@ const AdminPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div>
+              <Label>Message for guests</Label>
+              <MarkdownEditor
+                value={bringListMessage}
+                onChange={setBringListMessage}
+                placeholder="Message shown above the bring list..."
+                rows={2}
+              />
+            </div>
             {data.bring_items.length > 0 && (
               <ul className="space-y-2">
                 {data.bring_items.map((item) => (

@@ -22,6 +22,7 @@ interface EventData {
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
+    bring_list_message: string | null;
   };
   rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
   bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
@@ -279,6 +280,7 @@ const EventPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <MarkdownContent content={event.bring_list_message || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!"} />
               <ul className="space-y-2">
                 {bring_items.map((item) => (
                   <li key={item.id} className="flex items-center gap-3 rounded-md border px-3 py-2">

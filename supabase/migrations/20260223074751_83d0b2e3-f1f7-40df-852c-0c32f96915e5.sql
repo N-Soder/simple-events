@@ -1,0 +1,1 @@
+ALTER TABLE public.events ADD COLUMN bring_list_message text DEFAULT NULL;
