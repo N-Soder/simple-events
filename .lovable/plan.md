@@ -1,65 +1,88 @@
 
-# Optional Password with Embed-in-URL Toggle
+# Unified RSVP + Bring List Flow with Grouped Items
 
-Make the guest password optional and, when a password is set, let the host choose whether to embed it directly in the guest link.
+## Overview
+Wrap the RSVP form and bring list inside a single `<form>` so the "Submit RSVP" button sits at the very bottom -- below the bring list when visible. Also group duplicate bring list items (e.g. 3x "salad") into a single compact row with a counter selector.
 
-## What Changes
+## Changes (all in `src/pages/EventPage.tsx`)
 
-### Create Event Page (`Index.tsx`)
-- Change the password field from required to optional
-- Add a toggle: "Require password" (default off). When enabled, show the password input
-- Below the password input, add a second toggle: "Embed password in guest link" (default on). This controls whether the created-page guest link includes `#password` in the URL
-- Update the Zod schema to make `password` optional (empty string or undefined when disabled)
-- Pass a new flag `embed_password` (and the raw password value) to the `/created` page via search params so it can build the correct guest link
+### 1. Merge RSVP Card and Bring List Card into one form
+- Remove the standalone RSVP `<Card>` and the standalone Bring List `<Card>`
+- Replace with a single `<Card>` titled "RSVP" that contains:
+  1. Name, Adults, Kids fields (same as today)
+  2. Bring List section (if enabled and items exist) -- rendered as a sub-section with the utensils icon header, markdown message, grouped items, custom item input
+  3. "Submit RSVP" button at the bottom of the card
+- The whole card is one `<form onSubmit={handleRsvp}>` so everything submits together
 
-### Event Created Page (`EventCreated.tsx`)
-- Read `password` and `embed` from the search params (passed from the create flow)
-- If a password was set and embed is enabled: guest link becomes `/event/{id}#password`
-- If a password was set but embed is disabled: guest link stays `/event/{id}` with a note that guests will need to enter the password manually
-- If no password was set: guest link is just `/event/{id}` with a note that the event is open to anyone with the link
-- Update the descriptive copy under the guest link card accordingly
+### 2. Group duplicate bring list items
+Instead of rendering each DB row individually, group items by `item_name`:
 
-### Edge Function (`event-api/index.ts`)
-- `POST /create`: Make `password` optional. When no password is provided, store a `NULL` password hash (or a sentinel value)
-- `POST /verify`: If the event has no password hash, return `{ valid: true }` immediately
-- `GET /event`: If the event has no password, skip password verification and return the data directly (accept requests without a `password` param)
-- `POST /rsvp`, `POST /claim-item`, `POST /add-item`: Same -- skip password check when the event has no password
+- Build a grouped data structure: `{ name: string, total: number, claimed: number, claimedByNames: string[], availableIds: string[] }`
+- For each group, render a single row showing:
+  - Item name with count badge: **salad** x 3
+  - Status: "2 of 3 claimed" in muted text
+  - If unclaimed slots exist: a small +/- stepper or a number input (capped at available count) letting the guest choose how many they want to bring
+  - If fully claimed: show a check icon with "All claimed" in muted text
+- This replaces the long flat list of individual checkboxes
 
-### Guest Event Page (`EventPage.tsx`)
-- On load, check if the event requires a password (new lightweight endpoint or try loading without password first)
-- If the event has no password, load directly without showing the password gate
-- If it has a password, behave as today (check URL hash, localStorage, or prompt)
+### 3. Update selection state
+- Change `selectedItems` from `Set<string>` (item IDs) to a smarter structure
+- Use a `Map<string, string[]>` keyed by item name, where the value is the array of item IDs the guest wants to claim
+- When the guest picks "2 salads", we grab the first 2 available (unclaimed) IDs from that group
+- `toggleItem` is replaced with an `updateItemCount(itemName: string, count: number)` function that slices the appropriate number of available IDs
 
-### API (`api.ts`)
-- Update `createEvent` to accept `password` as optional
-- Add a `getEventPublic(id)` function or modify `getEvent` to work without a password for public events
+### 4. Submit button placement
+- The button moves from inside the RSVP-only card to after the bring list section, still within the same `<form>`
+- Visually it sits at the bottom of the combined card
 
-## Database Change
-- Make `password_hash` nullable: `ALTER TABLE public.events ALTER COLUMN password_hash DROP NOT NULL;`
-- Set a default of `NULL`: `ALTER TABLE public.events ALTER COLUMN password_hash SET DEFAULT NULL;`
-- The existing placeholder-then-update flow still works; when no password is provided, we simply leave it `NULL`
+## Visual Layout (approximate)
+
+```text
++----------------------------------+
+| RSVP                             |
+|                                  |
+| Your Name *  [_______________]   |
+| Adults [__]    Kids [__]         |
+|                                  |
+| --- Bring List -----------------  |
+| (markdown message)               |
+|                                  |
+| salad x 3      1/3 claimed  [-1+]|
+| drinks x 3     1/3 claimed  [-1+]|
+| (custom items listed here)       |
+| [Add your own item...] [+]      |
+|                                  |
+| [Submit RSVP]                    |
++----------------------------------+
+```
 
 ## Technical Details
 
-### Password flow logic
-
-```text
-Creating an event:
-  Password toggle OFF --> password_hash = NULL in DB
-  Password toggle ON  --> password_hash = hashed value
-
-Guest accessing event:
-  password_hash IS NULL --> skip password gate, load event directly
-  password_hash IS NOT NULL --> existing flow (hash check, URL fragment, localStorage)
-
-EventCreated page (guest link):
-  No password           --> /event/{id}  (copy: "Anyone with this link can view")
-  Password + embed ON   --> /event/{id}#thepassword  (copy: "Password is embedded in the link")
-  Password + embed OFF  --> /event/{id}  (copy: "Guests will need to enter: [password]")
+### Grouping logic (computed from `bring_items`)
+```typescript
+const grouped = useMemo(() => {
+  const map = new Map<string, { total: number; claimed: number; claimedBy: string[]; availableIds: string[] }>();
+  for (const item of bring_items) {
+    const entry = map.get(item.item_name) || { total: 0, claimed: 0, claimedBy: [], availableIds: [] };
+    entry.total++;
+    if (item.claimed_by) {
+      entry.claimed++;
+      entry.claimedBy.push(item.claimed_by);
+    } else {
+      entry.availableIds.push(item.id);
+    }
+    map.set(item.item_name, entry);
+  }
+  return Array.from(map.entries());
+}, [bring_items]);
 ```
 
-### Search params passed to `/created`
-The create page will navigate to `/created?id=X&token=Y&password=Z&embed=1` (or omit password/embed when no password is set). The password is passed in the URL only transiently so the created page can build the embedded guest link -- the user is already warned to save these links.
+### Selection state change
+- Replace `selectedItems: Set<string>` with `selectedCounts: Map<string, number>` (item name to count)
+- On submit, resolve counts back to actual item IDs by taking the first N available IDs from each group
+- The claim promises are built from these resolved IDs (same `claimItem` API calls as before)
 
-### Edge function changes for passwordless events
-In every endpoint that currently calls `__verify_event_password`, we first check if the event has a `password_hash`. If it is `NULL`, we skip verification. This is done by fetching the event row and checking the field before calling the RPC.
+### Stepper UI per grouped row
+- Show a compact +/- control (two small buttons around a number) when `availableIds.length > 0`
+- Min 0, max = number of available (unclaimed) slots
+- When total is 1 and unclaimed, fall back to a simple checkbox for simplicity
