@@ -21,7 +21,7 @@ const schema = z.object({
   event_date: z.string().min(1, "Date is required"),
   event_time: z.string().optional(),
   location: z.string().trim().max(500).optional(),
-  password: z.string().min(1, "Password is required").max(100),
+  password: z.string().max(100).optional(),
   guest_visibility: z.enum(["full", "count_only", "hidden"]),
 });
 
@@ -30,6 +30,8 @@ type FormData = z.infer<typeof schema>;
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [requirePassword, setRequirePassword] = useState(false);
+  const [embedPassword, setEmbedPassword] = useState(true);
   const [bringListEnabled, setBringListEnabled] = useState(true);
   const [bringItems, setBringItems] = useState<{ name: string; quantity: number }[]>([]);
   const [newItem, setNewItem] = useState("");
@@ -75,13 +77,15 @@ const Index = () => {
         banner_url = await uploadBanner(bannerFile);
       }
 
+      const password = requirePassword ? data.password : undefined;
+
       const result = await createEvent({
         name: data.name,
         description: data.description,
         event_date: data.event_date,
         event_time: data.event_time,
         location: data.location,
-        password: data.password,
+        password,
         guest_visibility: data.guest_visibility,
         bring_list_enabled: bringListEnabled,
         banner_url,
@@ -89,7 +93,17 @@ const Index = () => {
         bring_list_message: bringListEnabled ? bringListMessage : undefined,
       });
 
-      navigate(`/created?id=${result.id}&token=${result.admin_token}`);
+      // Build created page URL with password + embed info
+      const createdParams = new URLSearchParams({
+        id: result.id,
+        token: result.admin_token,
+      });
+      if (password) {
+        createdParams.set("password", password);
+        if (embedPassword) createdParams.set("embed", "1");
+      }
+
+      navigate(`/created?${createdParams.toString()}`);
     } catch (err: any) {
       toast({ title: "Error creating event", description: err.message, variant: "destructive" });
     } finally {
@@ -188,10 +202,34 @@ const Index = () => {
 
               {/* Password */}
               <div>
-                <Label htmlFor="password">Guest Password *</Label>
-                <Input id="password" type="text" placeholder="A simple password for your guests" {...register("password")} className="mt-1.5" />
-                {errors.password && <p className="mt-1 text-sm text-destructive">{errors.password.message}</p>}
-                <p className="mt-1 text-xs text-muted-foreground">Guests will need this to view your event.</p>
+                <div className="mb-3 flex items-center justify-between">
+                  <Label>Require Guest Password</Label>
+                  <Switch checked={requirePassword} onCheckedChange={setRequirePassword} />
+                </div>
+                {!requirePassword && (
+                  <p className="text-sm text-muted-foreground">Anyone with the link can view your event.</p>
+                )}
+                {requirePassword && (
+                  <div className="space-y-3">
+                    <div>
+                      <Input
+                        id="password"
+                        type="text"
+                        placeholder="A simple password for your guests"
+                        {...register("password")}
+                        className="mt-1.5"
+                      />
+                      {errors.password && <p className="mt-1 text-sm text-destructive">{errors.password.message}</p>}
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-medium">Embed password in guest link</p>
+                        <p className="text-xs text-muted-foreground">Guests won't need to type it — it's in the URL</p>
+                      </div>
+                      <Switch checked={embedPassword} onCheckedChange={setEmbedPassword} />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Guest Visibility */}

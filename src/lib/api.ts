@@ -23,7 +23,7 @@ export async function createEvent(params: {
   event_time?: string;
   location?: string;
   banner_url?: string;
-  password: string;
+  password?: string;
   guest_visibility: "full" | "count_only" | "hidden";
   bring_list_enabled?: boolean;
   bring_items: Array<{ name: string; quantity: number }>;
@@ -36,8 +36,10 @@ export async function verifyPassword(event_id: string, password: string) {
   return apiFetch("verify", { method: "POST", body: JSON.stringify({ event_id, password }) });
 }
 
-export async function getEvent(id: string, password: string) {
-  return apiFetch(`event?id=${id}&password=${encodeURIComponent(password)}`);
+export async function getEvent(id: string, password?: string) {
+  const params = new URLSearchParams({ id });
+  if (password) params.set("password", password);
+  return apiFetch(`event?${params.toString()}`);
 }
 
 export async function getAdminEvent(id: string, token: string) {
@@ -46,7 +48,7 @@ export async function getAdminEvent(id: string, token: string) {
 
 export async function submitRsvp(params: {
   event_id: string;
-  password: string;
+  password?: string;
   guest_name: string;
   adults: number;
   kids: number;
@@ -55,14 +57,14 @@ export async function submitRsvp(params: {
   return apiFetch("rsvp", { method: "POST", body: JSON.stringify(params) });
 }
 
-export async function claimItem(event_id: string, password: string, item_id: string, claimed_by: string) {
+export async function claimItem(event_id: string, password: string | undefined, item_id: string, claimed_by: string) {
   return apiFetch("claim-item", {
     method: "POST",
     body: JSON.stringify({ event_id, password, item_id, claimed_by }),
   });
 }
 
-export async function addCustomItem(event_id: string, password: string, item_name: string, claimed_by?: string) {
+export async function addCustomItem(event_id: string, password: string | undefined, item_name: string, claimed_by?: string) {
   return apiFetch("add-item", {
     method: "POST",
     body: JSON.stringify({ event_id, password, item_name, claimed_by }),

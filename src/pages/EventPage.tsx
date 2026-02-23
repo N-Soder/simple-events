@@ -31,11 +31,12 @@ interface EventData {
 const EventPage = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState<string | undefined>(undefined);
   const [authenticated, setAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [data, setData] = useState<EventData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [needsPassword, setNeedsPassword] = useState<boolean | null>(null); // null = unknown
 
   // RSVP form
   const [guestName, setGuestName] = useState("");
@@ -49,19 +50,26 @@ const EventPage = () => {
   const [customItems, setCustomItems] = useState<string[]>([]);
   const [customItemInput, setCustomItemInput] = useState("");
 
-  // Check URL hash for password
+  // On mount: try loading the event
   useEffect(() => {
+    if (!id) return;
+
     const hash = window.location.hash.slice(1);
+    const saved = localStorage.getItem(`event_pw_${id}`);
+
     if (hash) {
-      setPassword(hash);
+      // Password embedded in URL
       loadEvent(hash);
+    } else if (saved) {
+      // Previously saved password
+      loadEvent(saved);
     } else {
-      const saved = localStorage.getItem(`event_pw_${id}`);
-      if (saved) loadEvent(saved);
+      // Try loading without password (public event)
+      loadEvent(undefined);
     }
   }, [id]);
 
-  const loadEvent = async (pw: string) => {
+  const loadEvent = async (pw: string | undefined) => {
     if (!id) return;
     setLoading(true);
     try {
@@ -69,10 +77,17 @@ const EventPage = () => {
       setData(result);
       setAuthenticated(true);
       setPassword(pw);
-      if (id) localStorage.setItem(`event_pw_${id}`, pw);
+      setNeedsPassword(false);
+      if (pw && id) localStorage.setItem(`event_pw_${id}`, pw);
     } catch {
-      if (id) localStorage.removeItem(`event_pw_${id}`);
-      toast({ title: "Invalid password", variant: "destructive" });
+      // If we tried without a password and it failed, the event needs one
+      if (!pw) {
+        setNeedsPassword(true);
+      } else {
+        if (id) localStorage.removeItem(`event_pw_${id}`);
+        toast({ title: "Invalid password", variant: "destructive" });
+        setNeedsPassword(true);
+      }
       setAuthenticated(false);
     } finally {
       setLoading(false);
@@ -138,8 +153,17 @@ const EventPage = () => {
     setCustomItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Password Gate
-  if (!authenticated) {
+  // Loading state
+  if (loading && !authenticated) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+        <p className="text-muted-foreground">Loading...</p>
+      </main>
+    );
+  }
+
+  // Password Gate — only show if event requires a password and we're not authenticated
+  if (!authenticated && needsPassword) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-sm">
