@@ -310,6 +310,89 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
+    // GET /rsvp/manage?event_id=...&rsvp_id=...&code=... - Fetch RSVP by manage code
+    if (req.method === "GET" && path === "rsvp/manage") {
+      const event_id = url.searchParams.get("event_id");
+      const rsvp_id = url.searchParams.get("rsvp_id");
+      const code = url.searchParams.get("code");
+      if (!event_id || !rsvp_id || !code) return error("event_id, rsvp_id, and code are required");
+
+      const { data: rsvp } = await supabase
+        .from("rsvps")
+        .select("id, guest_name, adults, kids, manage_code, created_at")
+        .eq("id", rsvp_id)
+        .eq("event_id", event_id)
+        .eq("manage_code", code)
+        .maybeSingle();
+
+      if (!rsvp) return error("RSVP not found or invalid code", 404);
+
+      const { data: claimedItems } = await supabase
+        .from("bring_list_items")
+        .select("id, item_name")
+        .eq("event_id", event_id)
+        .eq("claimed_by", rsvp.guest_name);
+
+      return json({ rsvp, claimed_items: claimedItems || [] });
+    }
+
+    // PUT /rsvp/update - Update an existing RSVP via manage code
+    if (req.method === "PUT" && path === "rsvp/update") {
+      const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_item_ids, custom_items, event_id } = await req.json();
+      if (!rsvp_id || !manage_code) return error("rsvp_id and manage_code required");
+
+      const { data: rsvp } = await supabase
+        .from("rsvps")
+        .select("id, event_id, guest_name")
+        .eq("id", rsvp_id)
+        .eq("manage_code", manage_code)
+        .maybeSingle();
+
+      if (!rsvp) return error("Invalid manage code", 403);
+
+      const oldName = rsvp.guest_name;
+      const newName = guest_name || oldName;
+
+      // Update RSVP fields
+      const updates: Record<string, unknown> = {};
+      if (guest_name !== undefined) updates.guest_name = guest_name;
+      if (adults !== undefined) updates.adults = adults;
+      if (kids !== undefined) updates.kids = kids;
+
+      if (Object.keys(updates).length > 0) {
+        const { error: err } = await supabase.from("rsvps").update(updates).eq("id", rsvp_id);
+        if (err) return error(err.message, 500);
+      }
+
+      // If name changed, update claimed_by on bring list items
+      if (guest_name && guest_name !== oldName) {
+        await supabase.from("bring_list_items").update({ claimed_by: guest_name }).eq("event_id", rsvp.event_id).eq("claimed_by", oldName);
+      }
+
+      // Unclaim items
+      if (unclaim_item_ids && Array.isArray(unclaim_item_ids)) {
+        for (const itemId of unclaim_item_ids) {
+          await supabase.from("bring_list_items").update({ claimed_by: null }).eq("id", itemId).eq("event_id", rsvp.event_id);
+        }
+      }
+
+      // Claim new items
+      if (claim_item_ids && Array.isArray(claim_item_ids)) {
+        for (const itemId of claim_item_ids) {
+          await supabase.from("bring_list_items").update({ claimed_by: newName }).eq("id", itemId).eq("event_id", rsvp.event_id).is("claimed_by", null);
+        }
+      }
+
+      // Add custom items
+      if (custom_items && Array.isArray(custom_items)) {
+        for (const itemName of custom_items) {
+          await supabase.from("bring_list_items").insert({ event_id: rsvp.event_id, item_name: itemName, claimed_by: newName });
+        }
+      }
+
+      return json({ success: true });
+    }
+
     return error("Not found", 404);
   } catch (e) {
     return error(e.message || "Internal error", 500);
