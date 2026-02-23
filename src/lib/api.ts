@@ -99,6 +99,25 @@ export async function adminDeleteRsvp(event_id: string, admin_token: string, rsv
   });
 }
 
+export async function getRsvpByManageCode(event_id: string, rsvp_id: string, manage_code: string) {
+  const params = new URLSearchParams({ event_id, rsvp_id, code: manage_code });
+  return apiFetch(`rsvp/manage?${params.toString()}`);
+}
+
+export async function updateRsvp(params: {
+  rsvp_id: string;
+  manage_code: string;
+  event_id: string;
+  guest_name?: string;
+  adults?: number;
+  kids?: number;
+  unclaim_item_ids?: string[];
+  claim_item_ids?: string[];
+  custom_items?: string[];
+}) {
+  return apiFetch("rsvp/update", { method: "PUT", body: JSON.stringify(params) });
+}
+
 export async function uploadBanner(file: File): Promise<string> {
   const fileName = `${crypto.randomUUID()}-${file.name}`;
   const { data, error } = await supabase.storage.from("banners").upload(fileName, file);

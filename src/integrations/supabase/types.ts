@@ -108,6 +108,7 @@ export type Database = {
           guest_name: string
           id: string
           kids: number
+          manage_code: string
         }
         Insert: {
           adults?: number
@@ -116,6 +117,7 @@ export type Database = {
           guest_name: string
           id?: string
           kids?: number
+          manage_code?: string
         }
         Update: {
           adults?: number
@@ -124,6 +126,7 @@ export type Database = {
           guest_name?: string
           id?: string
           kids?: number
+          manage_code?: string
         }
         Relationships: [
           {
