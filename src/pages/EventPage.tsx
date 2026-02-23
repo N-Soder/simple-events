@@ -1,15 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, X, Check } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { getEvent, submitRsvp, claimItem, addCustomItem } from "@/lib/api";
 import { format } from "date-fns";
 import MarkdownContent from "@/components/MarkdownContent";
+import BringListSection from "@/components/BringListSection";
 
 interface EventData {
   event: {
@@ -36,7 +36,7 @@ const EventPage = () => {
   const [passwordInput, setPasswordInput] = useState("");
   const [data, setData] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [needsPassword, setNeedsPassword] = useState<boolean | null>(null); // null = unknown
+  const [needsPassword, setNeedsPassword] = useState<boolean | null>(null);
 
   // RSVP form
   const [guestName, setGuestName] = useState("");
@@ -45,28 +45,19 @@ const EventPage = () => {
   const [honeypot, setHoneypot] = useState("");
   const [submittingRsvp, setSubmittingRsvp] = useState(false);
 
-  // Bring list (batched)
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  // Bring list state — map of item name → count selected
+  const [selectedCounts, setSelectedCounts] = useState<Map<string, number>>(new Map());
   const [customItems, setCustomItems] = useState<string[]>([]);
   const [customItemInput, setCustomItemInput] = useState("");
 
   // On mount: try loading the event
   useEffect(() => {
     if (!id) return;
-
     const hash = window.location.hash.slice(1);
     const saved = localStorage.getItem(`event_pw_${id}`);
-
-    if (hash) {
-      // Password embedded in URL
-      loadEvent(hash);
-    } else if (saved) {
-      // Previously saved password
-      loadEvent(saved);
-    } else {
-      // Try loading without password (public event)
-      loadEvent(undefined);
-    }
+    if (hash) loadEvent(hash);
+    else if (saved) loadEvent(saved);
+    else loadEvent(undefined);
   }, [id]);
 
   const loadEvent = async (pw: string | undefined) => {
@@ -80,7 +71,6 @@ const EventPage = () => {
       setNeedsPassword(false);
       if (pw && id) localStorage.setItem(`event_pw_${id}`, pw);
     } catch {
-      // If we tried without a password and it failed, the event needs one
       if (!pw) {
         setNeedsPassword(true);
       } else {
@@ -99,6 +89,29 @@ const EventPage = () => {
     loadEvent(passwordInput);
   };
 
+  // Build a lookup from item name → available IDs for resolving counts on submit
+  const groupedAvailableIds = useMemo(() => {
+    if (!data) return new Map<string, string[]>();
+    const map = new Map<string, string[]>();
+    for (const item of data.bring_items) {
+      if (!item.claimed_by) {
+        const ids = map.get(item.item_name) || [];
+        ids.push(item.id);
+        map.set(item.item_name, ids);
+      }
+    }
+    return map;
+  }, [data]);
+
+  const handleUpdateCount = (itemName: string, count: number) => {
+    setSelectedCounts((prev) => {
+      const next = new Map(prev);
+      if (count <= 0) next.delete(itemName);
+      else next.set(itemName, count);
+      return next;
+    });
+  };
+
   const handleRsvp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !guestName.trim()) return;
@@ -106,8 +119,14 @@ const EventPage = () => {
     try {
       await submitRsvp({ event_id: id, password, guest_name: guestName.trim(), adults, kids, honeypot });
 
-      // Batch claim selected items
-      const claimPromises = Array.from(selectedItems).map((itemId) =>
+      // Resolve selected counts to actual item IDs
+      const claimIds: string[] = [];
+      selectedCounts.forEach((count, itemName) => {
+        const available = groupedAvailableIds.get(itemName) || [];
+        claimIds.push(...available.slice(0, count));
+      });
+
+      const claimPromises = claimIds.map((itemId) =>
         claimItem(id, password, itemId, guestName.trim()).catch(() => null)
       );
       const customPromises = customItems.map((name) =>
@@ -116,7 +135,7 @@ const EventPage = () => {
       const results = await Promise.all([...claimPromises, ...customPromises]);
       const failures = results.filter((r) => r === null).length;
       if (failures > 0) {
-        toast({ title: "RSVP submitted!", description: `${failures} item(s) couldn't be claimed.`, variant: "default" });
+        toast({ title: "RSVP submitted!", description: `${failures} item(s) couldn't be claimed.` });
       } else {
         toast({ title: "RSVP submitted!" });
       }
@@ -124,7 +143,7 @@ const EventPage = () => {
       setGuestName("");
       setAdults(1);
       setKids(0);
-      setSelectedItems(new Set());
+      setSelectedCounts(new Map());
       setCustomItems([]);
       loadEvent(password);
     } catch (err: any) {
@@ -132,15 +151,6 @@ const EventPage = () => {
     } finally {
       setSubmittingRsvp(false);
     }
-  };
-
-  const toggleItem = (itemId: string) => {
-    setSelectedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) next.delete(itemId);
-      else next.add(itemId);
-      return next;
-    });
   };
 
   const handleAddCustom = () => {
@@ -162,7 +172,7 @@ const EventPage = () => {
     );
   }
 
-  // Password Gate — only show if event requires a password and we're not authenticated
+  // Password Gate
   if (!authenticated && needsPassword) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -193,6 +203,7 @@ const EventPage = () => {
   const { event, rsvps, bring_items } = data;
   const totalAdults = rsvps.reduce((s, r) => s + r.adults, 0);
   const totalKids = rsvps.reduce((s, r) => s + r.kids, 0);
+  const showBringList = event.bring_list_enabled && bring_items.length > 0;
 
   return (
     <main className="min-h-screen bg-background">
@@ -261,13 +272,13 @@ const EventPage = () => {
           </Card>
         )}
 
-        {/* RSVP Form */}
+        {/* Unified RSVP + Bring List Form */}
         <Card className="mt-6">
           <CardHeader>
             <CardTitle className="text-lg">RSVP</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleRsvp} className="space-y-4">
+            <form onSubmit={handleRsvp} className="space-y-6">
               {/* Honeypot - hidden from humans */}
               <div className="absolute -left-[9999px]" aria-hidden="true">
                 <input tabIndex={-1} value={honeypot} onChange={(e) => setHoneypot(e.target.value)} autoComplete="off" />
@@ -287,69 +298,28 @@ const EventPage = () => {
                   <Input id="kids" type="number" min={0} max={20} value={kids} onChange={(e) => setKids(parseInt(e.target.value) || 0)} className="mt-1.5" />
                 </div>
               </div>
-              <Button type="submit" disabled={submittingRsvp}>
+
+              {/* Bring List Section */}
+              {showBringList && (
+                <BringListSection
+                  items={bring_items}
+                  message={event.bring_list_message}
+                  selectedCounts={selectedCounts}
+                  onUpdateCount={handleUpdateCount}
+                  customItems={customItems}
+                  customItemInput={customItemInput}
+                  onCustomItemInputChange={setCustomItemInput}
+                  onAddCustomItem={handleAddCustom}
+                  onRemoveCustomItem={removeCustomItem}
+                />
+              )}
+
+              <Button type="submit" className="w-full" disabled={submittingRsvp}>
                 {submittingRsvp ? "Submitting..." : "Submit RSVP"}
               </Button>
             </form>
           </CardContent>
         </Card>
-
-        {/* Bring List */}
-        {event.bring_list_enabled && bring_items.length > 0 && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <UtensilsCrossed className="h-5 w-5" />
-                Bring List
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <MarkdownContent content={event.bring_list_message || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!"} />
-              <ul className="space-y-2">
-                {bring_items.map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
-                    {item.claimed_by ? (
-                      <>
-                        <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="font-medium">{item.item_name}</span>
-                        <span className="ml-auto text-sm text-muted-foreground">— {item.claimed_by}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Checkbox
-                          checked={selectedItems.has(item.id)}
-                          onCheckedChange={() => toggleItem(item.id)}
-                        />
-                        <span className="font-medium">{item.item_name}</span>
-                      </>
-                    )}
-                  </li>
-                ))}
-                {customItems.map((name, i) => (
-                  <li key={`custom-${i}`} className="flex items-center gap-3 rounded-md border border-dashed px-3 py-2">
-                    <Check className="h-4 w-4 shrink-0 text-primary" />
-                    <span className="font-medium">{name}</span>
-                    <Button variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => removeCustomItem(i)}>
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="flex gap-2 pt-2">
-                <Input
-                  placeholder="Add your own item..."
-                  value={customItemInput}
-                  onChange={(e) => setCustomItemInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCustom(); } }}
-                />
-                <Button variant="outline" size="icon" onClick={handleAddCustom}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </main>
   );
