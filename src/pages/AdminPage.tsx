@@ -53,6 +53,7 @@ const AdminPage = () => {
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
   const [bringListEnabled, setBringListEnabled] = useState(true);
   const [newItem, setNewItem] = useState("");
+  const [newItemQty, setNewItemQty] = useState(1);
 
   const loadData = async () => {
     if (!id || !token) return;
@@ -95,8 +96,9 @@ const AdminPage = () => {
   const handleAddItem = async () => {
     if (!id || !newItem.trim()) return;
     try {
-      await adminAddBringItem(id, token, newItem.trim());
+      await adminAddBringItem(id, token, newItem.trim(), Math.min(Math.max(newItemQty, 1), 20));
       setNewItem("");
+      setNewItemQty(1);
       loadData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -275,6 +277,16 @@ const AdminPage = () => {
                 value={newItem}
                 onChange={(e) => setNewItem(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddItem(); } }}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                value={newItemQty}
+                onChange={(e) => setNewItemQty(parseInt(e.target.value) || 1)}
+                className="w-16"
+                title="Quantity"
               />
               <Button variant="outline" size="icon" onClick={handleAddItem}>
                 <Plus className="h-4 w-4" />

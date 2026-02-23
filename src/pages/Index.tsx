@@ -31,8 +31,9 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [bringListEnabled, setBringListEnabled] = useState(true);
-  const [bringItems, setBringItems] = useState<string[]>([]);
+  const [bringItems, setBringItems] = useState<{ name: string; quantity: number }[]>([]);
   const [newItem, setNewItem] = useState("");
+  const [newItemQty, setNewItemQty] = useState(1);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,9 +47,10 @@ const Index = () => {
 
   const addItem = () => {
     const trimmed = newItem.trim();
-    if (trimmed && !bringItems.includes(trimmed)) {
-      setBringItems([...bringItems, trimmed]);
+    if (trimmed) {
+      setBringItems([...bringItems, { name: trimmed, quantity: Math.min(Math.max(newItemQty, 1), 20) }]);
       setNewItem("");
+      setNewItemQty(1);
     }
   };
 
@@ -240,6 +242,16 @@ const Index = () => {
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={newItemQty}
+                    onChange={(e) => setNewItemQty(parseInt(e.target.value) || 1)}
+                    className="w-16"
+                    title="Quantity"
                   />
                   <Button type="button" variant="outline" size="icon" onClick={addItem}>
                     <Plus className="h-4 w-4" />
@@ -249,7 +261,7 @@ const Index = () => {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {bringItems.map((item, i) => (
                       <span key={i} className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-sm">
-                        {item}
+                        {item.name}{item.quantity > 1 ? ` ×${item.quantity}` : ""}
                         <button type="button" onClick={() => removeItem(i)} className="ml-1 text-muted-foreground hover:text-foreground">
                           <X className="h-3 w-3" />
                         </button>
