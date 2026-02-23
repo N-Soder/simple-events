@@ -1,88 +1,93 @@
 
-# Unified RSVP + Bring List Flow with Grouped Items
+# RSVP Success Screen, Edit Link, and Returning Guest Detection
 
 ## Overview
-Wrap the RSVP form and bring list inside a single `<form>` so the "Submit RSVP" button sits at the very bottom -- below the bring list when visible. Also group duplicate bring list items (e.g. 3x "salad") into a single compact row with a counter selector.
+After submitting an RSVP, show a success screen with a unique edit link. Store the RSVP locally so returning guests see their submission instead of the RSVP form. The edit link uses a `manage_code` stored on the RSVP row for secure access without exposing guest names.
 
-## Changes (all in `src/pages/EventPage.tsx`)
+## Database Change
+Add a `manage_code` column to the `rsvps` table:
+```sql
+ALTER TABLE public.rsvps ADD COLUMN manage_code uuid NOT NULL DEFAULT gen_random_uuid();
+```
+This code is returned on RSVP creation and used to look up/edit the RSVP later.
 
-### 1. Merge RSVP Card and Bring List Card into one form
-- Remove the standalone RSVP `<Card>` and the standalone Bring List `<Card>`
-- Replace with a single `<Card>` titled "RSVP" that contains:
-  1. Name, Adults, Kids fields (same as today)
-  2. Bring List section (if enabled and items exist) -- rendered as a sub-section with the utensils icon header, markdown message, grouped items, custom item input
-  3. "Submit RSVP" button at the bottom of the card
-- The whole card is one `<form onSubmit={handleRsvp}>` so everything submits together
+## Edge Function Changes (`event-api/index.ts`)
 
-### 2. Group duplicate bring list items
-Instead of rendering each DB row individually, group items by `item_name`:
+1. **POST /rsvp** -- return `manage_code` in the response (already returns the full row via `.select().single()`, so it will be included automatically after the migration).
 
-- Build a grouped data structure: `{ name: string, total: number, claimed: number, claimedByNames: string[], availableIds: string[] }`
-- For each group, render a single row showing:
-  - Item name with count badge: **salad** x 3
-  - Status: "2 of 3 claimed" in muted text
-  - If unclaimed slots exist: a small +/- stepper or a number input (capped at available count) letting the guest choose how many they want to bring
-  - If fully claimed: show a check icon with "All claimed" in muted text
-- This replaces the long flat list of individual checkboxes
+2. **GET /rsvp/manage?event_id=...&rsvp_id=...&code=...** (new endpoint) -- look up an RSVP by ID + manage_code. Returns the RSVP details and any bring list items claimed by that guest. Used for both the manage link and returning-guest detection.
 
-### 3. Update selection state
-- Change `selectedItems` from `Set<string>` (item IDs) to a smarter structure
-- Use a `Map<string, string[]>` keyed by item name, where the value is the array of item IDs the guest wants to claim
-- When the guest picks "2 salads", we grab the first 2 available (unclaimed) IDs from that group
-- `toggleItem` is replaced with an `updateItemCount(itemName: string, count: number)` function that slices the appropriate number of available IDs
+3. **PUT /rsvp/update** (new endpoint) -- update an existing RSVP (name, adults, kids, bring list changes) using rsvp_id + manage_code for auth. Allows guests to edit their submission.
 
-### 4. Submit button placement
-- The button moves from inside the RSVP-only card to after the bring list section, still within the same `<form>`
-- Visually it sits at the bottom of the combined card
+## Frontend Changes
 
-## Visual Layout (approximate)
+### `src/pages/EventPage.tsx`
+- Add a `submittedRsvp` state that holds `{ rsvp_id, manage_code, guest_name, adults, kids, claimedItems }`.
+- On mount, check localStorage for `rsvp_manage_{eventId}` (stores `{ rsvp_id, manage_code }`). Also check URL hash for `manage={rsvp_id}.{manage_code}` format.
+- If found, call the new manage endpoint to fetch the RSVP. If valid, set `submittedRsvp` and show a "Your RSVP" summary card instead of the RSVP form.
+- After a successful RSVP submission:
+  - Save `{ rsvp_id, manage_code }` to localStorage under `rsvp_manage_{eventId}`.
+  - Set `submittedRsvp` to trigger the success screen.
+- Add a **success screen** view (shown when `submittedRsvp` is set and `showSuccessScreen` is true):
+  - Checkmark icon + "RSVP Submitted!" heading
+  - Summary: name, adults, kids, claimed items
+  - Edit link displayed in a copyable code block: `/event/{eventId}#manage={rsvp_id}.{manage_code}`
+  - Warning text: "Save this link -- it won't be shown again."
+  - "View Event" button to dismiss the success screen and show the event details with the "Your RSVP" card
+- **Returning guest view** (shown when `submittedRsvp` is set but `showSuccessScreen` is false):
+  - A "Your RSVP" card replacing the RSVP form, showing their name, guest counts, and claimed items
+  - An "Edit RSVP" button to switch the card into edit mode (re-populate the form fields)
+  - A small link to their manage URL for reference
+
+### URL Hash Strategy
+The event page URL hash is already used for passwords. Extend the scheme:
+- `#password` -- event password (existing)
+- `#manage=rsvpId.manageCode` -- RSVP manage link
+- On mount, detect which format is in the hash and act accordingly. Password hashes won't contain `=` or `.`, so the formats are distinguishable.
+
+### `src/lib/api.ts`
+- Add `getRsvpByManageCode(event_id, rsvp_id, manage_code)` function
+- Add `updateRsvp(rsvp_id, manage_code, updates)` function
+
+## Flow Summary
 
 ```text
-+----------------------------------+
-| RSVP                             |
-|                                  |
-| Your Name *  [_______________]   |
-| Adults [__]    Kids [__]         |
-|                                  |
-| --- Bring List -----------------  |
-| (markdown message)               |
-|                                  |
-| salad x 3      1/3 claimed  [-1+]|
-| drinks x 3     1/3 claimed  [-1+]|
-| (custom items listed here)       |
-| [Add your own item...] [+]      |
-|                                  |
-| [Submit RSVP]                    |
-+----------------------------------+
+Guest submits RSVP
+  --> API returns { id, manage_code, ... }
+  --> Save { rsvp_id, manage_code } to localStorage
+  --> Show success screen with manage link + warning to save it
+  --> "View Event" button dismisses success screen
+
+Guest returns to /event/{id} (same device)
+  --> localStorage has rsvp_manage_{id}
+  --> Fetch RSVP via manage endpoint
+  --> Show "Your RSVP" summary card instead of form
+  --> "Edit RSVP" button available
+
+Guest opens manage link /event/{id}#manage=rsvpId.code (any device)
+  --> Parse hash, fetch RSVP via manage endpoint
+  --> Show "Your RSVP" summary card
+  --> "Edit RSVP" button available
 ```
 
 ## Technical Details
 
-### Grouping logic (computed from `bring_items`)
+### localStorage keys
+- `event_pw_{eventId}` -- event password (existing)
+- `rsvp_manage_{eventId}` -- JSON: `{ rsvp_id: string, manage_code: string }`
+
+### Manage endpoint response shape
 ```typescript
-const grouped = useMemo(() => {
-  const map = new Map<string, { total: number; claimed: number; claimedBy: string[]; availableIds: string[] }>();
-  for (const item of bring_items) {
-    const entry = map.get(item.item_name) || { total: 0, claimed: 0, claimedBy: [], availableIds: [] };
-    entry.total++;
-    if (item.claimed_by) {
-      entry.claimed++;
-      entry.claimedBy.push(item.claimed_by);
-    } else {
-      entry.availableIds.push(item.id);
-    }
-    map.set(item.item_name, entry);
-  }
-  return Array.from(map.entries());
-}, [bring_items]);
+{
+  rsvp: { id, guest_name, adults, kids, manage_code, created_at },
+  claimed_items: [{ id, item_name }]  // items claimed by this guest
+}
 ```
 
-### Selection state change
-- Replace `selectedItems: Set<string>` with `selectedCounts: Map<string, number>` (item name to count)
-- On submit, resolve counts back to actual item IDs by taking the first N available IDs from each group
-- The claim promises are built from these resolved IDs (same `claimItem` API calls as before)
-
-### Stepper UI per grouped row
-- Show a compact +/- control (two small buttons around a number) when `availableIds.length > 0`
-- Min 0, max = number of available (unclaimed) slots
-- When total is 1 and unclaimed, fall back to a simple checkbox for simplicity
+### Edit mode behavior
+When "Edit RSVP" is clicked:
+- Pre-populate form fields with existing values
+- Show the bring list with current selections pre-checked
+- Submit button changes to "Update RSVP"
+- On submit, call PUT /rsvp/update with the changes
+- On success, refresh and show updated "Your RSVP" card
