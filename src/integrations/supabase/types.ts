@@ -54,6 +54,7 @@ export type Database = {
           admin_token: string
           banner_url: string | null
           bring_list_enabled: boolean
+          bring_list_message: string | null
           created_at: string
           description: string | null
           event_date: string
@@ -69,6 +70,7 @@ export type Database = {
           admin_token?: string
           banner_url?: string | null
           bring_list_enabled?: boolean
+          bring_list_message?: string | null
           created_at?: string
           description?: string | null
           event_date: string
@@ -84,6 +86,7 @@ export type Database = {
           admin_token?: string
           banner_url?: string | null
           bring_list_enabled?: boolean
+          bring_list_message?: string | null
           created_at?: string
           description?: string | null
           event_date?: string

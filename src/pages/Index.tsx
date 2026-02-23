@@ -36,6 +36,7 @@ const Index = () => {
   const [newItemQty, setNewItemQty] = useState(1);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bringListMessage, setBringListMessage] = useState("If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
@@ -85,6 +86,7 @@ const Index = () => {
         bring_list_enabled: bringListEnabled,
         banner_url,
         bring_items: bringListEnabled ? bringItems : [],
+        bring_list_message: bringListEnabled ? bringListMessage : undefined,
       });
 
       navigate(`/created?id=${result.id}&token=${result.admin_token}`);
@@ -235,6 +237,15 @@ const Index = () => {
                 )}
                 {bringListEnabled && (
                   <>
+                <div className="mb-4">
+                  <Label>Message for guests</Label>
+                  <MarkdownEditor
+                    value={bringListMessage}
+                    onChange={setBringListMessage}
+                    placeholder="Message shown above the bring list..."
+                    rows={2}
+                  />
+                </div>
                 <p className="mb-3 text-sm text-muted-foreground">Add items guests can volunteer to bring.</p>
                 <div className="flex gap-2">
                   <Input
