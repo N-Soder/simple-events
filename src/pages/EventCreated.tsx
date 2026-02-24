@@ -93,7 +93,7 @@ const EventCreated = () => {
         </div>
 
         <div className="mt-8 text-center">
-          <Button variant="outline" onClick={() => window.location.href = "/"}>Create Another Event</Button>
+          <Button variant="outline" onClick={() => window.location.href = "/create"}>Create Another Event</Button>
         </div>
       </div>
     </main>
