@@ -136,8 +136,9 @@ const AdminPage = () => {
   }
 
   const guestLink = `${window.location.origin}/event/${id}`;
-  const totalAdults = data.rsvps.reduce((s, r) => s + r.adults, 0);
-  const totalKids = data.rsvps.reduce((s, r) => s + r.kids, 0);
+  const activeRsvps = data.rsvps.filter((r) => !r.cancelled);
+  const totalAdults = activeRsvps.reduce((s, r) => s + r.adults, 0);
+  const totalKids = activeRsvps.reduce((s, r) => s + r.kids, 0);
 
   return (
     <main className="min-h-screen bg-background">
