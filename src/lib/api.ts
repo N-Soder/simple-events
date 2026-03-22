@@ -114,6 +114,7 @@ export async function updateRsvp(params: {
   unclaim_item_ids?: string[];
   claim_item_ids?: string[];
   custom_items?: string[];
+  cancelled?: boolean;
 }) {
   return apiFetch("rsvp/update", { method: "PUT", body: JSON.stringify(params) });
 }

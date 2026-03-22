@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,7 +32,7 @@ interface EventData {
     bring_list_enabled: boolean;
     admin_token: string;
   };
-  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
+  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean }>;
   bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
 }
 
@@ -136,8 +137,9 @@ const AdminPage = () => {
   }
 
   const guestLink = `${window.location.origin}/event/${id}`;
-  const totalAdults = data.rsvps.reduce((s, r) => s + r.adults, 0);
-  const totalKids = data.rsvps.reduce((s, r) => s + r.kids, 0);
+  const activeRsvps = data.rsvps.filter((r) => !r.cancelled);
+  const totalAdults = activeRsvps.reduce((s, r) => s + r.adults, 0);
+  const totalKids = activeRsvps.reduce((s, r) => s + r.kids, 0);
 
   return (
     <main className="min-h-screen bg-background">
@@ -228,10 +230,11 @@ const AdminPage = () => {
             ) : (
               <ul className="space-y-2">
                 {data.rsvps.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
-                    <div>
-                      <span className="font-medium">{r.guest_name}</span>
-                      <span className="ml-2 text-sm text-muted-foreground">
+                   <li key={r.id} className={`flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 ${r.cancelled ? "opacity-50" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${r.cancelled ? "line-through" : ""}`}>{r.guest_name}</span>
+                      {r.cancelled && <Badge variant="secondary" className="text-xs">Cancelled</Badge>}
+                      <span className="text-sm text-muted-foreground">
                         {r.adults} adult{r.adults !== 1 ? "s" : ""}{r.kids > 0 ? `, ${r.kids} kid${r.kids !== 1 ? "s" : ""}` : ""}
                       </span>
                     </div>

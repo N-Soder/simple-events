@@ -27,7 +27,7 @@ interface EventData {
     bring_list_enabled: boolean;
     bring_list_message: string | null;
   };
-  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
+  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean }>;
   bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
 }
 
@@ -37,6 +37,7 @@ interface ManagedRsvp {
   guest_name: string;
   adults: number;
   kids: number;
+  cancelled?: boolean;
   claimed_items: Array<{ id: string; item_name: string }>;
 }
 
@@ -92,6 +93,7 @@ const EventPage = () => {
           guest_name: result.rsvp.guest_name,
           adults: result.rsvp.adults,
           kids: result.rsvp.kids,
+          cancelled: result.rsvp.cancelled,
           claimed_items: result.claimed_items,
         });
         // Save to localStorage for future visits
@@ -114,6 +116,7 @@ const EventPage = () => {
           guest_name: result.rsvp.guest_name,
           adults: result.rsvp.adults,
           kids: result.rsvp.kids,
+          cancelled: result.rsvp.cancelled,
           claimed_items: result.claimed_items,
         });
       } catch {
@@ -306,6 +309,39 @@ const EventPage = () => {
     setCustomItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleCancelRsvp = async () => {
+    if (!id || !managedRsvp) return;
+    try {
+      await updateRsvp({
+        rsvp_id: managedRsvp.rsvp_id,
+        manage_code: managedRsvp.manage_code,
+        event_id: id,
+        cancelled: true,
+        unclaim_item_ids: managedRsvp.claimed_items.map((i) => i.id),
+      });
+      toast({ title: "RSVP cancelled" });
+      await loadEvent(password);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleReRsvp = async () => {
+    if (!id || !managedRsvp) return;
+    try {
+      await updateRsvp({
+        rsvp_id: managedRsvp.rsvp_id,
+        manage_code: managedRsvp.manage_code,
+        event_id: id,
+        cancelled: false,
+      });
+      toast({ title: "Welcome back! Your RSVP is active again." });
+      await loadEvent(password);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const manageUrl = managedRsvp && id
     ? `${window.location.origin}/event/${id}#manage=${managedRsvp.rsvp_id}.${managedRsvp.manage_code}`
     : "";
@@ -364,8 +400,9 @@ const EventPage = () => {
 
   if (!data) return null;
   const { event, rsvps, bring_items } = data;
-  const totalAdults = rsvps.reduce((s, r) => s + r.adults, 0);
-  const totalKids = rsvps.reduce((s, r) => s + r.kids, 0);
+  const activeRsvps = rsvps.filter((r) => !r.cancelled);
+  const totalAdults = activeRsvps.reduce((s, r) => s + r.adults, 0);
+  const totalKids = activeRsvps.reduce((s, r) => s + r.kids, 0);
   const showBringList = event.bring_list_enabled && bring_items.length > 0;
   const hasExistingRsvp = !!managedRsvp && !editMode;
   const isEditing = !!managedRsvp && editMode;
@@ -408,7 +445,7 @@ const EventPage = () => {
         )}
 
         {/* Guest Info Section */}
-        {event.guest_visibility !== "hidden" && rsvps.length > 0 && (
+        {event.guest_visibility !== "hidden" && activeRsvps.length > 0 && (
           <Card className="mt-8">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -419,7 +456,7 @@ const EventPage = () => {
             <CardContent>
               {event.guest_visibility === "full" ? (
                 <ul className="space-y-2">
-                  {rsvps.map((r) => (
+                  {activeRsvps.map((r) => (
                     <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
                       <span className="font-medium">{r.guest_name}</span>
                       <span className="text-sm text-muted-foreground">
@@ -444,7 +481,10 @@ const EventPage = () => {
             adults={managedRsvp.adults}
             kids={managedRsvp.kids}
             claimedItems={managedRsvp.claimed_items}
+            cancelled={managedRsvp.cancelled}
             onEdit={enterEditMode}
+            onCancel={handleCancelRsvp}
+            onReRsvp={handleReRsvp}
           />
         )}
 

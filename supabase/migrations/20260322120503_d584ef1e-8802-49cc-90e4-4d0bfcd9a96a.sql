@@ -1,0 +1,1 @@
+ALTER TABLE public.rsvps ADD COLUMN cancelled boolean NOT NULL DEFAULT false;
