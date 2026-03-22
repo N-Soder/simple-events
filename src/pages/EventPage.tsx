@@ -93,6 +93,7 @@ const EventPage = () => {
           guest_name: result.rsvp.guest_name,
           adults: result.rsvp.adults,
           kids: result.rsvp.kids,
+          cancelled: result.rsvp.cancelled,
           claimed_items: result.claimed_items,
         });
         // Save to localStorage for future visits
