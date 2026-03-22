@@ -469,12 +469,30 @@ const EventPage = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="adults">Adults</Label>
-                    <Input id="adults" type="number" min={1} max={20} value={adults} onChange={(e) => setAdults(parseInt(e.target.value) || 1)} className="mt-1.5" />
+                    <Label>Adults</Label>
+                    <Select value={String(adults)} onValueChange={(val) => setAdults(parseInt(val))}>
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
-                    <Label htmlFor="kids">Kids</Label>
-                    <Input id="kids" type="number" min={0} max={20} value={kids} onChange={(e) => setKids(parseInt(e.target.value) || 0)} className="mt-1.5" />
+                    <Label>Kids</Label>
+                    <Select value={String(kids)} onValueChange={(val) => setKids(parseInt(val))}>
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 11 }, (_, i) => i).map((n) => (
+                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
