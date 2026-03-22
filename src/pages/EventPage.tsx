@@ -481,7 +481,10 @@ const EventPage = () => {
             adults={managedRsvp.adults}
             kids={managedRsvp.kids}
             claimedItems={managedRsvp.claimed_items}
+            cancelled={managedRsvp.cancelled}
             onEdit={enterEditMode}
+            onCancel={handleCancelRsvp}
+            onReRsvp={handleReRsvp}
           />
         )}
 
