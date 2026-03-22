@@ -230,10 +230,11 @@ const AdminPage = () => {
             ) : (
               <ul className="space-y-2">
                 {data.rsvps.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
-                    <div>
-                      <span className="font-medium">{r.guest_name}</span>
-                      <span className="ml-2 text-sm text-muted-foreground">
+                   <li key={r.id} className={`flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 ${r.cancelled ? "opacity-50" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${r.cancelled ? "line-through" : ""}`}>{r.guest_name}</span>
+                      {r.cancelled && <Badge variant="secondary" className="text-xs">Cancelled</Badge>}
+                      <span className="text-sm text-muted-foreground">
                         {r.adults} adult{r.adults !== 1 ? "s" : ""}{r.kids > 0 ? `, ${r.kids} kid${r.kids !== 1 ? "s" : ""}` : ""}
                       </span>
                     </div>
