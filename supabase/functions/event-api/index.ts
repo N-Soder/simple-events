@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
 
     // PUT /rsvp/update - Update an existing RSVP via manage code
     if (req.method === "PUT" && path === "rsvp/update") {
-      const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_item_ids, custom_items, event_id } = await req.json();
+      const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_item_ids, custom_items, event_id, cancelled } = await req.json();
       if (!rsvp_id || !manage_code) return error("rsvp_id and manage_code required");
 
       const { data: rsvp } = await supabase
@@ -368,6 +368,7 @@ Deno.serve(async (req) => {
       if (guest_name !== undefined) updates.guest_name = guest_name;
       if (adults !== undefined) updates.adults = adults;
       if (kids !== undefined) updates.kids = kids;
+      if (cancelled !== undefined) updates.cancelled = cancelled;
 
       if (Object.keys(updates).length > 0) {
         const { error: err } = await supabase.from("rsvps").update(updates).eq("id", rsvp_id);
