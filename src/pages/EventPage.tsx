@@ -400,8 +400,9 @@ const EventPage = () => {
 
   if (!data) return null;
   const { event, rsvps, bring_items } = data;
-  const totalAdults = rsvps.reduce((s, r) => s + r.adults, 0);
-  const totalKids = rsvps.reduce((s, r) => s + r.kids, 0);
+  const activeRsvps = rsvps.filter((r) => !r.cancelled);
+  const totalAdults = activeRsvps.reduce((s, r) => s + r.adults, 0);
+  const totalKids = activeRsvps.reduce((s, r) => s + r.kids, 0);
   const showBringList = event.bring_list_enabled && bring_items.length > 0;
   const hasExistingRsvp = !!managedRsvp && !editMode;
   const isEditing = !!managedRsvp && editMode;
