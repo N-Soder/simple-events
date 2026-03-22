@@ -445,7 +445,7 @@ const EventPage = () => {
         )}
 
         {/* Guest Info Section */}
-        {event.guest_visibility !== "hidden" && rsvps.length > 0 && (
+        {event.guest_visibility !== "hidden" && activeRsvps.length > 0 && (
           <Card className="mt-8">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -456,7 +456,7 @@ const EventPage = () => {
             <CardContent>
               {event.guest_visibility === "full" ? (
                 <ul className="space-y-2">
-                  {rsvps.map((r) => (
+                  {activeRsvps.map((r) => (
                     <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
                       <span className="font-medium">{r.guest_name}</span>
                       <span className="text-sm text-muted-foreground">
