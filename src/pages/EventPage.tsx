@@ -37,6 +37,7 @@ interface ManagedRsvp {
   guest_name: string;
   adults: number;
   kids: number;
+  cancelled?: boolean;
   claimed_items: Array<{ id: string; item_name: string }>;
 }
 
