@@ -103,6 +103,7 @@ export type Database = {
       rsvps: {
         Row: {
           adults: number
+          cancelled: boolean
           created_at: string
           event_id: string
           guest_name: string
@@ -112,6 +113,7 @@ export type Database = {
         }
         Insert: {
           adults?: number
+          cancelled?: boolean
           created_at?: string
           event_id: string
           guest_name: string
@@ -121,6 +123,7 @@ export type Database = {
         }
         Update: {
           adults?: number
+          cancelled?: boolean
           created_at?: string
           event_id?: string
           guest_name?: string
