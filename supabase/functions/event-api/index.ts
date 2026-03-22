@@ -329,7 +329,7 @@ Deno.serve(async (req) => {
 
       const { data: rsvp } = await supabase
         .from("rsvps")
-        .select("id, guest_name, adults, kids, manage_code, created_at")
+        .select("id, guest_name, adults, kids, cancelled, manage_code, created_at")
         .eq("id", rsvp_id)
         .eq("event_id", event_id)
         .eq("manage_code", code)
