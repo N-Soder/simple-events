@@ -27,7 +27,7 @@ interface EventData {
     bring_list_enabled: boolean;
     bring_list_message: string | null;
   };
-  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
+  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean }>;
   bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
 }
 
