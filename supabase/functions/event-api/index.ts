@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
 
       const { data: rsvps } = await supabase
         .from("rsvps")
-        .select("id, guest_name, adults, kids, created_at")
+        .select("id, guest_name, adults, kids, cancelled, created_at")
         .eq("event_id", event_id)
         .order("created_at", { ascending: true });
 
