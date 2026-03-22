@@ -1,43 +1,51 @@
 
 
-# Dynamic SEO Meta Tags Per Event
+# RSVP Cancellation Feature
 
-## Problem
-When sharing an event link (e.g. on Discord, iMessage, Twitter), the preview always shows the static "Sophia's Birthday" title and the generic party bunting image — regardless of which event is being shared.
+## Overview
+Add a `cancelled` boolean column to the `rsvps` table. Guests can cancel from the edit view, and admins see cancelled RSVPs with a strikethrough, excluded from totals.
 
-## Approach
-Social media crawlers don't execute JavaScript, so client-side meta tag updates won't work. We need a **server-side solution** that returns the correct `<meta>` tags when a crawler (or any client) requests `/event/:id`.
-
-### New Edge Function: `og-image`
-Create a lightweight edge function at `supabase/functions/og-image/index.ts` that:
-1. Receives the event ID as a query parameter
-2. Fetches the event's `name` and `banner_url` from the database
-3. Returns an HTML page with the correct OG meta tags + a JavaScript redirect to the real SPA
-
-### Update `public/_redirects`
-Add a rule so that `/event/:id` requests hit the edge function first:
-```
-/event/*  https://mebrvxszumnfhmnmdlcz.supabase.co/functions/v1/og-image?path=:splat  200
-/*        /index.html  200
+## Database Migration
+Add `cancelled` column to `rsvps` table:
+```sql
+ALTER TABLE public.rsvps ADD COLUMN cancelled boolean NOT NULL DEFAULT false;
 ```
 
-### Edge Function Logic
-```
-- Parse event ID from query param
-- Fetch event name + banner_url from DB
-- Return HTML with:
-  - <title>{event.name}</title>
-  - og:title = event.name
-  - og:description = "Events made simple"
-  - og:image = event.banner_url (or fallback to default image)
-  - twitter:card, twitter:title, twitter:image
-  - <script>window.location.replace(original URL)</script>
-  - <noscript> link to the page
-```
+## Edge Function Changes (`supabase/functions/event-api/index.ts`)
 
-Crawlers read the meta tags; real browsers get redirected instantly to the SPA which renders normally.
+1. **GET /event** and **GET /admin**: Include `cancelled` in the RSVP select fields
+2. **GET /rsvp/manage**: Include `cancelled` in the select
+3. **PUT /rsvp/update**: Accept an optional `cancelled` boolean field and apply it as an update
+4. **POST /rsvp**: When a previously-cancelled guest re-RSVPs, optionally handle (or just let them submit fresh)
+
+## Frontend Changes
+
+### `src/pages/EventPage.tsx`
+- Add `cancelled` to the RSVP type definitions
+- In the **RsvpSummaryCard** view (returning guest, not editing): show a "Cancel RSVP" button
+- Wire up a `handleCancelRsvp` function that calls `updateRsvp` with `cancelled: true`, unclaims all items, then reloads
+- If the managed RSVP is cancelled, show a muted summary indicating "You cancelled your RSVP" with option to re-RSVP (sets `cancelled: false`)
+- Exclude cancelled RSVPs from guest list display and tallies on the event page
+
+### `src/components/RsvpSummaryCard.tsx`
+- Accept optional `cancelled` prop
+- If cancelled: show muted/strikethrough styling and a "Re-RSVP" button instead of "Edit"
+- If active: add a "Cancel RSVP" destructive button (with confirmation via AlertDialog)
+
+### `src/pages/AdminPage.tsx`
+- Add `cancelled` to the RSVP type
+- Show cancelled RSVPs with strikethrough name + "Cancelled" badge
+- Exclude cancelled RSVPs from the totals (adults/kids counts)
+- Keep them visible so admin has full history
+
+### `src/lib/api.ts`
+- Add `cancelled` to the `updateRsvp` params type
 
 ## Files Changed
-1. **New**: `supabase/functions/og-image/index.ts` — edge function serving dynamic HTML with OG tags
-2. **Edit**: `public/_redirects` — route `/event/*` through the edge function
+1. **Migration**: Add `cancelled` column to `rsvps`
+2. `supabase/functions/event-api/index.ts` — include `cancelled` in selects, handle in update
+3. `src/lib/api.ts` — add `cancelled` param
+4. `src/pages/EventPage.tsx` — cancel/re-RSVP logic
+5. `src/components/RsvpSummaryCard.tsx` — cancel button + cancelled state UI
+6. `src/pages/AdminPage.tsx` — strikethrough + exclude from totals
 
