@@ -309,6 +309,39 @@ const EventPage = () => {
     setCustomItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleCancelRsvp = async () => {
+    if (!id || !managedRsvp) return;
+    try {
+      await updateRsvp({
+        rsvp_id: managedRsvp.rsvp_id,
+        manage_code: managedRsvp.manage_code,
+        event_id: id,
+        cancelled: true,
+        unclaim_item_ids: managedRsvp.claimed_items.map((i) => i.id),
+      });
+      toast({ title: "RSVP cancelled" });
+      await loadEvent(password);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleReRsvp = async () => {
+    if (!id || !managedRsvp) return;
+    try {
+      await updateRsvp({
+        rsvp_id: managedRsvp.rsvp_id,
+        manage_code: managedRsvp.manage_code,
+        event_id: id,
+        cancelled: false,
+      });
+      toast({ title: "Welcome back! Your RSVP is active again." });
+      await loadEvent(password);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const manageUrl = managedRsvp && id
     ? `${window.location.origin}/event/${id}#manage=${managedRsvp.rsvp_id}.${managedRsvp.manage_code}`
     : "";
