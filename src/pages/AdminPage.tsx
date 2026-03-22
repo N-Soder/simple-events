@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
