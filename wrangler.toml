@@ -1,0 +1,12 @@
+name = "simple-events"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "simple-events-db"
+database_id = "REPLACE_AFTER_CREATION"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "simple-events-banners"

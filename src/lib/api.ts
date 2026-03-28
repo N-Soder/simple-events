@@ -1,13 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
-
-const FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/event-api`;
+const FUNCTION_URL = "/api";
 
 async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${FUNCTION_URL}/${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       ...options.headers,
     },
   });
@@ -120,9 +117,10 @@ export async function updateRsvp(params: {
 }
 
 export async function uploadBanner(file: File): Promise<string> {
-  const fileName = `${crypto.randomUUID()}-${file.name}`;
-  const { data, error } = await supabase.storage.from("banners").upload(fileName, file);
-  if (error) throw error;
-  const { data: urlData } = supabase.storage.from("banners").getPublicUrl(data.path);
-  return urlData.publicUrl;
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${FUNCTION_URL}/upload`, { method: "POST", body: formData });
+  const data = await res.json() as { url?: string; error?: string };
+  if (!res.ok) throw new Error(data.error || "Upload failed");
+  return data.url!;
 }
