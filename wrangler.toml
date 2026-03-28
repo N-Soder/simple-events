@@ -5,7 +5,7 @@ pages_build_output_dir = "./dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "simple-events-db"
-database_id = "REPLACE_AFTER_CREATION"
+database_id = "ae276100-d4fe-48b4-8bbf-9c5a4895b43f"
 
 [[r2_buckets]]
 binding = "R2"
