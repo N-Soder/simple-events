@@ -2,9 +2,8 @@ import { useMemo } from "react";
 import { UtensilsCrossed, Check, Plus, X, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import MarkdownContent from "@/components/MarkdownContent";
 
 interface BringItem {
@@ -25,7 +24,7 @@ interface BringListSectionProps {
   items: BringItem[];
   message: string | null;
   selectedCounts: Map<string, number>;
-  onUpdateCount: (itemName: string, count: number, availableIds: string[]) => void;
+  onUpdateCount: (itemName: string, count: number) => void;
   customItems: string[];
   customItemInput: string;
   onCustomItemInputChange: (value: string) => void;
@@ -74,97 +73,114 @@ const BringListSection = ({
 
       <ul className="space-y-2">
         {grouped.map((group) => {
-          const selected = selectedCounts.get(group.name) || 0;
+          const selected = selectedCounts.get(group.name) ?? 0;
           const available = group.availableIds.length;
           const fullyClaimed = available === 0;
+          const isSelected = selected > 0;
+          const showScarcity = available === 1 && group.total > 1 && !isSelected;
+
+          if (fullyClaimed) {
+            return (
+              <li
+                key={group.name}
+                className="flex items-center gap-3 rounded-md border px-3 py-2.5 opacity-50 cursor-not-allowed select-none"
+              >
+                <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="font-medium">{group.name}</span>
+                <span className="ml-auto text-xs text-muted-foreground">Full</span>
+              </li>
+            );
+          }
 
           return (
-            <li key={group.name} className="flex items-center gap-3 rounded-md border px-3 py-2.5">
-              {fullyClaimed ? (
-                <>
-                  <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="font-medium">{group.name}</span>
-                  {group.total > 1 && (
-                    <Badge variant="secondary" className="text-xs">×{group.total}</Badge>
-                  )}
-                  <span className="ml-auto text-sm text-muted-foreground">
-                    All claimed
-                  </span>
-                </>
-              ) : group.total === 1 ? (
-                // Single item — simple checkbox
-                <>
-                  <Checkbox
-                    checked={selected > 0}
-                    onCheckedChange={(checked) =>
-                      onUpdateCount(group.name, checked ? 1 : 0, group.availableIds)
-                    }
-                  />
-                  <span className="font-medium">{group.name}</span>
-                </>
-              ) : (
-                // Multiple items — stepper
-                <>
-                  <span className="font-medium">{group.name}</span>
-                  <Badge variant="secondary" className="text-xs">×{group.total}</Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {group.claimed}/{group.total} claimed
-                  </span>
-                  <div className="ml-auto flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7"
-                      disabled={selected <= 0}
-                      onClick={() => onUpdateCount(group.name, selected - 1, group.availableIds)}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-6 text-center text-sm font-medium">{selected}</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7"
-                      disabled={selected >= available}
-                      onClick={() => onUpdateCount(group.name, selected + 1, group.availableIds)}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </>
+            <li
+              key={group.name}
+              onClick={() => onUpdateCount(group.name, isSelected ? 0 : 1)}
+              className={cn(
+                "flex items-center gap-3 rounded-md border px-3 py-2.5 cursor-pointer transition-colors select-none",
+                isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+              )}
+            >
+              <Check
+                className={cn(
+                  "h-4 w-4 shrink-0 text-primary transition-opacity",
+                  isSelected ? "opacity-100" : "opacity-0"
+                )}
+              />
+              <span className="font-medium">{group.name}</span>
+              {showScarcity && (
+                <span className="text-xs text-amber-600 font-medium">1 left</span>
+              )}
+              {isSelected && group.total > 1 && (
+                <div
+                  className="ml-auto flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    disabled={selected <= 1}
+                    onClick={() => onUpdateCount(group.name, selected - 1)}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="w-5 text-center text-sm font-medium">{selected}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    disabled={selected >= available}
+                    onClick={() => onUpdateCount(group.name, selected + 1)}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               )}
             </li>
           );
         })}
 
         {customItems.map((name, i) => (
-          <li key={`custom-${i}`} className="flex items-center gap-3 rounded-md border border-dashed px-3 py-2.5">
+          <li
+            key={`custom-${i}`}
+            className="flex items-center gap-3 rounded-md border border-primary bg-primary/5 px-3 py-2.5"
+          >
             <Check className="h-4 w-4 shrink-0 text-primary" />
             <span className="font-medium">{name}</span>
-            <Button type="button" variant="ghost" size="icon" className="ml-auto h-6 w-6" onClick={() => onRemoveCustomItem(i)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-6 w-6"
+              onClick={() => onRemoveCustomItem(i)}
+            >
               <X className="h-3 w-3" />
             </Button>
           </li>
         ))}
       </ul>
 
-      <div className="flex gap-2">
-        <Input
-          placeholder="Add your own item..."
-          value={customItemInput}
-          onChange={(e) => onCustomItemInputChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              onAddCustomItem();
-            }
-          }}
-        />
-        <Button type="button" variant="outline" size="icon" onClick={onAddCustomItem}>
-          <Plus className="h-4 w-4" />
-        </Button>
+      <div className="space-y-1.5">
+        <p className="text-sm text-muted-foreground">Bringing something else?</p>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Add your own item..."
+            value={customItemInput}
+            onChange={(e) => onCustomItemInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onAddCustomItem();
+              }
+            }}
+          />
+          <Button type="button" variant="outline" size="icon" aria-label="Add item" onClick={onAddCustomItem}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
