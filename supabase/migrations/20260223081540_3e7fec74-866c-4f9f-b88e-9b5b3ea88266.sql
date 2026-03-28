@@ -1,1 +1,0 @@
-ALTER TABLE public.rsvps ADD COLUMN manage_code uuid NOT NULL DEFAULT gen_random_uuid();

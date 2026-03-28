@@ -1,1 +1,0 @@
-ALTER TABLE public.bring_list_items ADD COLUMN quantity integer NOT NULL DEFAULT 1;
