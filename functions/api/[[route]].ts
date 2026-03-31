@@ -39,6 +39,39 @@ async function verifyEventPassword(db: D1Database, eventId: string, password?: s
   return bcrypt.compareSync(password, row.password_hash);
 }
 
+// Fetch bring items with aggregated commitments for a given event
+async function getBringItems(db: D1Database, eventId: string) {
+  const { results: items } = await db.prepare(
+    "SELECT id, item_name, quantity FROM bring_list_items WHERE event_id = ? ORDER BY created_at ASC"
+  ).bind(eventId).all<{ id: string; item_name: string; quantity: number }>();
+
+  if (items.length === 0) return [];
+
+  const { results: commitments } = await db.prepare(
+    "SELECT item_id, guest_name, quantity FROM bring_commitments WHERE event_id = ? ORDER BY created_at ASC"
+  ).bind(eventId).all<{ item_id: string; guest_name: string; quantity: number }>();
+
+  // Group commitments by item_id
+  const commitMap = new Map<string, Array<{ guest_name: string; quantity: number }>>();
+  for (const c of commitments) {
+    const list = commitMap.get(c.item_id) ?? [];
+    list.push({ guest_name: c.guest_name, quantity: c.quantity });
+    commitMap.set(c.item_id, list);
+  }
+
+  return items.map((item) => {
+    const itemCommitments = commitMap.get(item.id) ?? [];
+    const committed = itemCommitments.reduce((sum, c) => sum + c.quantity, 0);
+    return {
+      id: item.id,
+      item_name: item.item_name,
+      target_quantity: item.quantity,
+      committed_quantity: committed,
+      commitments: itemCommitments,
+    };
+  });
+}
+
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
 
@@ -47,7 +80,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 
   const url = new URL(request.url);
-  // Strip leading /api/ prefix to get the route path
   const path = url.pathname.replace(/^\/api\/?/, "").replace(/\/$/, "");
   const db = env.DB;
 
@@ -96,17 +128,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         bring_list_message ?? null
       ).run();
 
+      // Insert one row per unique item with its target quantity
       if (Array.isArray(bring_items) && bring_items.length > 0) {
-        const rows: { event_id: string; item_name: string }[] = [];
-        for (const item of bring_items) {
+        const stmt = db.prepare("INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)");
+        await db.batch(bring_items.map((item) => {
           const itemName = typeof item === "string" ? item : item.name;
           const qty = typeof item === "string" ? 1 : Math.min(Math.max(item.quantity || 1, 1), 20);
-          for (let i = 0; i < qty; i++) {
-            rows.push({ event_id: id, item_name: itemName });
-          }
-        }
-        const stmt = db.prepare("INSERT INTO bring_list_items (id, event_id, item_name) VALUES (?, ?, ?)");
-        await db.batch(rows.map(r => stmt.bind(crypto.randomUUID(), r.event_id, r.item_name)));
+          return stmt.bind(crypto.randomUUID(), id, itemName, qty);
+        }));
       }
 
       return json({ id, admin_token });
@@ -145,9 +174,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         "SELECT id, guest_name, adults, kids, cancelled, created_at FROM rsvps WHERE event_id = ? ORDER BY created_at ASC"
       ).bind(event_id).all();
 
-      const { results: bringItems } = await db.prepare(
-        "SELECT id, item_name, claimed_by, created_at FROM bring_list_items WHERE event_id = ? ORDER BY created_at ASC"
-      ).bind(event_id).all();
+      const bringItems = await getBringItems(db, event_id);
 
       return json({ event: normalizeEvent(event), rsvps: rsvps.map(normalizeRsvp), bring_items: bringItems });
     }
@@ -164,12 +191,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!event) return err("Invalid admin link", 403);
 
       const { results: rsvps } = await db.prepare(
-        "SELECT id, guest_name, adults, kids, cancelled, created_at FROM rsvps WHERE event_id = ? ORDER BY created_at ASC"
+        "SELECT id, guest_name, adults, kids, cancelled, manage_code, created_at FROM rsvps WHERE event_id = ? ORDER BY created_at ASC"
       ).bind(event_id).all();
 
-      const { results: bringItems } = await db.prepare(
-        "SELECT id, item_name, claimed_by, created_at FROM bring_list_items WHERE event_id = ? ORDER BY created_at ASC"
-      ).bind(event_id).all();
+      const bringItems = await getBringItems(db, event_id);
 
       return json({ event: normalizeEvent(event), rsvps: rsvps.map(normalizeRsvp), bring_items: bringItems });
     }
@@ -196,40 +221,73 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return json(normalizeRsvp(row));
     }
 
-    // POST /api/claim-item - Claim a bring list item
+    // POST /api/claim-item - Commit to bringing an item
     if (request.method === "POST" && path === "claim-item") {
-      const { event_id, password, item_id, claimed_by } = await request.json() as {
-        event_id?: string; password?: string; item_id?: string; claimed_by?: string;
+      const { event_id, password, item_id, rsvp_id, manage_code, quantity } = await request.json() as {
+        event_id?: string; password?: string; item_id?: string;
+        rsvp_id?: string; manage_code?: string; quantity?: number;
       };
-      if (!event_id || !item_id || !claimed_by) return err("event_id, item_id, and claimed_by are required");
+      if (!event_id || !item_id || !rsvp_id || !manage_code) {
+        return err("event_id, item_id, rsvp_id, and manage_code are required");
+      }
 
       const valid = await verifyEventPassword(db, event_id, password);
       if (!valid) return err("Invalid password", 403);
 
-      await db.prepare(
-        "UPDATE bring_list_items SET claimed_by = ? WHERE id = ? AND event_id = ?"
-      ).bind(claimed_by, item_id, event_id).run();
+      // Verify RSVP ownership via manage_code
+      const rsvp = await db.prepare(
+        "SELECT id, guest_name FROM rsvps WHERE id = ? AND event_id = ? AND manage_code = ?"
+      ).bind(rsvp_id, event_id, manage_code).first<{ id: string; guest_name: string }>();
+      if (!rsvp) return err("Invalid RSVP or manage code", 403);
 
-      const row = await db.prepare("SELECT * FROM bring_list_items WHERE id = ?").bind(item_id).first();
+      // Verify item belongs to this event
+      const item = await db.prepare(
+        "SELECT id FROM bring_list_items WHERE id = ? AND event_id = ?"
+      ).bind(item_id, event_id).first();
+      if (!item) return err("Item not found", 404);
+
+      const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+      const commitmentId = crypto.randomUUID();
+      await db.prepare(
+        "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
+      ).bind(commitmentId, item_id, event_id, rsvp_id, rsvp.guest_name, qty).run();
+
+      const row = await db.prepare("SELECT * FROM bring_commitments WHERE id = ?").bind(commitmentId).first();
       return json(row);
     }
 
-    // POST /api/add-item - Add custom bring list item
+    // POST /api/add-item - Add a custom bring list item (guest-suggested)
     if (request.method === "POST" && path === "add-item") {
-      const { event_id, password, item_name, claimed_by } = await request.json() as {
-        event_id?: string; password?: string; item_name?: string; claimed_by?: string;
+      const { event_id, password, item_name, rsvp_id, manage_code, quantity } = await request.json() as {
+        event_id?: string; password?: string; item_name?: string;
+        rsvp_id?: string; manage_code?: string; quantity?: number;
       };
       if (!event_id || !item_name) return err("event_id and item_name are required");
 
       const valid = await verifyEventPassword(db, event_id, password);
       if (!valid) return err("Invalid password", 403);
 
-      const id = crypto.randomUUID();
-      await db.prepare(
-        "INSERT INTO bring_list_items (id, event_id, item_name, claimed_by) VALUES (?, ?, ?, ?)"
-      ).bind(id, event_id, item_name, claimed_by ?? null).run();
+      const itemId = crypto.randomUUID();
+      const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
 
-      const row = await db.prepare("SELECT * FROM bring_list_items WHERE id = ?").bind(id).first();
+      // Always create a new item row for the custom item
+      await db.prepare(
+        "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
+      ).bind(itemId, event_id, item_name, qty).run();
+
+      // If we have RSVP ownership, create a commitment immediately
+      if (rsvp_id && manage_code) {
+        const rsvp = await db.prepare(
+          "SELECT id, guest_name FROM rsvps WHERE id = ? AND event_id = ? AND manage_code = ?"
+        ).bind(rsvp_id, event_id, manage_code).first<{ id: string; guest_name: string }>();
+        if (rsvp) {
+          await db.prepare(
+            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
+          ).bind(crypto.randomUUID(), itemId, event_id, rsvp_id, rsvp.guest_name, qty).run();
+        }
+      }
+
+      const row = await db.prepare("SELECT * FROM bring_list_items WHERE id = ?").bind(itemId).first();
       return json(row);
     }
 
@@ -270,17 +328,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!event) return err("Invalid admin token", 403);
 
       const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
-      const stmt = db.prepare("INSERT INTO bring_list_items (id, event_id, item_name) VALUES (?, ?, ?)");
-      const insertedIds: string[] = [];
-      for (let i = 0; i < qty; i++) {
-        const id = crypto.randomUUID();
-        insertedIds.push(id);
-        await stmt.bind(id, event_id, item_name).run();
-      }
+      const id = crypto.randomUUID();
+      await db.prepare(
+        "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
+      ).bind(id, event_id, item_name, qty).run();
 
-      const placeholders = insertedIds.map(() => "?").join(", ");
-      const { results } = await db.prepare(`SELECT * FROM bring_list_items WHERE id IN (${placeholders})`).bind(...insertedIds).all();
-      return json(results);
+      const row = await db.prepare("SELECT * FROM bring_list_items WHERE id = ?").bind(id).first();
+      return json(row);
     }
 
     // DELETE /api/admin/delete-bring-item
@@ -293,7 +347,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const event = await db.prepare("SELECT id FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first();
       if (!event) return err("Invalid admin token", 403);
 
-      await db.prepare("DELETE FROM bring_list_items WHERE id = ? AND event_id = ?").bind(item_id, event_id).run();
+      const { success } = await db.prepare(
+        "DELETE FROM bring_list_items WHERE id = ? AND event_id = ?"
+      ).bind(item_id, event_id).run();
+      if (!success) return err("Delete failed", 500);
+
       return json({ success: true });
     }
 
@@ -307,7 +365,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const event = await db.prepare("SELECT id FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first();
       if (!event) return err("Invalid admin token", 403);
 
-      await db.prepare("DELETE FROM rsvps WHERE id = ? AND event_id = ?").bind(rsvp_id, event_id).run();
+      const { success } = await db.prepare(
+        "DELETE FROM rsvps WHERE id = ? AND event_id = ?"
+      ).bind(rsvp_id, event_id).run();
+      if (!success) return err("Delete failed", 500);
+
       return json({ success: true });
     }
 
@@ -324,18 +386,24 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!rsvp) return err("RSVP not found or invalid code", 404);
 
       const normalizedRsvp = normalizeRsvp(rsvp);
+
+      // Get commitments for this RSVP
       const { results: claimedItems } = await db.prepare(
-        "SELECT id, item_name FROM bring_list_items WHERE event_id = ? AND claimed_by = ?"
-      ).bind(event_id, normalizedRsvp.guest_name).all();
+        `SELECT bc.id, bc.item_id, bc.quantity, bli.item_name
+         FROM bring_commitments bc
+         JOIN bring_list_items bli ON bc.item_id = bli.id
+         WHERE bc.rsvp_id = ? AND bc.event_id = ?`
+      ).bind(rsvp_id, event_id).all();
 
       return json({ rsvp: normalizedRsvp, claimed_items: claimedItems });
     }
 
     // PUT /api/rsvp/update
     if (request.method === "PUT" && path === "rsvp/update") {
-      const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_item_ids, custom_items, event_id, cancelled } = await request.json() as {
+      const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_items, custom_items, event_id, cancelled } = await request.json() as {
         rsvp_id?: string; manage_code?: string; guest_name?: string; adults?: number; kids?: number;
-        unclaim_item_ids?: string[]; claim_item_ids?: string[]; custom_items?: string[];
+        unclaim_item_ids?: string[]; claim_items?: Array<{ item_id: string; quantity: number }>;
+        custom_items?: Array<{ item_name: string; quantity: number }>;
         event_id?: string; cancelled?: boolean;
       };
       if (!rsvp_id || !manage_code) return err("rsvp_id and manage_code required");
@@ -348,6 +416,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const oldName = rsvp.guest_name;
       const newName = guest_name ?? oldName;
 
+      // Update RSVP fields
       const fields: string[] = [];
       const values: unknown[] = [];
       if (guest_name !== undefined) { fields.push("guest_name = ?"); values.push(guest_name); }
@@ -360,25 +429,47 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         await db.prepare(`UPDATE rsvps SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
       }
 
+      // Keep commitment guest_name in sync if name changed
       if (guest_name && guest_name !== oldName) {
-        await db.prepare("UPDATE bring_list_items SET claimed_by = ? WHERE event_id = ? AND claimed_by = ?").bind(newName, rsvp.event_id, oldName).run();
+        await db.prepare(
+          "UPDATE bring_commitments SET guest_name = ? WHERE rsvp_id = ? AND event_id = ?"
+        ).bind(newName, rsvp_id, rsvp.event_id).run();
       }
 
-      if (Array.isArray(unclaim_item_ids)) {
-        for (const itemId of unclaim_item_ids) {
-          await db.prepare("UPDATE bring_list_items SET claimed_by = NULL WHERE id = ? AND event_id = ?").bind(itemId, rsvp.event_id).run();
+      // Remove commitments by commitment ID (ownership enforced by rsvp_id)
+      if (Array.isArray(unclaim_item_ids) && unclaim_item_ids.length > 0) {
+        for (const commitmentId of unclaim_item_ids) {
+          await db.prepare(
+            "DELETE FROM bring_commitments WHERE id = ? AND rsvp_id = ? AND event_id = ?"
+          ).bind(commitmentId, rsvp_id, rsvp.event_id).run();
         }
       }
 
-      if (Array.isArray(claim_item_ids)) {
-        for (const itemId of claim_item_ids) {
-          await db.prepare("UPDATE bring_list_items SET claimed_by = ? WHERE id = ? AND event_id = ? AND claimed_by IS NULL").bind(newName, itemId, rsvp.event_id).run();
+      // Add new commitments
+      if (Array.isArray(claim_items) && claim_items.length > 0) {
+        for (const { item_id, quantity } of claim_items) {
+          const item = await db.prepare(
+            "SELECT id FROM bring_list_items WHERE id = ? AND event_id = ?"
+          ).bind(item_id, rsvp.event_id).first();
+          if (!item) continue;
+          const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+          await db.prepare(
+            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
+          ).bind(crypto.randomUUID(), item_id, rsvp.event_id, rsvp_id, newName, qty).run();
         }
       }
 
-      if (Array.isArray(custom_items)) {
-        for (const itemName of custom_items) {
-          await db.prepare("INSERT INTO bring_list_items (id, event_id, item_name, claimed_by) VALUES (?, ?, ?, ?)").bind(crypto.randomUUID(), rsvp.event_id, itemName, newName).run();
+      // Add custom items (new bring_list_items row + commitment)
+      if (Array.isArray(custom_items) && custom_items.length > 0) {
+        for (const { item_name, quantity } of custom_items) {
+          const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+          const itemId = crypto.randomUUID();
+          await db.prepare(
+            "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
+          ).bind(itemId, rsvp.event_id, item_name, qty).run();
+          await db.prepare(
+            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
+          ).bind(crypto.randomUUID(), itemId, rsvp.event_id, rsvp_id, newName, qty).run();
         }
       }
 
@@ -392,7 +483,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
 };
 
-// Normalize D1 row: convert INTEGER booleans to actual booleans
 function normalizeEvent(row: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!row) return null;
   return {

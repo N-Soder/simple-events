@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { UtensilsCrossed, Check, Plus, X, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,26 +5,20 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import MarkdownContent from "@/components/MarkdownContent";
 
-interface BringItem {
+export interface BringItem {
   id: string;
   item_name: string;
-  claimed_by: string | null;
-}
-
-interface GroupedItem {
-  name: string;
-  total: number;
-  claimed: number;
-  claimedBy: string[];
-  availableIds: string[];
+  target_quantity: number;
+  committed_quantity: number;
+  commitments: Array<{ guest_name: string; quantity: number }>;
 }
 
 interface BringListSectionProps {
   items: BringItem[];
   message: string | null;
   selectedCounts: Map<string, number>;
-  onUpdateCount: (itemName: string, count: number) => void;
-  customItems: string[];
+  onUpdateCount: (itemId: string, count: number) => void;
+  customItems: Array<{ item_name: string; quantity: number }>;
   customItemInput: string;
   onCustomItemInputChange: (value: string) => void;
   onAddCustomItem: () => void;
@@ -43,22 +36,6 @@ const BringListSection = ({
   onAddCustomItem,
   onRemoveCustomItem,
 }: BringListSectionProps) => {
-  const grouped = useMemo<GroupedItem[]>(() => {
-    const map = new Map<string, Omit<GroupedItem, "name">>();
-    for (const item of items) {
-      const entry = map.get(item.item_name) || { total: 0, claimed: 0, claimedBy: [], availableIds: [] };
-      entry.total++;
-      if (item.claimed_by) {
-        entry.claimed++;
-        entry.claimedBy.push(item.claimed_by);
-      } else {
-        entry.availableIds.push(item.id);
-      }
-      map.set(item.item_name, entry);
-    }
-    return Array.from(map.entries()).map(([name, data]) => ({ name, ...data }));
-  }, [items]);
-
   return (
     <div className="space-y-4">
       <Separator />
@@ -72,30 +49,16 @@ const BringListSection = ({
       />
 
       <ul className="space-y-2">
-        {grouped.map((group) => {
-          const selected = selectedCounts.get(group.name) ?? 0;
-          const available = group.availableIds.length;
-          const fullyClaimed = available === 0;
+        {items.map((item) => {
+          const selected = selectedCounts.get(item.id) ?? 0;
           const isSelected = selected > 0;
-          const showScarcity = available === 1 && group.total > 1 && !isSelected;
-
-          if (fullyClaimed) {
-            return (
-              <li
-                key={group.name}
-                className="flex items-center gap-3 rounded-md border px-3 py-2.5 opacity-50 cursor-not-allowed select-none"
-              >
-                <Check className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="font-medium">{group.name}</span>
-                <span className="ml-auto text-xs text-muted-foreground">Full</span>
-              </li>
-            );
-          }
+          const covered = item.committed_quantity >= item.target_quantity;
+          const committerNames = item.commitments.map((c) => c.guest_name);
 
           return (
             <li
-              key={group.name}
-              onClick={() => onUpdateCount(group.name, isSelected ? 0 : 1)}
+              key={item.id}
+              onClick={() => onUpdateCount(item.id, isSelected ? 0 : 1)}
               className={cn(
                 "flex items-center gap-3 rounded-md border px-3 py-2.5 cursor-pointer transition-colors select-none",
                 isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/50"
@@ -107,49 +70,75 @@ const BringListSection = ({
                   isSelected ? "opacity-100" : "opacity-0"
                 )}
               />
-              <span className="font-medium">{group.name}</span>
-              {showScarcity && (
-                <span className="text-xs text-amber-600 font-medium">1 left</span>
-              )}
-              {isSelected && group.total > 1 && (
-                <div
-                  className="ml-auto flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={selected <= 1}
-                    onClick={() => onUpdateCount(group.name, selected - 1)}
+              <div className="flex-1 min-w-0">
+                <span className="font-medium">{item.item_name}</span>
+                {committerNames.length > 0 && (
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {committerNames.join(", ")}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto shrink-0">
+                {covered && !isSelected && (
+                  <span className="text-xs font-medium text-emerald-600">Covered</span>
+                )}
+                {item.target_quantity > 1 && (
+                  <span className={cn(
+                    "text-xs",
+                    covered ? "text-emerald-600 font-medium" : "text-muted-foreground"
+                  )}>
+                    {item.committed_quantity}/{item.target_quantity}
+                  </span>
+                )}
+                {item.target_quantity === 1 && item.committed_quantity > 0 && !isSelected && (
+                  <span className="text-xs text-muted-foreground">
+                    {item.committed_quantity} bringing
+                  </span>
+                )}
+
+                {isSelected && (
+                  <div
+                    className="flex items-center gap-1"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-5 text-center text-sm font-medium">{selected}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={selected >= available}
-                    onClick={() => onUpdateCount(group.name, selected + 1)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      disabled={selected <= 1}
+                      onClick={() => onUpdateCount(item.id, selected - 1)}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="w-5 text-center text-sm font-medium">{selected}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => onUpdateCount(item.id, selected + 1)}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             </li>
           );
         })}
 
-        {customItems.map((name, i) => (
+        {customItems.map((ci, i) => (
           <li
             key={`custom-${i}`}
             className="flex items-center gap-3 rounded-md border border-primary bg-primary/5 px-3 py-2.5"
           >
             <Check className="h-4 w-4 shrink-0 text-primary" />
-            <span className="font-medium">{name}</span>
+            <span className="font-medium">{ci.item_name}</span>
+            {ci.quantity > 1 && (
+              <span className="text-xs text-muted-foreground">×{ci.quantity}</span>
+            )}
             <Button
               type="button"
               variant="ghost"

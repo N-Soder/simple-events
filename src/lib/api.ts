@@ -8,8 +8,13 @@ async function apiFetch(path: string, options: RequestInit = {}) {
       ...options.headers,
     },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "API error");
+  let data: Record<string, unknown>;
+  try {
+    data = await res.json();
+  } catch {
+    data = { error: res.statusText || "Unexpected server response" };
+  }
+  if (!res.ok) throw new Error((data.error as string) || "API error");
   return data;
 }
 
@@ -54,18 +59,26 @@ export async function submitRsvp(params: {
   return apiFetch("rsvp", { method: "POST", body: JSON.stringify(params) });
 }
 
-export async function claimItem(event_id: string, password: string | undefined, item_id: string, claimed_by: string) {
-  return apiFetch("claim-item", {
-    method: "POST",
-    body: JSON.stringify({ event_id, password, item_id, claimed_by }),
-  });
+export async function claimItem(params: {
+  event_id: string;
+  password: string | undefined;
+  item_id: string;
+  rsvp_id: string;
+  manage_code: string;
+  quantity: number;
+}) {
+  return apiFetch("claim-item", { method: "POST", body: JSON.stringify(params) });
 }
 
-export async function addCustomItem(event_id: string, password: string | undefined, item_name: string, claimed_by?: string) {
-  return apiFetch("add-item", {
-    method: "POST",
-    body: JSON.stringify({ event_id, password, item_name, claimed_by }),
-  });
+export async function addCustomItem(params: {
+  event_id: string;
+  password: string | undefined;
+  item_name: string;
+  rsvp_id: string;
+  manage_code: string;
+  quantity: number;
+}) {
+  return apiFetch("add-item", { method: "POST", body: JSON.stringify(params) });
 }
 
 export async function updateEvent(event_id: string, admin_token: string, updates: Record<string, unknown>) {
@@ -109,8 +122,8 @@ export async function updateRsvp(params: {
   adults?: number;
   kids?: number;
   unclaim_item_ids?: string[];
-  claim_item_ids?: string[];
-  custom_items?: string[];
+  claim_items?: Array<{ item_id: string; quantity: number }>;
+  custom_items?: Array<{ item_name: string; quantity: number }>;
   cancelled?: boolean;
 }) {
   return apiFetch("rsvp/update", { method: "PUT", body: JSON.stringify(params) });
@@ -120,7 +133,12 @@ export async function uploadBanner(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(`${FUNCTION_URL}/upload`, { method: "POST", body: formData });
-  const data = await res.json() as { url?: string; error?: string };
+  let data: { url?: string; error?: string };
+  try {
+    data = await res.json() as { url?: string; error?: string };
+  } catch {
+    data = { error: res.statusText || "Unexpected server response" };
+  }
   if (!res.ok) throw new Error(data.error || "Upload failed");
   return data.url!;
 }
