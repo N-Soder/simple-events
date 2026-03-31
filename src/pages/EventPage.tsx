@@ -7,7 +7,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp } from "@/lib/api";
+import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
 import { format } from "date-fns";
 import MarkdownContent from "@/components/MarkdownContent";
 import BringListSection, { BringItem } from "@/components/BringListSection";
@@ -146,13 +146,16 @@ const EventPage = () => {
       setNeedsPassword(false);
       if (pw) localStorage.setItem(`event_pw_${id}`, pw);
       await tryLoadManagedRsvp(id);
-    } catch {
-      if (!pw) {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        if (pw) {
+          localStorage.removeItem(`event_pw_${id}`);
+          toast({ title: "Invalid password", variant: "destructive" });
+        }
         setNeedsPassword(true);
       } else {
-        localStorage.removeItem(`event_pw_${id}`);
-        toast({ title: "Invalid password", variant: "destructive" });
-        setNeedsPassword(true);
+        const message = error instanceof Error ? error.message : "Failed to load event";
+        toast({ title: "Error", description: message, variant: "destructive" });
       }
       setAuthenticated(false);
     } finally {

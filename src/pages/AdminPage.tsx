@@ -15,6 +15,7 @@ import {
   adminAddBringItem,
   adminDeleteBringItem,
   adminDeleteRsvp,
+  ApiError,
 } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { BringItem } from "@/components/BringListSection";
@@ -70,8 +71,11 @@ const AdminPage = () => {
       setVisibility(result.event.guest_visibility as "full" | "count_only" | "hidden");
       setBringListEnabled(result.event.bring_list_enabled as boolean);
       setBringListMessage((result.event.bring_list_message as string) || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
-    } catch {
-      toast({ title: "Invalid admin link", variant: "destructive" });
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 403
+        ? "Invalid admin link"
+        : error instanceof Error ? error.message : "Failed to load event";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }

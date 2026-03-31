@@ -1,5 +1,11 @@
 const FUNCTION_URL = "/api";
 
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
 async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${FUNCTION_URL}/${path}`, {
     ...options,
@@ -14,7 +20,7 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   } catch {
     data = { error: res.statusText || "Unexpected server response" };
   }
-  if (!res.ok) throw new Error((data.error as string) || "API error");
+  if (!res.ok) throw new ApiError((data.error as string) || "API error", res.status);
   return data;
 }
 
