@@ -17,7 +17,7 @@ interface RsvpSummaryCardProps {
   guestName: string;
   adults: number;
   kids: number;
-  claimedItems: Array<{ id: string; item_name: string }>;
+  claimedItems: Array<{ id: string; item_id: string; item_name: string; quantity: number }>;
   cancelled?: boolean;
   onEdit: () => void;
   onCancel?: () => void;
@@ -110,7 +110,7 @@ const RsvpSummaryCard = ({
           <div className="flex justify-between">
             <span className="text-muted-foreground">Bringing</span>
             <span className="font-medium text-right">
-              {claimedItems.map((i) => i.item_name).join(", ")}
+              {claimedItems.map((i) => i.quantity > 1 ? `${i.item_name} ×${i.quantity}` : i.item_name).join(", ")}
             </span>
           </div>
         )}

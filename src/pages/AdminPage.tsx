@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, Link } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -16,8 +15,10 @@ import {
   adminAddBringItem,
   adminDeleteBringItem,
   adminDeleteRsvp,
+  ApiError,
 } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import { BringItem } from "@/components/BringListSection";
 
 interface EventData {
   event: {
@@ -32,8 +33,8 @@ interface EventData {
     bring_list_enabled: boolean;
     admin_token: string;
   };
-  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean }>;
-  bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
+  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean; manage_code: string }>;
+  bring_items: BringItem[];
 }
 
 const AdminPage = () => {
@@ -45,7 +46,6 @@ const AdminPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Edit form
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -62,17 +62,20 @@ const AdminPage = () => {
     setLoading(true);
     try {
       const result = await getAdminEvent(id, token);
-      setData(result);
-      setName(result.event.name);
-      setDescription(result.event.description || "");
-      setEventDate(result.event.event_date);
-      setEventTime(result.event.event_time || "");
-      setLocation(result.event.location || "");
-      setVisibility(result.event.guest_visibility);
-      setBringListEnabled(result.event.bring_list_enabled);
-      setBringListMessage(result.event.bring_list_message || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
-    } catch {
-      toast({ title: "Invalid admin link", variant: "destructive" });
+      setData(result as EventData);
+      setName(result.event.name as string);
+      setDescription((result.event.description as string) || "");
+      setEventDate(result.event.event_date as string);
+      setEventTime((result.event.event_time as string) || "");
+      setLocation((result.event.location as string) || "");
+      setVisibility(result.event.guest_visibility as "full" | "count_only" | "hidden");
+      setBringListEnabled(result.event.bring_list_enabled as boolean);
+      setBringListMessage((result.event.bring_list_message as string) || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
+    } catch (error) {
+      const message = error instanceof ApiError && error.status === 403
+        ? "Invalid admin link"
+        : error instanceof Error ? error.message : "Failed to load event";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -89,8 +92,9 @@ const AdminPage = () => {
       });
       toast({ title: "Event updated!" });
       loadData();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -103,8 +107,9 @@ const AdminPage = () => {
       setNewItem("");
       setNewItemQty(1);
       loadData();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -113,8 +118,9 @@ const AdminPage = () => {
     try {
       await adminDeleteBringItem(id, token, itemId);
       loadData();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -123,9 +129,17 @@ const AdminPage = () => {
     try {
       await adminDeleteRsvp(id, token, rsvpId);
       loadData();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
+  };
+
+  const copyManageLink = (rsvp: EventData["rsvps"][number]) => {
+    const url = `${window.location.origin}/event/${id}#manage=${rsvp.id}.${rsvp.manage_code}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast({ title: `Manage link copied for ${rsvp.guest_name}` });
+    });
   };
 
   if (loading) {
@@ -186,7 +200,6 @@ const AdminPage = () => {
               <Input value={location} onChange={(e) => setLocation(e.target.value)} className="mt-1.5" />
             </div>
 
-            {/* Visibility Setting */}
             <div>
               <Label className="mb-3 block">Guest List Visibility</Label>
               <RadioGroup value={visibility} onValueChange={(v) => setVisibility(v as typeof visibility)} className="space-y-2">
@@ -230,17 +243,28 @@ const AdminPage = () => {
             ) : (
               <ul className="space-y-2">
                 {data.rsvps.map((r) => (
-                   <li key={r.id} className={`flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 ${r.cancelled ? "opacity-50" : ""}`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-medium ${r.cancelled ? "line-through" : ""}`}>{r.guest_name}</span>
-                      {r.cancelled && <Badge variant="secondary" className="text-xs">Cancelled</Badge>}
-                      <span className="text-sm text-muted-foreground">
+                  <li key={r.id} className={`flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 ${r.cancelled ? "opacity-50" : ""}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`font-medium truncate ${r.cancelled ? "line-through" : ""}`}>{r.guest_name}</span>
+                      {r.cancelled && <Badge variant="secondary" className="text-xs shrink-0">Cancelled</Badge>}
+                      <span className="text-sm text-muted-foreground shrink-0">
                         {r.adults} adult{r.adults !== 1 ? "s" : ""}{r.kids > 0 ? `, ${r.kids} kid${r.kids !== 1 ? "s" : ""}` : ""}
                       </span>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteRsvp(r.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground"
+                        title="Copy manage link"
+                        onClick={() => copyManageLink(r)}
+                      >
+                        <Link className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteRsvp(r.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -272,17 +296,30 @@ const AdminPage = () => {
             </div>
             {data.bring_items.length > 0 && (
               <ul className="space-y-2">
-                {data.bring_items.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                    <div>
-                      <span className="font-medium">{item.item_name}</span>
-                      {item.claimed_by && <span className="ml-2 text-sm text-muted-foreground">— {item.claimed_by}</span>}
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteItem(item.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
+                {data.bring_items.map((item) => {
+                  const covered = item.committed_quantity >= item.target_quantity;
+                  return (
+                    <li key={item.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{item.item_name}</span>
+                          <span className={`text-xs ${covered ? "text-emerald-600 font-medium" : "text-muted-foreground"}`}>
+                            {item.committed_quantity}/{item.target_quantity}
+                            {covered ? " ✓" : ""}
+                          </span>
+                        </div>
+                        {item.commitments.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {item.commitments.map((c) => c.quantity > 1 ? `${c.guest_name} ×${c.quantity}` : c.guest_name).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => handleDeleteItem(item.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             <div className="flex gap-2">

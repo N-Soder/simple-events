@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,10 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp } from "@/lib/api";
+import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
 import { format } from "date-fns";
 import MarkdownContent from "@/components/MarkdownContent";
-import BringListSection from "@/components/BringListSection";
+import BringListSection, { BringItem } from "@/components/BringListSection";
 import RsvpSuccessScreen from "@/components/RsvpSuccessScreen";
 import RsvpSummaryCard from "@/components/RsvpSummaryCard";
 
@@ -28,7 +28,14 @@ interface EventData {
     bring_list_message: string | null;
   };
   rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean }>;
-  bring_items: Array<{ id: string; item_name: string; claimed_by: string | null }>;
+  bring_items: BringItem[];
+}
+
+interface ClaimedItem {
+  id: string;       // commitment ID
+  item_id: string;
+  item_name: string;
+  quantity: number;
 }
 
 interface ManagedRsvp {
@@ -38,7 +45,7 @@ interface ManagedRsvp {
   adults: number;
   kids: number;
   cancelled?: boolean;
-  claimed_items: Array<{ id: string; item_name: string }>;
+  claimed_items: ClaimedItem[];
 }
 
 const EventPage = () => {
@@ -58,9 +65,9 @@ const EventPage = () => {
   const [honeypot, setHoneypot] = useState("");
   const [submittingRsvp, setSubmittingRsvp] = useState(false);
 
-  // Bring list state
+  // Bring list: keyed by item ID
   const [selectedCounts, setSelectedCounts] = useState<Map<string, number>>(new Map());
-  const [customItems, setCustomItems] = useState<string[]>([]);
+  const [customItems, setCustomItems] = useState<Array<{ item_name: string; quantity: number }>>([]);
   const [customItemInput, setCustomItemInput] = useState("");
 
   // RSVP management state
@@ -69,7 +76,6 @@ const EventPage = () => {
   const [editMode, setEditMode] = useState(false);
   const [successClaimedItems, setSuccessClaimedItems] = useState<string[]>([]);
 
-  // Parse URL hash to detect manage link vs password
   const parseHash = useCallback(() => {
     const hash = window.location.hash.slice(1);
     if (!hash) return { type: "none" as const };
@@ -80,23 +86,20 @@ const EventPage = () => {
     return { type: "password" as const, value: hash };
   }, []);
 
-  // Try to load an existing RSVP from localStorage or URL hash
   const tryLoadManagedRsvp = useCallback(async (eventId: string) => {
-    // Check hash first
     const hashInfo = parseHash();
     if (hashInfo.type === "manage") {
       try {
         const result = await getRsvpByManageCode(eventId, hashInfo.rsvp_id, hashInfo.manage_code);
         setManagedRsvp({
-          rsvp_id: result.rsvp.id,
-          manage_code: result.rsvp.manage_code,
-          guest_name: result.rsvp.guest_name,
-          adults: result.rsvp.adults,
-          kids: result.rsvp.kids,
-          cancelled: result.rsvp.cancelled,
-          claimed_items: result.claimed_items,
+          rsvp_id: result.rsvp.id as string,
+          manage_code: result.rsvp.manage_code as string,
+          guest_name: result.rsvp.guest_name as string,
+          adults: result.rsvp.adults as number,
+          kids: result.rsvp.kids as number,
+          cancelled: result.rsvp.cancelled as boolean,
+          claimed_items: result.claimed_items as ClaimedItem[],
         });
-        // Save to localStorage for future visits
         localStorage.setItem(`rsvp_manage_${eventId}`, JSON.stringify({ rsvp_id: result.rsvp.id, manage_code: result.rsvp.manage_code }));
         return;
       } catch {
@@ -104,20 +107,19 @@ const EventPage = () => {
       }
     }
 
-    // Check localStorage
     const saved = localStorage.getItem(`rsvp_manage_${eventId}`);
     if (saved) {
       try {
         const { rsvp_id, manage_code } = JSON.parse(saved);
         const result = await getRsvpByManageCode(eventId, rsvp_id, manage_code);
         setManagedRsvp({
-          rsvp_id: result.rsvp.id,
-          manage_code: result.rsvp.manage_code,
-          guest_name: result.rsvp.guest_name,
-          adults: result.rsvp.adults,
-          kids: result.rsvp.kids,
-          cancelled: result.rsvp.cancelled,
-          claimed_items: result.claimed_items,
+          rsvp_id: result.rsvp.id as string,
+          manage_code: result.rsvp.manage_code as string,
+          guest_name: result.rsvp.guest_name as string,
+          adults: result.rsvp.adults as number,
+          kids: result.rsvp.kids as number,
+          cancelled: result.rsvp.cancelled as boolean,
+          claimed_items: result.claimed_items as ClaimedItem[],
         });
       } catch {
         localStorage.removeItem(`rsvp_manage_${eventId}`);
@@ -125,7 +127,6 @@ const EventPage = () => {
     }
   }, [parseHash]);
 
-  // On mount: try loading the event
   useEffect(() => {
     if (!id) return;
     const hashInfo = parseHash();
@@ -139,20 +140,22 @@ const EventPage = () => {
     setLoading(true);
     try {
       const result = await getEvent(id, pw);
-      setData(result);
+      setData(result as EventData);
       setAuthenticated(true);
       setPassword(pw);
       setNeedsPassword(false);
       if (pw) localStorage.setItem(`event_pw_${id}`, pw);
-      // Load managed RSVP after event loads
       await tryLoadManagedRsvp(id);
-    } catch {
-      if (!pw) {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        if (pw) {
+          localStorage.removeItem(`event_pw_${id}`);
+          toast({ title: "Invalid password", variant: "destructive" });
+        }
         setNeedsPassword(true);
       } else {
-        localStorage.removeItem(`event_pw_${id}`);
-        toast({ title: "Invalid password", variant: "destructive" });
-        setNeedsPassword(true);
+        const message = error instanceof Error ? error.message : "Failed to load event";
+        toast({ title: "Error", description: message, variant: "destructive" });
       }
       setAuthenticated(false);
     } finally {
@@ -165,25 +168,11 @@ const EventPage = () => {
     loadEvent(passwordInput);
   };
 
-  // Build a lookup from item name → available IDs
-  const groupedAvailableIds = useMemo(() => {
-    if (!data) return new Map<string, string[]>();
-    const map = new Map<string, string[]>();
-    for (const item of data.bring_items) {
-      if (!item.claimed_by) {
-        const ids = map.get(item.item_name) || [];
-        ids.push(item.id);
-        map.set(item.item_name, ids);
-      }
-    }
-    return map;
-  }, [data]);
-
-  const handleUpdateCount = (itemName: string, count: number) => {
+  const handleUpdateCount = (itemId: string, count: number) => {
     setSelectedCounts((prev) => {
       const next = new Map(prev);
-      if (count <= 0) next.delete(itemName);
-      else next.set(itemName, count);
+      if (count <= 0) next.delete(itemId);
+      else next.set(itemId, count);
       return next;
     });
   };
@@ -194,49 +183,48 @@ const EventPage = () => {
     setSubmittingRsvp(true);
     try {
       const rsvpResult = await submitRsvp({ event_id: id, password, guest_name: guestName.trim(), adults, kids, honeypot });
+      const rsvpId = rsvpResult.id as string;
+      const manageCode = rsvpResult.manage_code as string;
 
-      // Resolve selected counts to actual item IDs
-      const claimIds: string[] = [];
+      const claimPromises: Promise<unknown>[] = [];
       const claimedItemNames: string[] = [];
-      selectedCounts.forEach((count, itemName) => {
-        const available = groupedAvailableIds.get(itemName) || [];
-        const toClaim = available.slice(0, count);
-        claimIds.push(...toClaim);
-        for (let i = 0; i < Math.min(count, toClaim.length); i++) {
-          claimedItemNames.push(itemName);
-        }
+
+      selectedCounts.forEach((quantity, itemId) => {
+        const item = data?.bring_items.find((i) => i.id === itemId);
+        if (!item) return;
+        claimPromises.push(
+          claimItem({ event_id: id, password, item_id: itemId, rsvp_id: rsvpId, manage_code: manageCode, quantity }).catch(() => null)
+        );
+        for (let i = 0; i < quantity; i++) claimedItemNames.push(item.item_name);
       });
 
-      const claimPromises = claimIds.map((itemId) =>
-        claimItem(id, password, itemId, guestName.trim()).catch(() => null)
-      );
-      const customPromises = customItems.map((name) =>
-        addCustomItem(id, password, name, guestName.trim()).catch(() => null)
-      );
-      await Promise.all([...claimPromises, ...customPromises]);
+      for (const ci of customItems) {
+        claimPromises.push(
+          addCustomItem({ event_id: id, password, item_name: ci.item_name, rsvp_id: rsvpId, manage_code: manageCode, quantity: ci.quantity }).catch(() => null)
+        );
+        for (let i = 0; i < ci.quantity; i++) claimedItemNames.push(ci.item_name);
+      }
 
-      const allClaimed = [...claimedItemNames, ...customItems];
+      await Promise.all(claimPromises);
 
-      // Save manage info to localStorage
-      if (rsvpResult.id && rsvpResult.manage_code) {
-        localStorage.setItem(`rsvp_manage_${id}`, JSON.stringify({ rsvp_id: rsvpResult.id, manage_code: rsvpResult.manage_code }));
+      if (rsvpId && manageCode) {
+        localStorage.setItem(`rsvp_manage_${id}`, JSON.stringify({ rsvp_id: rsvpId, manage_code: manageCode }));
         setManagedRsvp({
-          rsvp_id: rsvpResult.id,
-          manage_code: rsvpResult.manage_code,
+          rsvp_id: rsvpId,
+          manage_code: manageCode,
           guest_name: guestName.trim(),
           adults,
           kids,
-          claimed_items: allClaimed.map((name, i) => ({ id: `new-${i}`, item_name: name })),
+          claimed_items: [],
         });
       }
 
-      setSuccessClaimedItems(allClaimed);
+      setSuccessClaimedItems(claimedItemNames);
       setShowSuccessScreen(true);
-
-      // Reload event data in background
       loadEvent(password);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setSubmittingRsvp(false);
     }
@@ -247,14 +235,13 @@ const EventPage = () => {
     if (!id || !managedRsvp || !guestName.trim()) return;
     setSubmittingRsvp(true);
     try {
-      // Determine which items to unclaim (previously claimed but no longer selected)
-      const previouslyClaimedIds = managedRsvp.claimed_items.map((i) => i.id);
-      
-      // Resolve new selections to IDs
-      const newClaimIds: string[] = [];
-      selectedCounts.forEach((count, itemName) => {
-        const available = groupedAvailableIds.get(itemName) || [];
-        newClaimIds.push(...available.slice(0, count));
+      // All existing commitment IDs to remove
+      const unclaim_item_ids = managedRsvp.claimed_items.map((i) => i.id);
+
+      // New selections
+      const claim_items: Array<{ item_id: string; quantity: number }> = [];
+      selectedCounts.forEach((quantity, itemId) => {
+        claim_items.push({ item_id: itemId, quantity });
       });
 
       await updateRsvp({
@@ -264,8 +251,8 @@ const EventPage = () => {
         guest_name: guestName.trim(),
         adults,
         kids,
-        unclaim_item_ids: previouslyClaimedIds,
-        claim_item_ids: newClaimIds,
+        unclaim_item_ids,
+        claim_items,
         custom_items: customItems,
       });
 
@@ -274,10 +261,10 @@ const EventPage = () => {
       setSelectedCounts(new Map());
       setCustomItems([]);
       setCustomItemInput("");
-      // Reload everything
       await loadEvent(password);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setSubmittingRsvp(false);
     }
@@ -288,10 +275,10 @@ const EventPage = () => {
     setGuestName(managedRsvp.guest_name);
     setAdults(managedRsvp.adults);
     setKids(managedRsvp.kids);
-    // Pre-select currently claimed items
+    // Pre-select currently committed items by item ID
     const counts = new Map<string, number>();
     for (const item of managedRsvp.claimed_items) {
-      counts.set(item.item_name, (counts.get(item.item_name) || 0) + 1);
+      counts.set(item.item_id, (counts.get(item.item_id) || 0) + item.quantity);
     }
     setSelectedCounts(counts);
     setCustomItems([]);
@@ -301,7 +288,7 @@ const EventPage = () => {
 
   const handleAddCustom = () => {
     if (!customItemInput.trim()) return;
-    setCustomItems((prev) => [...prev, customItemInput.trim()]);
+    setCustomItems((prev) => [...prev, { item_name: customItemInput.trim(), quantity: 1 }]);
     setCustomItemInput("");
   };
 
@@ -321,8 +308,9 @@ const EventPage = () => {
       });
       toast({ title: "RSVP cancelled" });
       await loadEvent(password);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -337,8 +325,9 @@ const EventPage = () => {
       });
       toast({ title: "Welcome back! Your RSVP is active again." });
       await loadEvent(password);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -346,7 +335,6 @@ const EventPage = () => {
     ? `${window.location.origin}/event/${id}#manage=${managedRsvp.rsvp_id}.${managedRsvp.manage_code}`
     : "";
 
-  // Loading state
   if (loading && !authenticated) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -355,7 +343,6 @@ const EventPage = () => {
     );
   }
 
-  // Password Gate
   if (!authenticated && needsPassword) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -382,7 +369,6 @@ const EventPage = () => {
     );
   }
 
-  // Success Screen
   if (showSuccessScreen && managedRsvp) {
     return (
       <main className="min-h-screen bg-background">
@@ -409,7 +395,6 @@ const EventPage = () => {
 
   return (
     <main className="min-h-screen bg-background">
-      {/* Banner */}
       {event.banner_url && (
         <div className="h-56 w-full overflow-hidden sm:h-72">
           <img src={event.banner_url} alt="Event banner" className="h-full w-full object-cover" />
@@ -444,7 +429,6 @@ const EventPage = () => {
           </div>
         )}
 
-        {/* Guest Info Section */}
         {event.guest_visibility !== "hidden" && activeRsvps.length > 0 && (
           <Card className="mt-8">
             <CardHeader>
@@ -474,7 +458,6 @@ const EventPage = () => {
           </Card>
         )}
 
-        {/* Returning guest: show summary card */}
         {hasExistingRsvp && (
           <RsvpSummaryCard
             guestName={managedRsvp.guest_name}
@@ -488,7 +471,6 @@ const EventPage = () => {
           />
         )}
 
-        {/* RSVP + Bring List Form (new submission or edit mode) */}
         {!hasExistingRsvp && (
           <Card className="mt-6">
             <CardHeader>
@@ -496,7 +478,6 @@ const EventPage = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={isEditing ? handleEditRsvp : handleRsvp} className="space-y-6">
-                {/* Honeypot */}
                 {!isEditing && (
                   <div className="absolute -left-[9999px]" aria-hidden="true">
                     <input tabIndex={-1} value={honeypot} onChange={(e) => setHoneypot(e.target.value)} autoComplete="off" />
