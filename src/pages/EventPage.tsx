@@ -76,6 +76,11 @@ const EventPage = () => {
   const [editMode, setEditMode] = useState(false);
   const [successClaimedItems, setSuccessClaimedItems] = useState<string[]>([]);
 
+  // Time format: detect browser locale preference, allow toggle
+  const [use12Hour, setUse12Hour] = useState<boolean>(
+    () => Intl.DateTimeFormat(navigator.language, { hour: "numeric" }).resolvedOptions().hour12 ?? true
+  );
+
   const parseHash = useCallback(() => {
     const hash = window.location.hash.slice(1);
     if (!hash) return { type: "none" as const };
@@ -410,9 +415,21 @@ const EventPage = () => {
             {format(new Date(event.event_date), "EEEE, MMMM d, yyyy")}
           </span>
           {event.event_time && (
-            <span className="flex items-center gap-1.5">
+            <span
+              className="flex items-center gap-1.5 cursor-pointer select-none underline decoration-dotted underline-offset-2"
+              title={use12Hour ? "Switch to 24-hour" : "Switch to AM/PM"}
+              onClick={() => setUse12Hour((v) => !v)}
+            >
               <Clock className="h-4 w-4" />
-              {event.event_time}
+              {(() => {
+                const [h, m] = event.event_time!.split(":").map(Number);
+                if (use12Hour) {
+                  const period = h >= 12 ? "PM" : "AM";
+                  const hour12 = h % 12 || 12;
+                  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+                }
+                return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+              })()}
             </span>
           )}
           {event.location && (

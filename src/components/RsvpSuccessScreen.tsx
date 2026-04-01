@@ -66,17 +66,29 @@ const RsvpSuccessScreen = ({
 
       <Card className="mt-4 border-dashed">
         <CardContent className="pt-6 space-y-3">
-          <p className="text-sm font-medium">Your edit link</p>
+          <p className="text-sm font-medium">Edit your RSVP</p>
+          <p className="text-xs text-muted-foreground">
+            You can edit your RSVP from this device at any time. To edit from another device, save the link below — or contact the host.
+          </p>
           <div
-            className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs font-mono break-all cursor-pointer"
+            className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs font-mono cursor-pointer"
+            title="Copy link"
             onClick={copyLink}
           >
-            <span className="flex-1">{manageUrl}</span>
+            <span className="flex-1 truncate text-muted-foreground">
+              {(() => {
+                try {
+                  const url = new URL(manageUrl);
+                  const hash = url.hash; // e.g. #manage=abc.def
+                  const token = hash.slice(1, 13) + "…"; // first 12 chars of hash content
+                  return `${url.hostname}${url.pathname.slice(0, 18)}…#${token}`;
+                } catch {
+                  return manageUrl.slice(0, 30) + "…";
+                }
+              })()}
+            </span>
             <Copy className="h-4 w-4 shrink-0 text-muted-foreground" />
           </div>
-          <p className="text-xs text-muted-foreground">
-            ⚠️ Save this link — it won't be shown again. Use it to edit your RSVP from any device.
-          </p>
         </CardContent>
       </Card>
 
