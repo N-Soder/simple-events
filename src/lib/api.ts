@@ -36,6 +36,7 @@ export async function createEvent(params: {
   bring_list_enabled?: boolean;
   bring_items: Array<{ name: string; quantity: number }>;
   bring_list_message?: string;
+  bring_list_mode?: "signup" | "open";
 }) {
   return apiFetch("create", { method: "POST", body: JSON.stringify(params) });
 }
@@ -72,6 +73,7 @@ export async function claimItem(params: {
   rsvp_id: string;
   manage_code: string;
   quantity: number;
+  note?: string;
 }) {
   return apiFetch("claim-item", { method: "POST", body: JSON.stringify(params) });
 }
@@ -83,6 +85,7 @@ export async function addCustomItem(params: {
   rsvp_id: string;
   manage_code: string;
   quantity: number;
+  note?: string;
 }) {
   return apiFetch("add-item", { method: "POST", body: JSON.stringify(params) });
 }
@@ -128,8 +131,8 @@ export async function updateRsvp(params: {
   adults?: number;
   kids?: number;
   unclaim_item_ids?: string[];
-  claim_items?: Array<{ item_id: string; quantity: number }>;
-  custom_items?: Array<{ item_name: string; quantity: number }>;
+  claim_items?: Array<{ item_id: string; quantity: number; note?: string }>;
+  custom_items?: Array<{ item_name: string; quantity: number; note?: string }>;
   cancelled?: boolean;
 }) {
   return apiFetch("rsvp/update", { method: "PUT", body: JSON.stringify(params) });

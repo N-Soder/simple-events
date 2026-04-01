@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, Link } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, Link, ListOrdered, ListPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,16 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   getAdminEvent,
@@ -31,6 +41,7 @@ interface EventData {
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
+    bring_list_mode: "signup" | "open";
     admin_token: string;
   };
   rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean; manage_code: string }>;
@@ -53,9 +64,11 @@ const AdminPage = () => {
   const [location, setLocation] = useState("");
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
   const [bringListEnabled, setBringListEnabled] = useState(true);
+  const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
   const [bringListMessage, setBringListMessage] = useState("If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
+  const [pendingModeSwitch, setPendingModeSwitch] = useState<"signup" | "open" | null>(null);
 
   const loadData = async () => {
     if (!id || !token) return;
@@ -70,6 +83,7 @@ const AdminPage = () => {
       setLocation((result.event.location as string) || "");
       setVisibility(result.event.guest_visibility as "full" | "count_only" | "hidden");
       setBringListEnabled(result.event.bring_list_enabled as boolean);
+      setBringListMode((result.event.bring_list_mode as "signup" | "open") ?? "open");
       setBringListMessage((result.event.bring_list_message as string) || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
     } catch (error) {
       const message = error instanceof ApiError && error.status === 403
@@ -88,7 +102,9 @@ const AdminPage = () => {
     setSaving(true);
     try {
       await updateEvent(id, token, {
-        name, description, event_date: eventDate, event_time: eventTime || null, location, guest_visibility: visibility, bring_list_enabled: bringListEnabled, bring_list_message: bringListMessage,
+        name, description, event_date: eventDate, event_time: eventTime || null, location,
+        guest_visibility: visibility, bring_list_enabled: bringListEnabled,
+        bring_list_message: bringListMessage, bring_list_mode: bringListMode,
       });
       toast({ title: "Event updated!" });
       loadData();
@@ -100,10 +116,31 @@ const AdminPage = () => {
     }
   };
 
+  const handleModeChange = (newMode: "signup" | "open") => {
+    if (newMode === "signup" && data) {
+      const hasOvercommit = data.bring_items.some(
+        (item) => item.committed_quantity > item.target_quantity
+      );
+      if (hasOvercommit) {
+        setPendingModeSwitch("signup");
+        return;
+      }
+    }
+    setBringListMode(newMode);
+  };
+
+  const confirmModeSwitch = () => {
+    if (pendingModeSwitch) {
+      setBringListMode(pendingModeSwitch);
+    }
+    setPendingModeSwitch(null);
+  };
+
   const handleAddItem = async () => {
     if (!id || !newItem.trim()) return;
     try {
-      await adminAddBringItem(id, token, newItem.trim(), Math.min(Math.max(newItemQty, 1), 20));
+      const qty = bringListMode === "signup" ? Math.min(Math.max(newItemQty, 1), 20) : 1;
+      await adminAddBringItem(id, token, newItem.trim(), qty);
       setNewItem("");
       setNewItemQty(1);
       loadData();
@@ -285,6 +322,27 @@ const AdminPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Mode selector */}
+            <div>
+              <Label className="mb-2 block">List type</Label>
+              <RadioGroup value={bringListMode} onValueChange={(v) => handleModeChange(v as "signup" | "open")} className="space-y-2">
+                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "open" ? "border-primary bg-primary/5" : "border-border"}`}>
+                  <RadioGroupItem value="open" className="mt-0.5" />
+                  <div>
+                    <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open List</p>
+                    <p className="text-sm text-muted-foreground">No limits — guests pick suggestions and can add their own items.</p>
+                  </div>
+                </label>
+                <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "signup" ? "border-primary bg-primary/5" : "border-border"}`}>
+                  <RadioGroupItem value="signup" className="mt-0.5" />
+                  <div>
+                    <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Sign-up Sheet</p>
+                    <p className="text-sm text-muted-foreground">Each category has a fixed slot count. Items close when full. No custom items.</p>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+
             <div>
               <Label>Message for guests</Label>
               <MarkdownEditor
@@ -294,23 +352,32 @@ const AdminPage = () => {
                 rows={2}
               />
             </div>
+
             {data.bring_items.length > 0 && (
               <ul className="space-y-2">
                 {data.bring_items.map((item) => {
-                  const covered = item.committed_quantity >= item.target_quantity;
+                  const covered = bringListMode === "signup" && item.committed_quantity >= item.target_quantity;
+                  const notedCommitments = item.commitments.filter((c) => c.note);
                   return (
                     <li key={item.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{item.item_name}</span>
-                          <span className={`text-xs ${covered ? "text-emerald-600 font-medium" : "text-muted-foreground"}`}>
-                            {item.committed_quantity}/{item.target_quantity}
-                            {covered ? " ✓" : ""}
-                          </span>
+                          {bringListMode === "signup" && (
+                            <span className={`text-xs ${covered ? "text-emerald-600 font-medium" : "text-muted-foreground"}`}>
+                              {item.committed_quantity}/{item.target_quantity}
+                              {covered ? " ✓" : ""}
+                            </span>
+                          )}
                         </div>
                         {item.commitments.length > 0 && (
                           <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                            {item.commitments.map((c) => c.quantity > 1 ? `${c.guest_name} ×${c.quantity}` : c.guest_name).join(", ")}
+                            {item.commitments.map((c) => bringListMode === "signup" && c.quantity > 1 ? `${c.guest_name} ×${c.quantity}` : c.guest_name).join(", ")}
+                          </p>
+                        )}
+                        {notedCommitments.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-0.5 italic">
+                            {notedCommitments.map((c) => `${c.guest_name}: "${c.note}"`).join(" · ")}
                           </p>
                         )}
                       </div>
@@ -322,23 +389,27 @@ const AdminPage = () => {
                 })}
               </ul>
             )}
+
             <div className="flex gap-2">
               <Input
-                placeholder="Add item..."
+                placeholder={bringListMode === "signup" ? "Add category..." : "Add suggestion..."}
                 value={newItem}
                 onChange={(e) => setNewItem(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddItem(); } }}
                 className="flex-1"
               />
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                value={newItemQty}
-                onChange={(e) => setNewItemQty(parseInt(e.target.value) || 1)}
-                className="w-16"
-                title="Quantity"
-              />
+              {bringListMode === "signup" && (
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={newItemQty}
+                  onChange={(e) => setNewItemQty(parseInt(e.target.value) || 1)}
+                  className="w-20"
+                  title="Slots"
+                  placeholder="Slots"
+                />
+              )}
               <Button variant="outline" size="icon" onClick={handleAddItem}>
                 <Plus className="h-4 w-4" />
               </Button>
@@ -346,6 +417,22 @@ const AdminPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Overcommit warning dialog */}
+      <AlertDialog open={pendingModeSwitch !== null} onOpenChange={(open) => { if (!open) setPendingModeSwitch(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Some slots are over-committed</AlertDialogTitle>
+            <AlertDialogDescription>
+              One or more items have more commitments than available slots. Existing commitments will be kept, but no new ones can exceed the cap. You may want to increase slot counts or remove excess commitments after switching.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingModeSwitch(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmModeSwitch}>Switch Anyway</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 };

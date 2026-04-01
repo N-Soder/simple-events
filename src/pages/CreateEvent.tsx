@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarDays, MapPin, Clock, Plus, X, Upload, PartyPopper } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Plus, X, Upload, PartyPopper, ListOrdered, ListPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +33,7 @@ const Index = () => {
   const [requirePassword, setRequirePassword] = useState(false);
   const [embedPassword, setEmbedPassword] = useState(true);
   const [bringListEnabled, setBringListEnabled] = useState(true);
+  const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
   const [bringItems, setBringItems] = useState<{ name: string; quantity: number }[]>([]);
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
@@ -91,6 +92,7 @@ const Index = () => {
         banner_url,
         bring_items: bringListEnabled ? bringItems : [],
         bring_list_message: bringListEnabled ? bringListMessage : undefined,
+        bring_list_mode: bringListEnabled ? bringListMode : undefined,
       });
 
       // Build created page URL with password + embed info
@@ -275,6 +277,31 @@ const Index = () => {
                 )}
                 {bringListEnabled && (
                   <>
+                {/* Mode selector */}
+                <div className="mb-4 space-y-2">
+                  <Label>List type</Label>
+                  <RadioGroup
+                    value={bringListMode}
+                    onValueChange={(v) => setBringListMode(v as "signup" | "open")}
+                    className="space-y-2"
+                  >
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "open" ? "border-primary bg-primary/5" : "border-border"}`}>
+                      <RadioGroupItem value="open" className="mt-0.5" />
+                      <div>
+                        <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open List</p>
+                        <p className="text-sm text-muted-foreground">No limits — guests pick suggestions and can add their own items.</p>
+                      </div>
+                    </label>
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "signup" ? "border-primary bg-primary/5" : "border-border"}`}>
+                      <RadioGroupItem value="signup" className="mt-0.5" />
+                      <div>
+                        <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Sign-up Sheet</p>
+                        <p className="text-sm text-muted-foreground">Each category has a fixed slot count. Items close when full. No custom items.</p>
+                      </div>
+                    </label>
+                  </RadioGroup>
+                </div>
+
                 <div className="mb-4">
                   <Label>Message for guests</Label>
                   <MarkdownEditor
@@ -284,24 +311,31 @@ const Index = () => {
                     rows={2}
                   />
                 </div>
-                <p className="mb-3 text-sm text-muted-foreground">Add items guests can volunteer to bring.</p>
+                <p className="mb-3 text-sm text-muted-foreground">
+                  {bringListMode === "signup"
+                    ? "Add categories and how many slots are available for each."
+                    : "Add suggestions guests can volunteer to bring."}
+                </p>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="e.g. Salad, Drinks, Dessert"
+                    placeholder={bringListMode === "signup" ? "e.g. Dessert, Drinks, Side Dish" : "e.g. Salad, Drinks, Dessert"}
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
                     className="flex-1"
                   />
-                  <Input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={newItemQty}
-                    onChange={(e) => setNewItemQty(parseInt(e.target.value) || 1)}
-                    className="w-16"
-                    title="Quantity"
-                  />
+                  {bringListMode === "signup" && (
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={newItemQty}
+                      onChange={(e) => setNewItemQty(parseInt(e.target.value) || 1)}
+                      className="w-20"
+                      title="Slots"
+                      placeholder="Slots"
+                    />
+                  )}
                   <Button type="button" variant="outline" size="icon" onClick={addItem}>
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -310,7 +344,7 @@ const Index = () => {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {bringItems.map((item, i) => (
                       <span key={i} className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-sm">
-                        {item.name}{item.quantity > 1 ? ` ×${item.quantity}` : ""}
+                        {item.name}{bringListMode === "signup" && item.quantity > 1 ? ` ×${item.quantity}` : ""}
                         <button type="button" onClick={() => removeItem(i)} className="ml-1 text-muted-foreground hover:text-foreground">
                           <X className="h-3 w-3" />
                         </button>
