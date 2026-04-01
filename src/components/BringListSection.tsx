@@ -52,7 +52,8 @@ const BringListSection = ({
         {items.map((item) => {
           const selected = selectedCounts.get(item.id) ?? 0;
           const isSelected = selected > 0;
-          const covered = item.committed_quantity >= item.target_quantity;
+          const previewCommitted = item.committed_quantity + selected;
+          const covered = previewCommitted >= item.target_quantity;
           const committerNames = item.commitments.map((c) => c.guest_name);
 
           return (
@@ -88,12 +89,12 @@ const BringListSection = ({
                     "text-xs",
                     covered ? "text-emerald-600 font-medium" : "text-muted-foreground"
                   )}>
-                    {item.committed_quantity}/{item.target_quantity}
+                    {previewCommitted}/{item.target_quantity}
                   </span>
                 )}
-                {item.target_quantity === 1 && item.committed_quantity > 0 && !isSelected && (
+                {item.target_quantity === 1 && previewCommitted > 0 && !isSelected && (
                   <span className="text-xs text-muted-foreground">
-                    {item.committed_quantity} bringing
+                    {previewCommitted} bringing
                   </span>
                 )}
 
