@@ -135,6 +135,13 @@ export async function updateRsvp(params: {
   return apiFetch("rsvp/update", { method: "PUT", body: JSON.stringify(params) });
 }
 
+export async function adminDeleteEvent(event_id: string, admin_token: string) {
+  return apiFetch("admin/delete-event", {
+    method: "DELETE",
+    body: JSON.stringify({ event_id, admin_token }),
+  });
+}
+
 export async function uploadBanner(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
