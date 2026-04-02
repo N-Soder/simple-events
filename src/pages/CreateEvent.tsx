@@ -27,19 +27,22 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const OPEN_LIST_MESSAGE = "Bringing something? Pick an item from the list or add what you're planning to bring, and feel free to leave a comment.";
+const FIXED_SLOT_MESSAGE = "Bringing something? Grab an item before it's gone from the selection, and feel free to leave a comment.";
+
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [requirePassword, setRequirePassword] = useState(false);
   const [embedPassword, setEmbedPassword] = useState(true);
-  const [bringListEnabled, setBringListEnabled] = useState(true);
+  const [bringListEnabled, setBringListEnabled] = useState(false);
   const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
   const [bringItems, setBringItems] = useState<{ name: string; quantity: number }[]>([]);
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
-  const [bringListMessage, setBringListMessage] = useState("If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
+  const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
@@ -282,21 +285,27 @@ const Index = () => {
                   <Label>List type</Label>
                   <RadioGroup
                     value={bringListMode}
-                    onValueChange={(v) => setBringListMode(v as "signup" | "open")}
+                    onValueChange={(v) => {
+                      const newMode = v as "signup" | "open";
+                      setBringListMode(newMode);
+                      if (bringListMessage === OPEN_LIST_MESSAGE || bringListMessage === FIXED_SLOT_MESSAGE) {
+                        setBringListMessage(newMode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE);
+                      }
+                    }}
                     className="space-y-2"
                   >
                     <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "open" ? "border-primary bg-primary/5" : "border-border"}`}>
                       <RadioGroupItem value="open" className="mt-0.5" />
                       <div>
                         <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open List</p>
-                        <p className="text-sm text-muted-foreground">No limits — guests pick suggestions and can add their own items.</p>
+                        <p className="text-sm text-muted-foreground">No limits. Guests can choose from suggestions or add their own items.</p>
                       </div>
                     </label>
                     <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "signup" ? "border-primary bg-primary/5" : "border-border"}`}>
                       <RadioGroupItem value="signup" className="mt-0.5" />
                       <div>
-                        <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Sign-up Sheet</p>
-                        <p className="text-sm text-muted-foreground">Each category has a fixed slot count. Items close when full. No custom items.</p>
+                        <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Fixed Slot List</p>
+                        <p className="text-sm text-muted-foreground">Each category has a limited number of slots. Once full, no more items can be added. Custom items are not allowed.</p>
                       </div>
                     </label>
                   </RadioGroup>

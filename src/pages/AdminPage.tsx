@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+
+const OPEN_LIST_MESSAGE = "Bringing something? Pick an item from the list or add what you're planning to bring, and feel free to leave a comment.";
+const FIXED_SLOT_MESSAGE = "Bringing something? Grab an item before it's gone from the selection, and feel free to leave a comment.";
 import { useParams, useSearchParams } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, Link, ListOrdered, ListPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +68,7 @@ const AdminPage = () => {
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
   const [bringListEnabled, setBringListEnabled] = useState(true);
   const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
-  const [bringListMessage, setBringListMessage] = useState("If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
+  const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
   const [pendingModeSwitch, setPendingModeSwitch] = useState<"signup" | "open" | null>(null);
@@ -83,8 +86,12 @@ const AdminPage = () => {
       setLocation((result.event.location as string) || "");
       setVisibility(result.event.guest_visibility as "full" | "count_only" | "hidden");
       setBringListEnabled(result.event.bring_list_enabled as boolean);
-      setBringListMode((result.event.bring_list_mode as "signup" | "open") ?? "open");
-      setBringListMessage((result.event.bring_list_message as string) || "If you'd like to contribute, please bring something from the list below or add what you're planning to bring!");
+      const loadedMode = (result.event.bring_list_mode as "signup" | "open") ?? "open";
+      setBringListMode(loadedMode);
+      setBringListMessage(
+        (result.event.bring_list_message as string) ||
+        (loadedMode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE)
+      );
     } catch (error) {
       const message = error instanceof ApiError && error.status === 403
         ? "Invalid admin link"
@@ -117,6 +124,10 @@ const AdminPage = () => {
   };
 
   const handleModeChange = (newMode: "signup" | "open") => {
+    // Auto-swap boilerplate if the message is still one of the known defaults
+    if (bringListMessage === OPEN_LIST_MESSAGE || bringListMessage === FIXED_SLOT_MESSAGE) {
+      setBringListMessage(newMode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE);
+    }
     if (newMode === "signup" && data) {
       const hasOvercommit = data.bring_items.some(
         (item) => item.committed_quantity > item.target_quantity
@@ -330,14 +341,14 @@ const AdminPage = () => {
                   <RadioGroupItem value="open" className="mt-0.5" />
                   <div>
                     <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open List</p>
-                    <p className="text-sm text-muted-foreground">No limits — guests pick suggestions and can add their own items.</p>
+                    <p className="text-sm text-muted-foreground">No limits. Guests can choose from suggestions or add their own items.</p>
                   </div>
                 </label>
                 <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "signup" ? "border-primary bg-primary/5" : "border-border"}`}>
                   <RadioGroupItem value="signup" className="mt-0.5" />
                   <div>
-                    <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Sign-up Sheet</p>
-                    <p className="text-sm text-muted-foreground">Each category has a fixed slot count. Items close when full. No custom items.</p>
+                    <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Fixed Slot List</p>
+                    <p className="text-sm text-muted-foreground">Each category has a limited number of slots. Once full, no more items can be added. Custom items are not allowed.</p>
                   </div>
                 </label>
               </RadioGroup>
