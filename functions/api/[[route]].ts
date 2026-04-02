@@ -48,14 +48,14 @@ async function getBringItems(db: D1Database, eventId: string) {
   if (items.length === 0) return [];
 
   const { results: commitments } = await db.prepare(
-    "SELECT item_id, guest_name, quantity FROM bring_commitments WHERE event_id = ? ORDER BY created_at ASC"
-  ).bind(eventId).all<{ item_id: string; guest_name: string; quantity: number }>();
+    "SELECT item_id, guest_name, quantity, note FROM bring_commitments WHERE event_id = ? ORDER BY created_at ASC"
+  ).bind(eventId).all<{ item_id: string; guest_name: string; quantity: number; note: string | null }>();
 
   // Group commitments by item_id
-  const commitMap = new Map<string, Array<{ guest_name: string; quantity: number }>>();
+  const commitMap = new Map<string, Array<{ guest_name: string; quantity: number; note: string | null }>>();
   for (const c of commitments) {
     const list = commitMap.get(c.item_id) ?? [];
-    list.push({ guest_name: c.guest_name, quantity: c.quantity });
+    list.push({ guest_name: c.guest_name, quantity: c.quantity, note: c.note });
     commitMap.set(c.item_id, list);
   }
 
@@ -104,11 +104,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // POST /api/create - Create a new event
     if (request.method === "POST" && path === "create") {
       const body = await request.json() as Record<string, unknown>;
-      const { name, description, event_date, event_time, location, banner_url, password, guest_visibility, bring_items, bring_list_enabled, bring_list_message } = body as {
+      const { name, description, event_date, event_time, location, banner_url, password, guest_visibility, bring_items, bring_list_enabled, bring_list_message, bring_list_mode } = body as {
         name?: string; description?: string; event_date?: string; event_time?: string;
         location?: string; banner_url?: string; password?: string;
         guest_visibility?: string; bring_items?: Array<{ name: string; quantity: number } | string>;
         bring_list_enabled?: boolean; bring_list_message?: string;
+        bring_list_mode?: string;
       };
 
       if (!name || !event_date) return err("name and event_date are required");
@@ -116,24 +117,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const id = crypto.randomUUID();
       const admin_token = crypto.randomUUID();
       const password_hash = password ? bcrypt.hashSync(password, 10) : null;
+      const mode = bring_list_mode === "signup" ? "signup" : "open";
 
       await db.prepare(
-        `INSERT INTO events (id, name, description, event_date, event_time, location, banner_url, password_hash, guest_visibility, admin_token, bring_list_enabled, bring_list_message)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO events (id, name, description, event_date, event_time, location, banner_url, password_hash, guest_visibility, admin_token, bring_list_enabled, bring_list_message, bring_list_mode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         id, name, description ?? null, event_date, event_time ?? null,
         location ?? null, banner_url ?? null, password_hash,
         guest_visibility ?? "full", admin_token,
         bring_list_enabled !== false ? 1 : 0,
-        bring_list_message ?? null
+        bring_list_message ?? null,
+        mode
       ).run();
 
       // Insert one row per unique item with its target quantity
+      // In open mode, quantity is always 1 (no concept of slots)
       if (Array.isArray(bring_items) && bring_items.length > 0) {
         const stmt = db.prepare("INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)");
         await db.batch(bring_items.map((item) => {
           const itemName = typeof item === "string" ? item : item.name;
-          const qty = typeof item === "string" ? 1 : Math.min(Math.max(item.quantity || 1, 1), 20);
+          const qty = mode === "open" ? 1 : (typeof item === "string" ? 1 : Math.min(Math.max(item.quantity || 1, 1), 20));
           return stmt.bind(crypto.randomUUID(), id, itemName, qty);
         }));
       }
@@ -166,7 +170,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!valid) return err("Invalid password", 403);
 
       const event = await db.prepare(
-        "SELECT id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, created_at FROM events WHERE id = ?"
+        "SELECT id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at FROM events WHERE id = ?"
       ).bind(event_id).first();
       if (!event) return err("Event not found", 404);
 
@@ -186,7 +190,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!event_id || !token) return err("id and token are required");
 
       const event = await db.prepare(
-        "SELECT id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, admin_token, created_at FROM events WHERE id = ? AND admin_token = ?"
+        "SELECT id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, admin_token, created_at FROM events WHERE id = ? AND admin_token = ?"
       ).bind(event_id, token).first();
       if (!event) return err("Invalid admin link", 403);
 
@@ -223,9 +227,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     // POST /api/claim-item - Commit to bringing an item
     if (request.method === "POST" && path === "claim-item") {
-      const { event_id, password, item_id, rsvp_id, manage_code, quantity } = await request.json() as {
+      const { event_id, password, item_id, rsvp_id, manage_code, quantity, note } = await request.json() as {
         event_id?: string; password?: string; item_id?: string;
-        rsvp_id?: string; manage_code?: string; quantity?: number;
+        rsvp_id?: string; manage_code?: string; quantity?: number; note?: string;
       };
       if (!event_id || !item_id || !rsvp_id || !manage_code) {
         return err("event_id, item_id, rsvp_id, and manage_code are required");
@@ -242,15 +246,32 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // Verify item belongs to this event
       const item = await db.prepare(
-        "SELECT id FROM bring_list_items WHERE id = ? AND event_id = ?"
-      ).bind(item_id, event_id).first();
+        "SELECT id, quantity FROM bring_list_items WHERE id = ? AND event_id = ?"
+      ).bind(item_id, event_id).first<{ id: string; quantity: number }>();
       if (!item) return err("Item not found", 404);
 
-      const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+      // Fetch event mode
+      const eventRow = await db.prepare("SELECT bring_list_mode FROM events WHERE id = ?").bind(event_id).first<{ bring_list_mode: string }>();
+      const mode = eventRow?.bring_list_mode ?? "open";
+
+      const qty = mode === "open" ? 1 : Math.min(Math.max(quantity ?? 1, 1), 20);
+
+      // Enforce slot cap in signup mode
+      if (mode === "signup") {
+        const committedRow = await db.prepare(
+          "SELECT COALESCE(SUM(quantity), 0) as total FROM bring_commitments WHERE item_id = ? AND event_id = ?"
+        ).bind(item_id, event_id).first<{ total: number }>();
+        const committed = committedRow?.total ?? 0;
+        if (committed + qty > item.quantity) {
+          return err("This slot is full", 409);
+        }
+      }
+
+      const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
       const commitmentId = crypto.randomUUID();
       await db.prepare(
-        "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
-      ).bind(commitmentId, item_id, event_id, rsvp_id, rsvp.guest_name, qty).run();
+        "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).bind(commitmentId, item_id, event_id, rsvp_id, rsvp.guest_name, qty, sanitizedNote).run();
 
       const row = await db.prepare("SELECT * FROM bring_commitments WHERE id = ?").bind(commitmentId).first();
       return json(row);
@@ -258,22 +279,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     // POST /api/add-item - Add a custom bring list item (guest-suggested)
     if (request.method === "POST" && path === "add-item") {
-      const { event_id, password, item_name, rsvp_id, manage_code, quantity } = await request.json() as {
+      const { event_id, password, item_name, rsvp_id, manage_code, note } = await request.json() as {
         event_id?: string; password?: string; item_name?: string;
-        rsvp_id?: string; manage_code?: string; quantity?: number;
+        rsvp_id?: string; manage_code?: string; note?: string;
       };
       if (!event_id || !item_name) return err("event_id and item_name are required");
 
       const valid = await verifyEventPassword(db, event_id, password);
       if (!valid) return err("Invalid password", 403);
 
-      const itemId = crypto.randomUUID();
-      const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+      // Block custom items in signup mode
+      const eventRow = await db.prepare("SELECT bring_list_mode FROM events WHERE id = ?").bind(event_id).first<{ bring_list_mode: string }>();
+      const mode = eventRow?.bring_list_mode ?? "open";
+      if (mode === "signup") {
+        return err("Custom items are not allowed in Sign-up Sheet mode", 403);
+      }
 
-      // Always create a new item row for the custom item
+      const itemId = crypto.randomUUID();
+      // Open mode: quantity is always 1 (no slot concept)
       await db.prepare(
         "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
-      ).bind(itemId, event_id, item_name, qty).run();
+      ).bind(itemId, event_id, item_name, 1).run();
 
       // If we have RSVP ownership, create a commitment immediately
       if (rsvp_id && manage_code) {
@@ -281,9 +307,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           "SELECT id, guest_name FROM rsvps WHERE id = ? AND event_id = ? AND manage_code = ?"
         ).bind(rsvp_id, event_id, manage_code).first<{ id: string; guest_name: string }>();
         if (rsvp) {
+          const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
           await db.prepare(
-            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
-          ).bind(crypto.randomUUID(), itemId, event_id, rsvp_id, rsvp.guest_name, qty).run();
+            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(crypto.randomUUID(), itemId, event_id, rsvp_id, rsvp.guest_name, 1, sanitizedNote).run();
         }
       }
 
@@ -299,13 +326,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const event = await db.prepare("SELECT id FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first();
       if (!event) return err("Invalid admin token", 403);
 
-      const allowed = ["name", "description", "event_date", "event_time", "location", "banner_url", "guest_visibility", "bring_list_enabled", "bring_list_message"];
+      const allowed = ["name", "description", "event_date", "event_time", "location", "banner_url", "guest_visibility", "bring_list_enabled", "bring_list_message", "bring_list_mode"];
       const fields: string[] = [];
       const values: unknown[] = [];
       for (const key of allowed) {
         if (updates[key] !== undefined) {
           fields.push(`${key} = ?`);
-          values.push(key === "bring_list_enabled" ? (updates[key] ? 1 : 0) : updates[key]);
+          if (key === "bring_list_enabled") {
+            values.push(updates[key] ? 1 : 0);
+          } else if (key === "bring_list_mode") {
+            values.push(updates[key] === "signup" ? "signup" : "open");
+          } else {
+            values.push(updates[key]);
+          }
         }
       }
 
@@ -324,10 +357,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       };
       if (!event_id || !admin_token || !item_name) return err("All fields required");
 
-      const event = await db.prepare("SELECT id FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first();
+      const event = await db.prepare("SELECT id, bring_list_mode FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first<{ id: string; bring_list_mode: string }>();
       if (!event) return err("Invalid admin token", 403);
 
-      const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+      // Open mode: always store quantity=1 (no slot concept)
+      const mode = event.bring_list_mode ?? "open";
+      const qty = mode === "open" ? 1 : Math.min(Math.max(quantity ?? 1, 1), 20);
+
       const id = crypto.randomUUID();
       await db.prepare(
         "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
@@ -389,7 +425,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // Get commitments for this RSVP
       const { results: claimedItems } = await db.prepare(
-        `SELECT bc.id, bc.item_id, bc.quantity, bli.item_name
+        `SELECT bc.id, bc.item_id, bc.quantity, bc.note, bli.item_name
          FROM bring_commitments bc
          JOIN bring_list_items bli ON bc.item_id = bli.id
          WHERE bc.rsvp_id = ? AND bc.event_id = ?`
@@ -402,8 +438,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (request.method === "PUT" && path === "rsvp/update") {
       const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_items, custom_items, event_id, cancelled } = await request.json() as {
         rsvp_id?: string; manage_code?: string; guest_name?: string; adults?: number; kids?: number;
-        unclaim_item_ids?: string[]; claim_items?: Array<{ item_id: string; quantity: number }>;
-        custom_items?: Array<{ item_name: string; quantity: number }>;
+        unclaim_item_ids?: string[];
+        claim_items?: Array<{ item_id: string; quantity: number; note?: string }>;
+        custom_items?: Array<{ item_name: string; quantity: number; note?: string }>;
         event_id?: string; cancelled?: boolean;
       };
       if (!rsvp_id || !manage_code) return err("rsvp_id and manage_code required");
@@ -415,6 +452,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       const oldName = rsvp.guest_name;
       const newName = guest_name ?? oldName;
+
+      // Fetch event mode
+      const eventRow = await db.prepare("SELECT bring_list_mode FROM events WHERE id = ?").bind(rsvp.event_id).first<{ bring_list_mode: string }>();
+      const mode = eventRow?.bring_list_mode ?? "open";
+
+      // Block custom items in signup mode
+      if (mode === "signup" && Array.isArray(custom_items) && custom_items.length > 0) {
+        return err("Custom items are not allowed in Sign-up Sheet mode", 403);
+      }
 
       // Update RSVP fields
       const fields: string[] = [];
@@ -437,6 +483,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       // Remove commitments by commitment ID (ownership enforced by rsvp_id)
+      // Run unclaims FIRST so signup cap checks below see accurate remaining counts
       if (Array.isArray(unclaim_item_ids) && unclaim_item_ids.length > 0) {
         for (const commitmentId of unclaim_item_ids) {
           await db.prepare(
@@ -447,29 +494,43 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // Add new commitments
       if (Array.isArray(claim_items) && claim_items.length > 0) {
-        for (const { item_id, quantity } of claim_items) {
+        for (const { item_id, quantity, note } of claim_items) {
           const item = await db.prepare(
-            "SELECT id FROM bring_list_items WHERE id = ? AND event_id = ?"
-          ).bind(item_id, rsvp.event_id).first();
+            "SELECT id, quantity FROM bring_list_items WHERE id = ? AND event_id = ?"
+          ).bind(item_id, rsvp.event_id).first<{ id: string; quantity: number }>();
           if (!item) continue;
-          const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+
+          const qty = mode === "open" ? 1 : Math.min(Math.max(quantity ?? 1, 1), 20);
+
+          // Enforce slot cap in signup mode (after unclaims have been processed)
+          if (mode === "signup") {
+            const committedRow = await db.prepare(
+              "SELECT COALESCE(SUM(quantity), 0) as total FROM bring_commitments WHERE item_id = ? AND event_id = ?"
+            ).bind(item_id, rsvp.event_id).first<{ total: number }>();
+            const committed = committedRow?.total ?? 0;
+            if (committed + qty > item.quantity) {
+              return err("This slot is full", 409);
+            }
+          }
+
+          const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
           await db.prepare(
-            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
-          ).bind(crypto.randomUUID(), item_id, rsvp.event_id, rsvp_id, newName, qty).run();
+            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(crypto.randomUUID(), item_id, rsvp.event_id, rsvp_id, newName, qty, sanitizedNote).run();
         }
       }
 
-      // Add custom items (new bring_list_items row + commitment)
+      // Add custom items (new bring_list_items row + commitment) — open mode only
       if (Array.isArray(custom_items) && custom_items.length > 0) {
-        for (const { item_name, quantity } of custom_items) {
-          const qty = Math.min(Math.max(quantity ?? 1, 1), 20);
+        for (const { item_name, note } of custom_items) {
           const itemId = crypto.randomUUID();
           await db.prepare(
             "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
-          ).bind(itemId, rsvp.event_id, item_name, qty).run();
+          ).bind(itemId, rsvp.event_id, item_name, 1).run();
+          const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
           await db.prepare(
-            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity) VALUES (?, ?, ?, ?, ?, ?)"
-          ).bind(crypto.randomUUID(), itemId, rsvp.event_id, rsvp_id, newName, qty).run();
+            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(crypto.randomUUID(), itemId, rsvp.event_id, rsvp_id, newName, 1, sanitizedNote).run();
         }
       }
 
@@ -488,6 +549,7 @@ function normalizeEvent(row: Record<string, unknown> | null): Record<string, unk
   return {
     ...row,
     bring_list_enabled: Boolean(row.bring_list_enabled),
+    bring_list_mode: (row.bring_list_mode as string) ?? "open",
   };
 }
 
