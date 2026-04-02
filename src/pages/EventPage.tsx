@@ -25,6 +25,7 @@ interface EventData {
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
+    bring_list_mode: "signup" | "open";
     bring_list_message: string | null;
   };
   rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean }>;
@@ -68,6 +69,7 @@ const EventPage = () => {
 
   // Bring list: keyed by item ID
   const [selectedCounts, setSelectedCounts] = useState<Map<string, number>>(new Map());
+  const [selectedNotes, setSelectedNotes] = useState<Map<string, string>>(new Map());
   const [customItems, setCustomItems] = useState<Array<{ item_name: string; quantity: number }>>([]);
   const [customItemInput, setCustomItemInput] = useState("");
 
@@ -181,8 +183,25 @@ const EventPage = () => {
   const handleUpdateCount = (itemId: string, count: number) => {
     setSelectedCounts((prev) => {
       const next = new Map(prev);
+      // Enforce slot cap client-side for signup mode
+      if (data?.event.bring_list_mode === "signup") {
+        const item = data.bring_items.find((i) => i.id === itemId);
+        if (item) {
+          const maxAllowed = item.target_quantity - item.committed_quantity;
+          count = Math.min(count, maxAllowed);
+        }
+      }
       if (count <= 0) next.delete(itemId);
       else next.set(itemId, count);
+      return next;
+    });
+  };
+
+  const handleUpdateNote = (itemId: string, note: string) => {
+    setSelectedNotes((prev) => {
+      const next = new Map(prev);
+      if (note) next.set(itemId, note);
+      else next.delete(itemId);
       return next;
     });
   };
@@ -202,8 +221,9 @@ const EventPage = () => {
       selectedCounts.forEach((quantity, itemId) => {
         const item = data?.bring_items.find((i) => i.id === itemId);
         if (!item) return;
+        const note = selectedNotes.get(itemId);
         claimPromises.push(
-          claimItem({ event_id: id, password, item_id: itemId, rsvp_id: rsvpId, manage_code: manageCode, quantity }).catch(() => null)
+          claimItem({ event_id: id, password, item_id: itemId, rsvp_id: rsvpId, manage_code: manageCode, quantity, note }).catch(() => null)
         );
         for (let i = 0; i < quantity; i++) claimedItemNames.push(item.item_name);
       });
@@ -249,9 +269,9 @@ const EventPage = () => {
       const unclaim_item_ids = managedRsvp.claimed_items.map((i) => i.id);
 
       // New selections
-      const claim_items: Array<{ item_id: string; quantity: number }> = [];
+      const claim_items: Array<{ item_id: string; quantity: number; note?: string }> = [];
       selectedCounts.forEach((quantity, itemId) => {
-        claim_items.push({ item_id: itemId, quantity });
+        claim_items.push({ item_id: itemId, quantity, note: selectedNotes.get(itemId) });
       });
 
       await updateRsvp({
@@ -269,6 +289,7 @@ const EventPage = () => {
       toast({ title: "RSVP updated!" });
       setEditMode(false);
       setSelectedCounts(new Map());
+      setSelectedNotes(new Map());
       setCustomItems([]);
       setCustomItemInput("");
       await loadEvent(password);
@@ -291,6 +312,7 @@ const EventPage = () => {
       counts.set(item.item_id, (counts.get(item.item_id) || 0) + item.quantity);
     }
     setSelectedCounts(counts);
+    setSelectedNotes(new Map());
     setCustomItems([]);
     setCustomItemInput("");
     setEditMode(true);
@@ -543,8 +565,11 @@ const EventPage = () => {
                   <BringListSection
                     items={bring_items}
                     message={event.bring_list_message}
+                    mode={event.bring_list_mode ?? "open"}
                     selectedCounts={selectedCounts}
                     onUpdateCount={handleUpdateCount}
+                    selectedNotes={selectedNotes}
+                    onUpdateNote={handleUpdateNote}
                     customItems={customItems}
                     customItemInput={customItemInput}
                     onCustomItemInputChange={setCustomItemInput}
@@ -555,7 +580,7 @@ const EventPage = () => {
 
                 <div className="flex gap-2">
                   {isEditing && (
-                    <Button type="button" variant="outline" className="flex-1" onClick={() => { setEditMode(false); setSelectedCounts(new Map()); setCustomItems([]); }}>
+                    <Button type="button" variant="outline" className="flex-1" onClick={() => { setEditMode(false); setSelectedCounts(new Map()); setSelectedNotes(new Map()); setCustomItems([]); }}>
                       Cancel
                     </Button>
                   )}
