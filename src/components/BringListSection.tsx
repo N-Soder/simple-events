@@ -75,8 +75,6 @@ const BringListSection = ({
           const covered = mode === "signup"
             ? previewCommitted >= item.target_quantity
             : false;
-          const committerNames = item.commitments.map((c) => c.guest_name);
-          const notedCommitments = item.commitments.filter((c) => c.note);
           const maxAllowed = mode === "signup"
             ? item.target_quantity - item.committed_quantity
             : 20;
@@ -110,29 +108,30 @@ const BringListSection = ({
                 />
                 <div className="flex-1 min-w-0">
                   <span className="font-medium">{item.item_name}</span>
-                  {committerNames.length > 0 && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {committerNames.join(", ")}
-                    </p>
-                  )}
-                  {notedCommitments.length > 0 && (
+                  {item.commitments.length > 0 && (
                     <div className="mt-0.5 space-y-0.5">
-                      {notedCommitments.map((c, i) => (
-                        <p key={i} className="text-xs text-muted-foreground italic">
-                          {c.guest_name}: &ldquo;{c.note}&rdquo;
-                        </p>
-                      ))}
+                      {item.commitments.map((c, i) =>
+                        c.note ? (
+                          <p key={i} className="text-xs text-muted-foreground italic">
+                            {c.guest_name}: &ldquo;{c.note}&rdquo;
+                          </p>
+                        ) : (
+                          <p key={i} className="text-xs text-muted-foreground">
+                            {c.guest_name}
+                          </p>
+                        )
+                      )}
                     </div>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2 ml-auto shrink-0">
-                  {/* Sign-up Sheet: Full badge */}
+                  {/* Sign-up Sheet: Full badge — always for full+unselected */}
                   {mode === "signup" && isFull && !isSelected && (
                     <span className="text-xs font-medium text-red-500">Full</span>
                   )}
-                  {/* Sign-up Sheet: slot counter */}
-                  {mode === "signup" && !isFull && (
+                  {/* Sign-up Sheet: slot counter — only for multi-slot items, hidden when full+unselected */}
+                  {mode === "signup" && item.target_quantity > 1 && !(isFull && !isSelected) && (
                     <span className={cn(
                       "text-xs",
                       covered ? "text-emerald-600 font-medium" : "text-muted-foreground"
@@ -140,15 +139,9 @@ const BringListSection = ({
                       {previewCommitted}/{item.target_quantity}
                     </span>
                   )}
-                  {/* Sign-up Sheet: covered (selected fills last slot) */}
-                  {mode === "signup" && covered && isSelected && (
-                    <span className="text-xs font-medium text-emerald-600">
-                      {previewCommitted}/{item.target_quantity}
-                    </span>
-                  )}
 
-                  {/* Sign-up Sheet: quantity controls */}
-                  {mode === "signup" && isSelected && (
+                  {/* Sign-up Sheet: quantity controls — only for multi-slot items */}
+                  {mode === "signup" && isSelected && item.target_quantity > 1 && (
                     <div
                       className="flex items-center gap-1"
                       onClick={(e) => e.stopPropagation()}
