@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 
 const OPEN_LIST_MESSAGE = "Bringing something? Pick an item from the list or add what you're planning to bring, and feel free to leave a comment.";
 const FIXED_SLOT_MESSAGE = "Bringing something? Grab an item before it's gone from the selection, and feel free to leave a comment.";
-import { useParams, useSearchParams } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, Link, ListOrdered, ListPlus } from "lucide-react";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, Link, AlertTriangle, ListOrdered, ListPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +28,21 @@ import {
   adminAddBringItem,
   adminDeleteBringItem,
   adminDeleteRsvp,
+  adminDeleteEvent,
   ApiError,
 } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { BringItem } from "@/components/BringListSection";
 
@@ -51,14 +64,22 @@ interface EventData {
   bring_items: BringItem[];
 }
 
+function getExpiryDate(eventDate: string): string {
+  const d = new Date(eventDate);
+  d.setDate(d.getDate() + 90);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+}
+
 const AdminPage = () => {
   const { id } = useParams<{ id: string }>();
   const [params] = useSearchParams();
   const token = params.get("token") || "";
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [data, setData] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -183,6 +204,19 @@ const AdminPage = () => {
     }
   };
 
+  const handleDeleteEvent = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await adminDeleteEvent(id, token);
+      navigate("/", { replace: true });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Error", description: message, variant: "destructive" });
+      setDeleting(false);
+    }
+  };
+
   const copyManageLink = (rsvp: EventData["rsvps"][number]) => {
     const url = `${window.location.origin}/event/${id}#manage=${rsvp.id}.${rsvp.manage_code}`;
     navigator.clipboard.writeText(url).then(() => {
@@ -218,6 +252,15 @@ const AdminPage = () => {
             <code className="block truncate rounded bg-muted px-3 py-2 text-sm">{guestLink}</code>
           </CardContent>
         </Card>
+
+        {/* Auto-deletion notice */}
+        <Alert className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            This event and all guest data will be automatically deleted on{" "}
+            <strong>{getExpiryDate(data.event.event_date)}</strong> (90 days after the event date).
+          </AlertDescription>
+        </Alert>
 
         {/* Edit Event Details */}
         <Card className="mb-6">
@@ -427,6 +470,43 @@ const AdminPage = () => {
             </div>
           </CardContent>
         </Card>
+        {/* Danger Zone */}
+        <Card className="mt-6 border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-lg text-destructive">Danger Zone</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Permanently delete this event, all RSVPs, the bring list, and the banner image. This cannot be undone.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={deleting}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Event
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this event?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the event, all RSVPs, the bring list, and the banner image. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteEvent}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete Event
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+
       </div>
 
       {/* Overcommit warning dialog */}

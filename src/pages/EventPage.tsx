@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ interface ManagedRsvp {
 
 const EventPage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [password, setPassword] = useState<string | undefined>(undefined);
   const [authenticated, setAuthenticated] = useState(false);
@@ -154,6 +155,10 @@ const EventPage = () => {
       if (pw) localStorage.setItem(`event_pw_${id}`, pw);
       await tryLoadManagedRsvp(id);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        navigate("/not-found", { state: { type: "event" }, replace: true });
+        return;
+      }
       if (error instanceof ApiError && error.status === 403) {
         if (pw) {
           localStorage.removeItem(`event_pw_${id}`);

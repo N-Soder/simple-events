@@ -409,6 +409,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return json({ success: true });
     }
 
+    // DELETE /api/admin/delete-event
+    if (request.method === "DELETE" && path === "admin/delete-event") {
+      const { event_id, admin_token } = await request.json() as {
+        event_id?: string; admin_token?: string;
+      };
+      if (!event_id || !admin_token) return err("event_id and admin_token required");
+
+      const event = await db
+        .prepare("SELECT id, banner_url FROM events WHERE id = ? AND admin_token = ?")
+        .bind(event_id, admin_token)
+        .first<{ id: string; banner_url: string | null }>();
+      if (!event) return err("Invalid admin token", 403);
+
+      if (event.banner_url) {
+        const r2Key = event.banner_url.split("/").pop();
+        if (r2Key) {
+          try { await env.R2.delete(r2Key); } catch { /* R2 cleanup is best-effort */ }
+        }
+      }
+
+      await db.prepare("DELETE FROM events WHERE id = ?").bind(event_id).run();
+      return json({ success: true });
+    }
+
     // GET /api/rsvp/manage?event_id=...&rsvp_id=...&code=...
     if (request.method === "GET" && path === "rsvp/manage") {
       const event_id = url.searchParams.get("event_id");

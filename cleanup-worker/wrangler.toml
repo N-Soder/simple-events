@@ -1,0 +1,15 @@
+name = "simple-events-cleanup"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+[triggers]
+crons = ["0 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "simple-events-db"
+database_id = "ae276100-d4fe-48b4-8bbf-9c5a4895b43f"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "simple-events-banners"
