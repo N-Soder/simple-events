@@ -37,6 +37,7 @@ interface ClaimedItem {
   item_id: string;
   item_name: string;
   quantity: number;
+  note?: string | null;
 }
 
 interface ManagedRsvp {
@@ -312,7 +313,11 @@ const EventPage = () => {
       counts.set(item.item_id, (counts.get(item.item_id) || 0) + item.quantity);
     }
     setSelectedCounts(counts);
-    setSelectedNotes(new Map());
+    const notes = new Map<string, string>();
+    for (const item of managedRsvp.claimed_items) {
+      if (item.note) notes.set(item.item_id, item.note);
+    }
+    setSelectedNotes(notes);
     setCustomItems([]);
     setCustomItemInput("");
     setEditMode(true);
@@ -439,7 +444,7 @@ const EventPage = () => {
         <div className="mt-4 flex flex-wrap gap-4 text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <CalendarDays className="h-4 w-4" />
-            {format(new Date(event.event_date), "EEEE, MMMM d, yyyy")}
+            {format(new Date(event.event_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
           </span>
           {event.event_time && (
             <span

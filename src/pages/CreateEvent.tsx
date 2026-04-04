@@ -109,8 +109,9 @@ const Index = () => {
       }
 
       navigate(`/created?${createdParams.toString()}`);
-    } catch (err: any) {
-      toast({ title: "Error creating event", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      toast({ title: "Error creating event", description: message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -219,7 +220,7 @@ const Index = () => {
                     <div>
                       <Input
                         id="password"
-                        type="text"
+                        type="password"
                         placeholder="A simple password for your guests"
                         {...register("password")}
                         className="mt-1.5"
