@@ -113,6 +113,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       };
 
       if (!name || !event_date) return err("name and event_date are required");
+      if (name.length > 200) return err("name must be 200 characters or fewer");
+      if (description && (description as string).length > 5000) return err("description must be 5000 characters or fewer");
+      if (location && (location as string).length > 500) return err("location must be 500 characters or fewer");
 
       const id = crypto.randomUUID();
       const admin_token = crypto.randomUUID();
@@ -136,7 +139,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (Array.isArray(bring_items) && bring_items.length > 0) {
         const stmt = db.prepare("INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)");
         await db.batch(bring_items.map((item) => {
-          const itemName = typeof item === "string" ? item : item.name;
+          const rawName = typeof item === "string" ? item : item.name;
+          const itemName = rawName?.trim().slice(0, 200) || "Item";
           const qty = mode === "open" ? 1 : (typeof item === "string" ? 1 : Math.min(Math.max(item.quantity || 1, 1), 20));
           return stmt.bind(crypto.randomUUID(), id, itemName, qty);
         }));
@@ -211,15 +215,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       };
       if (honeypot) return json({ success: true });
       if (!event_id || !guest_name) return err("event_id and guest_name are required");
+      const safeName = (guest_name as string).trim();
+      if (!safeName) return err("guest_name is required");
+      if (safeName.length > 100) return err("guest_name must be 100 characters or fewer");
 
       const valid = await verifyEventPassword(db, event_id, password);
       if (!valid) return err("Invalid password", 403);
+
+      const safeAdults = Math.min(Math.max(Math.floor(adults ?? 1), 1), 50);
+      const safeKids = Math.min(Math.max(Math.floor(kids ?? 0), 0), 50);
 
       const id = crypto.randomUUID();
       const manage_code = crypto.randomUUID();
       await db.prepare(
         "INSERT INTO rsvps (id, event_id, guest_name, adults, kids, manage_code) VALUES (?, ?, ?, ?, ?, ?)"
-      ).bind(id, event_id, guest_name, adults ?? 1, kids ?? 0, manage_code).run();
+      ).bind(id, event_id, safeName, safeAdults, safeKids, manage_code).run();
 
       const row = await db.prepare("SELECT * FROM rsvps WHERE id = ?").bind(id).first();
       return json(normalizeRsvp(row));
@@ -284,6 +294,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         rsvp_id?: string; manage_code?: string; note?: string;
       };
       if (!event_id || !item_name) return err("event_id and item_name are required");
+      const safeItemName = (item_name as string).trim();
+      if (!safeItemName) return err("item_name is required");
+      if (safeItemName.length > 200) return err("item_name must be 200 characters or fewer");
 
       const valid = await verifyEventPassword(db, event_id, password);
       if (!valid) return err("Invalid password", 403);
@@ -299,7 +312,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // Open mode: quantity is always 1 (no slot concept)
       await db.prepare(
         "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
-      ).bind(itemId, event_id, item_name, 1).run();
+      ).bind(itemId, event_id, safeItemName, 1).run();
 
       // If we have RSVP ownership, create a commitment immediately
       if (rsvp_id && manage_code) {
@@ -356,6 +369,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         event_id?: string; admin_token?: string; item_name?: string; quantity?: number;
       };
       if (!event_id || !admin_token || !item_name) return err("All fields required");
+      const safeAdminItemName = (item_name as string).trim();
+      if (!safeAdminItemName) return err("item_name is required");
+      if (safeAdminItemName.length > 200) return err("item_name must be 200 characters or fewer");
 
       const event = await db.prepare("SELECT id, bring_list_mode FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first<{ id: string; bring_list_mode: string }>();
       if (!event) return err("Invalid admin token", 403);
@@ -367,7 +383,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const id = crypto.randomUUID();
       await db.prepare(
         "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
-      ).bind(id, event_id, item_name, qty).run();
+      ).bind(id, event_id, safeAdminItemName, qty).run();
 
       const row = await db.prepare("SELECT * FROM bring_list_items WHERE id = ?").bind(id).first();
       return json(row);
@@ -475,7 +491,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!rsvp) return err("Invalid manage code", 403);
 
       const oldName = rsvp.guest_name;
-      const newName = guest_name ?? oldName;
 
       // Fetch event mode
       const eventRow = await db.prepare("SELECT bring_list_mode FROM events WHERE id = ?").bind(rsvp.event_id).first<{ bring_list_mode: string }>();
@@ -486,12 +501,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return err("Custom items are not allowed in Sign-up Sheet mode", 403);
       }
 
+      // Validate updated fields
+      let sanitizedGuestName: string | undefined;
+      if (guest_name !== undefined) {
+        sanitizedGuestName = (guest_name as string).trim();
+        if (!sanitizedGuestName) return err("guest_name is required");
+        if (sanitizedGuestName.length > 100) return err("guest_name must be 100 characters or fewer");
+      }
+
       // Update RSVP fields
       const fields: string[] = [];
       const values: unknown[] = [];
-      if (guest_name !== undefined) { fields.push("guest_name = ?"); values.push(guest_name); }
-      if (adults !== undefined) { fields.push("adults = ?"); values.push(adults); }
-      if (kids !== undefined) { fields.push("kids = ?"); values.push(kids); }
+      if (sanitizedGuestName !== undefined) { fields.push("guest_name = ?"); values.push(sanitizedGuestName); }
+      if (adults !== undefined) { fields.push("adults = ?"); values.push(Math.min(Math.max(Math.floor(adults), 1), 50)); }
+      if (kids !== undefined) { fields.push("kids = ?"); values.push(Math.min(Math.max(Math.floor(kids), 0), 50)); }
       if (cancelled !== undefined) { fields.push("cancelled = ?"); values.push(cancelled ? 1 : 0); }
 
       if (fields.length > 0) {
@@ -500,7 +523,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       // Keep commitment guest_name in sync if name changed
-      if (guest_name && guest_name !== oldName) {
+      const newName = sanitizedGuestName ?? oldName;
+      if (sanitizedGuestName && sanitizedGuestName !== oldName) {
         await db.prepare(
           "UPDATE bring_commitments SET guest_name = ? WHERE rsvp_id = ? AND event_id = ?"
         ).bind(newName, rsvp_id, rsvp.event_id).run();
@@ -547,10 +571,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // Add custom items (new bring_list_items row + commitment) — open mode only
       if (Array.isArray(custom_items) && custom_items.length > 0) {
         for (const { item_name, note } of custom_items) {
+          const safeCustomItemName = (item_name as string)?.trim().slice(0, 200);
+          if (!safeCustomItemName) continue;
           const itemId = crypto.randomUUID();
           await db.prepare(
             "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
-          ).bind(itemId, rsvp.event_id, item_name, 1).run();
+          ).bind(itemId, rsvp.event_id, safeCustomItemName, 1).run();
           const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
           await db.prepare(
             "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"

@@ -20,6 +20,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -31,17 +32,6 @@ import {
   adminDeleteEvent,
   ApiError,
 } from "@/lib/api";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { BringItem } from "@/components/BringListSection";
@@ -65,7 +55,7 @@ interface EventData {
 }
 
 function getExpiryDate(eventDate: string): string {
-  const d = new Date(eventDate);
+  const d = new Date(eventDate + "T00:00:00");
   d.setDate(d.getDate() + 90);
   return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
@@ -93,6 +83,8 @@ const AdminPage = () => {
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
   const [pendingModeSwitch, setPendingModeSwitch] = useState<"signup" | "open" | null>(null);
+  const [deletingRsvpId, setDeletingRsvpId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!id || !token) return;
@@ -184,23 +176,29 @@ const AdminPage = () => {
 
   const handleDeleteItem = async (itemId: string) => {
     if (!id) return;
+    setDeletingItemId(itemId);
     try {
       await adminDeleteBringItem(id, token, itemId);
       loadData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setDeletingItemId(null);
     }
   };
 
   const handleDeleteRsvp = async (rsvpId: string) => {
     if (!id) return;
+    setDeletingRsvpId(rsvpId);
     try {
       await adminDeleteRsvp(id, token, rsvpId);
       loadData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setDeletingRsvpId(null);
     }
   };
 
@@ -322,7 +320,7 @@ const AdminPage = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Users className="h-5 w-5" />
-              RSVPs ({data.rsvps.length})
+              RSVPs ({activeRsvps.length}{data.rsvps.length !== activeRsvps.length ? ` of ${data.rsvps.length}` : ""})
               <span className="ml-auto text-sm font-normal text-muted-foreground">
                 {totalAdults} adults, {totalKids} kids
               </span>
@@ -352,9 +350,35 @@ const AdminPage = () => {
                       >
                         <Link className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteRsvp(r.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            disabled={deletingRsvpId === r.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove {r.guest_name}'s RSVP?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete their RSVP and any bring list commitments. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteRsvp(r.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Remove RSVP
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </li>
                 ))}
@@ -435,7 +459,7 @@ const AdminPage = () => {
                           </p>
                         )}
                       </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => handleDeleteItem(item.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" disabled={deletingItemId === item.id} onClick={() => handleDeleteItem(item.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </li>
