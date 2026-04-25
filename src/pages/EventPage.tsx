@@ -478,48 +478,6 @@ const EventPage = () => {
           </div>
         )}
 
-        {event.guest_visibility !== "hidden" && activeRsvps.length > 0 && (
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Users className="h-5 w-5" />
-                {event.guest_visibility === "full" ? "Guest List" : "Attending"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {event.guest_visibility === "full" ? (
-                <ul className="space-y-2">
-                  {activeRsvps.map((r) => (
-                    <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
-                      <span className="font-medium">{r.guest_name}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {r.adults} adult{r.adults !== 1 ? "s" : ""}{r.kids > 0 ? `, ${r.kids} kid${r.kids !== 1 ? "s" : ""}` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground">
-                  {totalAdults} adult{totalAdults !== 1 ? "s" : ""}{totalKids > 0 ? ` and ${totalKids} kid${totalKids !== 1 ? "s" : ""}` : ""} attending
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {hasExistingRsvp && (
-          <RsvpSummaryCard
-            guestName={managedRsvp.guest_name}
-            adults={managedRsvp.adults}
-            kids={managedRsvp.kids}
-            claimedItems={managedRsvp.claimed_items}
-            cancelled={managedRsvp.cancelled}
-            onEdit={enterEditMode}
-            onCancel={handleCancelRsvp}
-            onReRsvp={handleReRsvp}
-          />
-        )}
-
         {!hasExistingRsvp && (
           <Card className="mt-6">
             <CardHeader>
@@ -596,6 +554,48 @@ const EventPage = () => {
               </form>
             </CardContent>
           </Card>
+        )}
+
+        {event.guest_visibility !== "hidden" && activeRsvps.length > 0 && (
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="h-5 w-5" />
+                {event.guest_visibility === "full" ? "Guest List" : "Attending"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {event.guest_visibility === "full" ? (
+                <ul className="space-y-2">
+                  {activeRsvps.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
+                      <span className="font-medium">{r.guest_name}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {r.adults} adult{r.adults !== 1 ? "s" : ""}{r.kids > 0 ? `, ${r.kids} kid${r.kids !== 1 ? "s" : ""}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground">
+                  {totalAdults} adult{totalAdults !== 1 ? "s" : ""}{totalKids > 0 ? ` and ${totalKids} kid${totalKids !== 1 ? "s" : ""}` : ""} attending
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {hasExistingRsvp && (
+          <RsvpSummaryCard
+            guestName={managedRsvp.guest_name}
+            adults={managedRsvp.adults}
+            kids={managedRsvp.kids}
+            claimedItems={managedRsvp.claimed_items}
+            cancelled={managedRsvp.cancelled}
+            onEdit={enterEditMode}
+            onCancel={handleCancelRsvp}
+            onReRsvp={handleReRsvp}
+          />
         )}
       </div>
     </main>
