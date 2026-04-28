@@ -60,6 +60,7 @@ const EventPage = () => {
   const [data, setData] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsPassword, setNeedsPassword] = useState<boolean | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // RSVP form
   const [guestName, setGuestName] = useState("");
@@ -147,6 +148,7 @@ const EventPage = () => {
   const loadEvent = async (pw: string | undefined) => {
     if (!id) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const result = await getEvent(id, pw);
       setData(result as EventData);
@@ -169,6 +171,7 @@ const EventPage = () => {
       } else {
         const message = error instanceof Error ? error.message : "Failed to load event";
         toast({ title: "Error", description: message, variant: "destructive" });
+        setLoadError(message);
       }
       setAuthenticated(false);
     } finally {
@@ -421,7 +424,13 @@ const EventPage = () => {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+        <p className="text-muted-foreground">{loadError ?? "Something went wrong. Please try refreshing."}</p>
+      </main>
+    );
+  }
   const { event, rsvps, bring_items } = data;
   const activeRsvps = rsvps.filter((r) => !r.cancelled);
   const totalAdults = activeRsvps.reduce((s, r) => s + r.adults, 0);

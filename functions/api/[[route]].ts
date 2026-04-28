@@ -29,9 +29,9 @@ async function eventRequiresPassword(db: D1Database, eventId: string): Promise<b
   return row.password_hash !== null;
 }
 
-async function verifyEventPassword(db: D1Database, eventId: string, password?: string): Promise<boolean> {
+async function verifyEventPassword(db: D1Database, eventId: string, password?: string): Promise<boolean | null> {
   const requires = await eventRequiresPassword(db, eventId);
-  if (requires === null) return false;
+  if (requires === null) return null; // event not found
   if (!requires) return true;
   if (!password) return false;
   const row = await db.prepare("SELECT password_hash FROM events WHERE id = ?").bind(eventId).first<{ password_hash: string }>();
@@ -170,8 +170,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!event_id) return err("id is required");
 
       const password = url.searchParams.get("password") ?? undefined;
-      const valid = await verifyEventPassword(db, event_id, password);
-      if (!valid) return err("Invalid password", 403);
+      const authResult = await verifyEventPassword(db, event_id, password);
+      if (authResult === null) return err("Event not found", 404);
+      if (!authResult) return err("Invalid password", 403);
 
       const event = await db.prepare(
         "SELECT id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at FROM events WHERE id = ?"
