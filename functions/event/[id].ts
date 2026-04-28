@@ -28,51 +28,56 @@ function descriptionSnippet(description: string | null): string {
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
-  const eventId = context.params.id as string;
-
-  const event = await context.env.DB.prepare(
-    "SELECT name, description, banner_url FROM events WHERE id = ?"
-  )
-    .bind(eventId)
-    .first<{ name: string; description: string | null; banner_url: string | null }>();
-
   const indexRequest = new Request(
-    new URL("/index.html", context.request.url).href,
-    context.request
+    new URL("/index.html", context.request.url).href
   );
   const assetResponse = await context.env.ASSETS.fetch(indexRequest);
-  const html = await assetResponse.text();
 
-  if (!event) {
-    return new Response(html, {
+  try {
+    const eventId = context.params.id as string;
+
+    const event = await context.env.DB.prepare(
+      "SELECT name, description, banner_url FROM events WHERE id = ?"
+    )
+      .bind(eventId)
+      .first<{ name: string; description: string | null; banner_url: string | null }>();
+
+    const html = await assetResponse.clone().text();
+
+    if (!event) {
+      return new Response(html, {
+        status: assetResponse.status,
+        headers: { "content-type": "text/html;charset=UTF-8" },
+      });
+    }
+
+    const title = escapeHtml(event.name);
+    const description = escapeHtml(descriptionSnippet(event.description));
+    const url = escapeHtml(context.request.url);
+
+    const tags = [
+      `<title>${title} - Simple Events</title>`,
+      `<meta property="og:title" content="${title}" />`,
+      `<meta property="og:description" content="${description}" />`,
+      `<meta property="og:url" content="${url}" />`,
+      `<meta name="twitter:title" content="${title}" />`,
+      `<meta name="twitter:description" content="${description}" />`,
+    ];
+
+    if (event.banner_url) {
+      const img = escapeHtml(event.banner_url);
+      tags.push(`<meta property="og:image" content="${img}" />`);
+      tags.push(`<meta name="twitter:image" content="${img}" />`);
+    }
+
+    const modified = html.replace("<head>", `<head>\n  ${tags.join("\n  ")}`);
+
+    return new Response(modified, {
       status: assetResponse.status,
       headers: { "content-type": "text/html;charset=UTF-8" },
     });
+  } catch {
+    // Fall back to serving plain index.html if anything goes wrong
+    return assetResponse;
   }
-
-  const title = escapeHtml(event.name);
-  const description = escapeHtml(descriptionSnippet(event.description));
-  const url = escapeHtml(context.request.url);
-
-  const tags = [
-    `<title>${title} - Simple Events</title>`,
-    `<meta property="og:title" content="${title}" />`,
-    `<meta property="og:description" content="${description}" />`,
-    `<meta property="og:url" content="${url}" />`,
-    `<meta name="twitter:title" content="${title}" />`,
-    `<meta name="twitter:description" content="${description}" />`,
-  ];
-
-  if (event.banner_url) {
-    const img = escapeHtml(event.banner_url);
-    tags.push(`<meta property="og:image" content="${img}" />`);
-    tags.push(`<meta name="twitter:image" content="${img}" />`);
-  }
-
-  const modified = html.replace("<head>", `<head>\n  ${tags.join("\n  ")}`);
-
-  return new Response(modified, {
-    status: assetResponse.status,
-    headers: { "content-type": "text/html;charset=UTF-8" },
-  });
 };
