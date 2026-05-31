@@ -1,5 +1,7 @@
 # Simple Events
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 A lightweight web app for creating private event pages and coordinating RSVPs — no accounts required. Hosts share a link; guests RSVP by name and optionally claim items from a bring list.
 
 ## Features
@@ -86,3 +88,19 @@ npx wrangler pages deploy
 | Variable | Description |
 |---|---|
 | `VITE_R2_PUBLIC_URL` | Public base URL for the R2 bucket (e.g. `https://pub-xxx.r2.dev`). If omitted, banner uploads are served through a Pages Function route instead. |
+
+## License
+
+Simple Events is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+See the [`LICENSE`](./LICENSE) file for the full text, or read it online at
+[gnu.org/licenses/agpl-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html).
+
+```
+SPDX-License-Identifier: AGPL-3.0-only
+```
+
+In plain terms: you're free to view, modify, and self-host this code. The AGPL's key
+condition is that if you run a modified version as a network service, you must make your
+modified source code available to its users under the same license.
+
+Copyright © 2026 Nick Söderholm
