@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { PartyPopper, Users, ListChecks, ShieldCheck } from "lucide-react";
+import { PartyPopper, Users, ListChecks, ShieldCheck, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const features = [
@@ -50,6 +50,30 @@ const LandingPage = () => {
             </div>
           ))}
         </div>
+
+        {/* Footer */}
+        <footer className="mt-24 flex flex-col items-center gap-3 border-t pt-8 text-sm text-muted-foreground">
+          <div className="flex items-center gap-6">
+            <a
+              href="https://github.com/N-Soder/simple-events"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
+            >
+              <Github className="h-4 w-4" />
+              GitHub
+            </a>
+            <a
+              href="https://soderholm.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-foreground"
+            >
+              More projects
+            </a>
+          </div>
+          <p>Open source under the AGPL-3.0 license.</p>
+        </footer>
       </div>
     </main>
   );
