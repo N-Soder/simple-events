@@ -6,7 +6,11 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch(path: string, options: RequestInit = {}) {
+// The JSON response boundary is intentionally untyped (`any`); callers cast the
+// result to the typed interface they expect. This keeps the fetch helper simple
+// while letting the rest of the app be type-checked.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   const res = await fetch(`${FUNCTION_URL}/${path}`, {
     ...options,
     headers: {
@@ -14,13 +18,13 @@ async function apiFetch(path: string, options: RequestInit = {}) {
       ...options.headers,
     },
   });
-  let data: Record<string, unknown>;
+  let data: { error?: string; [key: string]: unknown };
   try {
     data = await res.json();
   } catch {
     data = { error: res.statusText || "Unexpected server response" };
   }
-  if (!res.ok) throw new ApiError((data.error as string) || "API error", res.status);
+  if (!res.ok) throw new ApiError(data.error || "API error", res.status);
   return data;
 }
 

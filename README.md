@@ -64,10 +64,13 @@ npx wrangler d1 create simple-events-db
 
 Update `wrangler.toml` with the returned `database_id`.
 
-**2. Apply the database schema**
+**2. Apply the database migrations**
+
+Migrations live in `migrations/d1/` and are tracked by Wrangler (see `migrations_dir`
+in `wrangler.toml`), so applying them is idempotent — only unapplied files run.
 
 ```bash
-npx wrangler d1 execute simple-events-db --file=./migrations/d1/0001_initial.sql
+npx wrangler d1 migrations apply simple-events-db --remote
 ```
 
 **3. Create the R2 bucket** (optional, for banner images)
@@ -76,12 +79,35 @@ npx wrangler d1 execute simple-events-db --file=./migrations/d1/0001_initial.sql
 npx wrangler r2 bucket create simple-events-banners
 ```
 
-**4. Deploy**
+**4. Deploy the app**
 
 ```bash
 npm run build
 npx wrangler pages deploy
 ```
+
+**5. Deploy the retention cleanup worker**
+
+A separate scheduled Worker (`cleanup-worker/`) deletes events 90 days after their
+date, along with their RSVPs, bring list, and banner, and sweeps orphaned banner
+uploads. Deploy it once; it then runs on its own cron schedule.
+
+```bash
+cd cleanup-worker && npx wrangler deploy
+```
+
+## Security notes
+
+- Response hardening headers (CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`)
+  are served from `public/_headers` and apply to the production Pages deployment.
+- The API is same-origin and sends no CORS headers. If you ever serve the front end
+  from a different origin, add an explicit `Access-Control-Allow-Origin` allow-list in
+  `functions/api/[[route]].ts`.
+- **Rate limiting is not handled in code.** Password-protected events and the
+  upload/RSVP endpoints are otherwise open to automated abuse. Add a
+  [Cloudflare Rate Limiting rule](https://developers.cloudflare.com/waf/rate-limiting-rules/)
+  (or a WAF rule) for `/api/verify`, `/api/event`, `/api/rsvp`, and `/api/upload` in
+  the dashboard after deploying.
 
 ## Environment variables
 

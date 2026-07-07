@@ -6,6 +6,7 @@ pages_build_output_dir = "./dist"
 binding = "DB"
 database_name = "simple-events-db"
 database_id = "ae276100-d4fe-48b4-8bbf-9c5a4895b43f"
+migrations_dir = "migrations/d1"
 
 [[r2_buckets]]
 binding = "R2"

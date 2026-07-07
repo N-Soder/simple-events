@@ -6,16 +6,33 @@ interface Env {
   R2_PUBLIC_URL: string;
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+// The SPA is served same-origin, so no CORS is required. We only emit
+// hardening headers. (If you ever need cross-origin API access, add an
+// explicit Access-Control-Allow-Origin allow-list here.)
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
 };
+
+const VISIBILITIES = ["full", "count_only", "hidden"] as const;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^\d{2}:\d{2}$/;
+
+// Allowed banner image types → canonical file extension. SVG is intentionally
+// excluded because it can carry script and would be served from our origin.
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/avif": "avif",
+};
+const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...securityHeaders, "Content-Type": "application/json" },
   });
 }
 
@@ -23,20 +40,12 @@ function err(msg: string, status = 400) {
   return json({ error: msg }, status);
 }
 
-async function eventRequiresPassword(db: D1Database, eventId: string): Promise<boolean | null> {
-  const row = await db.prepare("SELECT password_hash FROM events WHERE id = ?").bind(eventId).first<{ password_hash: string | null }>();
-  if (!row) return null;
-  return row.password_hash !== null;
-}
-
 async function verifyEventPassword(db: D1Database, eventId: string, password?: string): Promise<boolean> {
-  const requires = await eventRequiresPassword(db, eventId);
-  if (requires === null) return false;
-  if (!requires) return true;
+  const row = await db.prepare("SELECT password_hash FROM events WHERE id = ?").bind(eventId).first<{ password_hash: string | null }>();
+  if (!row) return false; // event does not exist
+  if (row.password_hash === null) return true; // no password required
   if (!password) return false;
-  const row = await db.prepare("SELECT password_hash FROM events WHERE id = ?").bind(eventId).first<{ password_hash: string }>();
-  if (!row?.password_hash) return false;
-  return bcrypt.compareSync(password, row.password_hash);
+  return bcrypt.compare(password, row.password_hash);
 }
 
 // Fetch bring items with aggregated commitments for a given event
@@ -76,7 +85,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: securityHeaders });
   }
 
   const url = new URL(request.url);
@@ -87,10 +96,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // POST /api/upload - Upload banner to R2
     if (request.method === "POST" && path === "upload") {
       const formData = await request.formData();
-      const file = formData.get("file") as File | null;
-      if (!file) return err("file is required");
+      const file = formData.get("file");
+      if (!(file instanceof File)) return err("file is required");
 
-      const ext = file.name.split(".").pop() ?? "bin";
+      const ext = ALLOWED_IMAGE_TYPES[file.type];
+      if (!ext) return err("Unsupported image type. Use JPEG, PNG, GIF, WebP, or AVIF.", 415);
+      if (file.size > MAX_BANNER_BYTES) return err("Image must be 5 MB or smaller", 413);
+
       const key = `${crypto.randomUUID()}.${ext}`;
       await env.R2.put(key, file.stream(), {
         httpMetadata: { contentType: file.type },
@@ -114,12 +126,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (!name || !event_date) return err("name and event_date are required");
       if (name.length > 200) return err("name must be 200 characters or fewer");
-      if (description && (description as string).length > 5000) return err("description must be 5000 characters or fewer");
-      if (location && (location as string).length > 500) return err("location must be 500 characters or fewer");
+      if (!DATE_RE.test(event_date)) return err("event_date must be in YYYY-MM-DD format");
+      if (event_time && !TIME_RE.test(event_time)) return err("event_time must be in HH:MM format");
+      if (description && description.length > 5000) return err("description must be 5000 characters or fewer");
+      if (location && location.length > 500) return err("location must be 500 characters or fewer");
+      if (bring_list_message && bring_list_message.length > 5000) return err("bring_list_message must be 5000 characters or fewer");
+      if (guest_visibility && !VISIBILITIES.includes(guest_visibility as typeof VISIBILITIES[number])) return err("invalid guest_visibility");
 
       const id = crypto.randomUUID();
       const admin_token = crypto.randomUUID();
-      const password_hash = password ? bcrypt.hashSync(password, 10) : null;
+      const password_hash = password ? await bcrypt.hash(password, 10) : null;
       const mode = bring_list_mode === "signup" ? "signup" : "open";
 
       await db.prepare(
@@ -154,13 +170,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const { event_id, password } = await request.json() as { event_id?: string; password?: string };
       if (!event_id) return err("event_id is required");
 
-      const requires = await eventRequiresPassword(db, event_id);
-      if (requires === null) return err("Event not found", 404);
-      if (!requires) return json({ valid: true });
+      const row = await db.prepare("SELECT password_hash FROM events WHERE id = ?").bind(event_id).first<{ password_hash: string | null }>();
+      if (!row) return err("Event not found", 404);
+      if (row.password_hash === null) return json({ valid: true });
       if (!password) return json({ valid: false });
-
-      const row = await db.prepare("SELECT password_hash FROM events WHERE id = ?").bind(event_id).first<{ password_hash: string }>();
-      const valid = row?.password_hash ? bcrypt.compareSync(password, row.password_hash) : false;
+      const valid = await bcrypt.compare(password, row.password_hash);
       return json({ valid });
     }
 
@@ -169,22 +183,49 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const event_id = url.searchParams.get("id");
       if (!event_id) return err("id is required");
 
+      // Fetch first so a missing/deleted event returns 404 (not a password prompt).
+      const eventRow = await db.prepare(
+        "SELECT id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at, password_hash FROM events WHERE id = ?"
+      ).bind(event_id).first<Record<string, unknown>>();
+      if (!eventRow) return err("Event not found", 404);
+
       const password = url.searchParams.get("password") ?? undefined;
-      const valid = await verifyEventPassword(db, event_id, password);
-      if (!valid) return err("Invalid password", 403);
+      const passwordHash = eventRow.password_hash as string | null;
+      if (passwordHash !== null) {
+        if (!password || !(await bcrypt.compare(password, passwordHash))) {
+          return err("Invalid password", 403);
+        }
+      }
 
-      const event = await db.prepare(
-        "SELECT id, name, description, event_date, event_time, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at FROM events WHERE id = ?"
-      ).bind(event_id).first();
-      if (!event) return err("Event not found", 404);
+      // Never expose the hash to clients.
+      const { password_hash: _omit, ...event } = eventRow;
+      const visibility = (event.guest_visibility as string) ?? "full";
 
-      const { results: rsvps } = await db.prepare(
+      const { results: allRsvps } = await db.prepare(
         "SELECT id, guest_name, adults, kids, cancelled, created_at FROM rsvps WHERE event_id = ? ORDER BY created_at ASC"
-      ).bind(event_id).all();
+      ).bind(event_id).all<{ id: string; guest_name: string; adults: number; kids: number; cancelled: number }>();
+      const active = allRsvps.filter((r) => !r.cancelled);
 
       const bringItems = await getBringItems(db, event_id);
 
-      return json({ event: normalizeEvent(event), rsvps: rsvps.map(normalizeRsvp), bring_items: bringItems });
+      // Enforce guest_visibility server-side: names only leave the server in "full" mode,
+      // aggregate counts only in "full"/"count_only", nothing in "hidden".
+      const payload: Record<string, unknown> = {
+        event: normalizeEvent(event),
+        bring_items: bringItems,
+      };
+      if (visibility !== "hidden") {
+        payload.rsvp_counts = {
+          count: active.length,
+          adults: active.reduce((s, r) => s + r.adults, 0),
+          kids: active.reduce((s, r) => s + r.kids, 0),
+        };
+      }
+      if (visibility === "full") {
+        payload.rsvps = active.map((r) => ({ id: r.id, guest_name: r.guest_name, adults: r.adults, kids: r.kids }));
+      }
+
+      return json(payload);
     }
 
     // GET /api/admin?id=...&token=... - Admin view
@@ -339,6 +380,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const event = await db.prepare("SELECT id FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first();
       if (!event) return err("Invalid admin token", 403);
 
+      // Validate any supplied fields (parity with /create).
+      if (typeof updates.name === "string") {
+        if (!updates.name.trim()) return err("name is required");
+        if (updates.name.length > 200) return err("name must be 200 characters or fewer");
+      }
+      if (typeof updates.description === "string" && updates.description.length > 5000) return err("description must be 5000 characters or fewer");
+      if (typeof updates.location === "string" && updates.location.length > 500) return err("location must be 500 characters or fewer");
+      if (typeof updates.bring_list_message === "string" && updates.bring_list_message.length > 5000) return err("bring_list_message must be 5000 characters or fewer");
+      if (updates.event_date !== undefined && !(typeof updates.event_date === "string" && DATE_RE.test(updates.event_date))) return err("event_date must be in YYYY-MM-DD format");
+      if (updates.event_time !== undefined && updates.event_time !== null && !(typeof updates.event_time === "string" && TIME_RE.test(updates.event_time))) return err("event_time must be in HH:MM format");
+      if (updates.guest_visibility !== undefined && !VISIBILITIES.includes(updates.guest_visibility as typeof VISIBILITIES[number])) return err("invalid guest_visibility");
+
       const allowed = ["name", "description", "event_date", "event_time", "location", "banner_url", "guest_visibility", "bring_list_enabled", "bring_list_message", "bring_list_mode"];
       const fields: string[] = [];
       const values: unknown[] = [];
@@ -399,10 +452,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const event = await db.prepare("SELECT id FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first();
       if (!event) return err("Invalid admin token", 403);
 
-      const { success } = await db.prepare(
-        "DELETE FROM bring_list_items WHERE id = ? AND event_id = ?"
-      ).bind(item_id, event_id).run();
-      if (!success) return err("Delete failed", 500);
+      // Delete commitments then the item atomically (does not rely on FK cascade).
+      await db.batch([
+        db.prepare("DELETE FROM bring_commitments WHERE item_id = ? AND event_id = ?").bind(item_id, event_id),
+        db.prepare("DELETE FROM bring_list_items WHERE id = ? AND event_id = ?").bind(item_id, event_id),
+      ]);
 
       return json({ success: true });
     }
@@ -417,10 +471,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const event = await db.prepare("SELECT id FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first();
       if (!event) return err("Invalid admin token", 403);
 
-      const { success } = await db.prepare(
-        "DELETE FROM rsvps WHERE id = ? AND event_id = ?"
-      ).bind(rsvp_id, event_id).run();
-      if (!success) return err("Delete failed", 500);
+      // Delete the RSVP's commitments then the RSVP atomically.
+      await db.batch([
+        db.prepare("DELETE FROM bring_commitments WHERE rsvp_id = ? AND event_id = ?").bind(rsvp_id, event_id),
+        db.prepare("DELETE FROM rsvps WHERE id = ? AND event_id = ?").bind(rsvp_id, event_id),
+      ]);
 
       return json({ success: true });
     }
@@ -445,7 +500,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         }
       }
 
-      await db.prepare("DELETE FROM events WHERE id = ?").bind(event_id).run();
+      // Delete all children then the event atomically (does not rely on FK cascade).
+      await db.batch([
+        db.prepare("DELETE FROM bring_commitments WHERE event_id = ?").bind(event_id),
+        db.prepare("DELETE FROM bring_list_items WHERE event_id = ?").bind(event_id),
+        db.prepare("DELETE FROM rsvps WHERE event_id = ?").bind(event_id),
+        db.prepare("DELETE FROM events WHERE id = ?").bind(event_id),
+      ]);
       return json({ success: true });
     }
 
@@ -476,7 +537,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     // PUT /api/rsvp/update
     if (request.method === "PUT" && path === "rsvp/update") {
-      const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_items, custom_items, event_id, cancelled } = await request.json() as {
+      const { rsvp_id, manage_code, guest_name, adults, kids, unclaim_item_ids, claim_items, custom_items, cancelled } = await request.json() as {
         rsvp_id?: string; manage_code?: string; guest_name?: string; adults?: number; kids?: number;
         unclaim_item_ids?: string[];
         claim_items?: Array<{ item_id: string; quantity: number; note?: string }>;
@@ -490,10 +551,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       ).bind(rsvp_id, manage_code).first<{ id: string; event_id: string; guest_name: string }>();
       if (!rsvp) return err("Invalid manage code", 403);
 
+      const eventId = rsvp.event_id;
       const oldName = rsvp.guest_name;
 
       // Fetch event mode
-      const eventRow = await db.prepare("SELECT bring_list_mode FROM events WHERE id = ?").bind(rsvp.event_id).first<{ bring_list_mode: string }>();
+      const eventRow = await db.prepare("SELECT bring_list_mode FROM events WHERE id = ?").bind(eventId).first<{ bring_list_mode: string }>();
       const mode = eventRow?.bring_list_mode ?? "open";
 
       // Block custom items in signup mode
@@ -508,89 +570,114 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (!sanitizedGuestName) return err("guest_name is required");
         if (sanitizedGuestName.length > 100) return err("guest_name must be 100 characters or fewer");
       }
+      const newName = sanitizedGuestName ?? oldName;
 
-      // Update RSVP fields
+      // ---- Validate everything up front, mutate nothing until all checks pass. ----
+
+      // How much each item's committed total will drop once the requested unclaims apply.
+      const unclaimSet = new Set(Array.isArray(unclaim_item_ids) ? unclaim_item_ids : []);
+      const unclaimedQtyByItem = new Map<string, number>();
+      if (unclaimSet.size > 0) {
+        const { results: myCommitments } = await db.prepare(
+          "SELECT id, item_id, quantity FROM bring_commitments WHERE rsvp_id = ? AND event_id = ?"
+        ).bind(rsvp_id, eventId).all<{ id: string; item_id: string; quantity: number }>();
+        for (const c of myCommitments) {
+          if (unclaimSet.has(c.id)) unclaimedQtyByItem.set(c.item_id, (unclaimedQtyByItem.get(c.item_id) ?? 0) + c.quantity);
+        }
+      }
+
+      // Normalize + cap-check new claims against post-unclaim state.
+      const validClaims: Array<{ item_id: string; qty: number; note: string | null }> = [];
+      if (Array.isArray(claim_items) && claim_items.length > 0) {
+        const addedByItem = new Map<string, number>();
+        for (const { item_id, quantity, note } of claim_items) {
+          const item = await db.prepare(
+            "SELECT id, quantity FROM bring_list_items WHERE id = ? AND event_id = ?"
+          ).bind(item_id, eventId).first<{ id: string; quantity: number }>();
+          if (!item) continue;
+
+          const qty = mode === "open" ? 1 : Math.min(Math.max(quantity ?? 1, 1), 20);
+
+          if (mode === "signup") {
+            const committedRow = await db.prepare(
+              "SELECT COALESCE(SUM(quantity), 0) as total FROM bring_commitments WHERE item_id = ? AND event_id = ?"
+            ).bind(item_id, eventId).first<{ total: number }>();
+            const current = committedRow?.total ?? 0;
+            const removed = unclaimedQtyByItem.get(item_id) ?? 0;
+            const alreadyAdded = addedByItem.get(item_id) ?? 0;
+            if (current - removed + alreadyAdded + qty > item.quantity) {
+              return err("This slot is full", 409);
+            }
+            addedByItem.set(item_id, alreadyAdded + qty);
+          }
+
+          const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
+          validClaims.push({ item_id, qty, note: sanitizedNote });
+        }
+      }
+
+      // Normalize custom items (open mode only; signup already rejected above).
+      const validCustom: Array<{ item_name: string; note: string | null }> = [];
+      if (Array.isArray(custom_items) && custom_items.length > 0) {
+        for (const { item_name, note } of custom_items) {
+          const safeCustomItemName = (item_name as string)?.trim().slice(0, 200);
+          if (!safeCustomItemName) continue;
+          const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
+          validCustom.push({ item_name: safeCustomItemName, note: sanitizedNote });
+        }
+      }
+
+      // ---- Apply all mutations atomically. ----
+      const statements: D1PreparedStatement[] = [];
+
       const fields: string[] = [];
       const values: unknown[] = [];
       if (sanitizedGuestName !== undefined) { fields.push("guest_name = ?"); values.push(sanitizedGuestName); }
       if (adults !== undefined) { fields.push("adults = ?"); values.push(Math.min(Math.max(Math.floor(adults), 1), 50)); }
       if (kids !== undefined) { fields.push("kids = ?"); values.push(Math.min(Math.max(Math.floor(kids), 0), 50)); }
       if (cancelled !== undefined) { fields.push("cancelled = ?"); values.push(cancelled ? 1 : 0); }
-
       if (fields.length > 0) {
-        values.push(rsvp_id);
-        await db.prepare(`UPDATE rsvps SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+        statements.push(db.prepare(`UPDATE rsvps SET ${fields.join(", ")} WHERE id = ?`).bind(...values, rsvp_id));
       }
 
-      // Keep commitment guest_name in sync if name changed
-      const newName = sanitizedGuestName ?? oldName;
       if (sanitizedGuestName && sanitizedGuestName !== oldName) {
-        await db.prepare(
+        statements.push(db.prepare(
           "UPDATE bring_commitments SET guest_name = ? WHERE rsvp_id = ? AND event_id = ?"
-        ).bind(newName, rsvp_id, rsvp.event_id).run();
+        ).bind(newName, rsvp_id, eventId));
       }
 
-      // Remove commitments by commitment ID (ownership enforced by rsvp_id)
-      // Run unclaims FIRST so signup cap checks below see accurate remaining counts
-      if (Array.isArray(unclaim_item_ids) && unclaim_item_ids.length > 0) {
-        for (const commitmentId of unclaim_item_ids) {
-          await db.prepare(
-            "DELETE FROM bring_commitments WHERE id = ? AND rsvp_id = ? AND event_id = ?"
-          ).bind(commitmentId, rsvp_id, rsvp.event_id).run();
-        }
+      for (const commitmentId of unclaimSet) {
+        statements.push(db.prepare(
+          "DELETE FROM bring_commitments WHERE id = ? AND rsvp_id = ? AND event_id = ?"
+        ).bind(commitmentId, rsvp_id, eventId));
       }
 
-      // Add new commitments
-      if (Array.isArray(claim_items) && claim_items.length > 0) {
-        for (const { item_id, quantity, note } of claim_items) {
-          const item = await db.prepare(
-            "SELECT id, quantity FROM bring_list_items WHERE id = ? AND event_id = ?"
-          ).bind(item_id, rsvp.event_id).first<{ id: string; quantity: number }>();
-          if (!item) continue;
-
-          const qty = mode === "open" ? 1 : Math.min(Math.max(quantity ?? 1, 1), 20);
-
-          // Enforce slot cap in signup mode (after unclaims have been processed)
-          if (mode === "signup") {
-            const committedRow = await db.prepare(
-              "SELECT COALESCE(SUM(quantity), 0) as total FROM bring_commitments WHERE item_id = ? AND event_id = ?"
-            ).bind(item_id, rsvp.event_id).first<{ total: number }>();
-            const committed = committedRow?.total ?? 0;
-            if (committed + qty > item.quantity) {
-              return err("This slot is full", 409);
-            }
-          }
-
-          const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
-          await db.prepare(
-            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
-          ).bind(crypto.randomUUID(), item_id, rsvp.event_id, rsvp_id, newName, qty, sanitizedNote).run();
-        }
+      for (const c of validClaims) {
+        statements.push(db.prepare(
+          "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).bind(crypto.randomUUID(), c.item_id, eventId, rsvp_id, newName, c.qty, c.note));
       }
 
-      // Add custom items (new bring_list_items row + commitment) — open mode only
-      if (Array.isArray(custom_items) && custom_items.length > 0) {
-        for (const { item_name, note } of custom_items) {
-          const safeCustomItemName = (item_name as string)?.trim().slice(0, 200);
-          if (!safeCustomItemName) continue;
-          const itemId = crypto.randomUUID();
-          await db.prepare(
-            "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
-          ).bind(itemId, rsvp.event_id, safeCustomItemName, 1).run();
-          const sanitizedNote = note ? note.trim().slice(0, 150) || null : null;
-          await db.prepare(
-            "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
-          ).bind(crypto.randomUUID(), itemId, rsvp.event_id, rsvp_id, newName, 1, sanitizedNote).run();
-        }
+      for (const ci of validCustom) {
+        const itemId = crypto.randomUUID();
+        statements.push(db.prepare(
+          "INSERT INTO bring_list_items (id, event_id, item_name, quantity) VALUES (?, ?, ?, ?)"
+        ).bind(itemId, eventId, ci.item_name, 1));
+        statements.push(db.prepare(
+          "INSERT INTO bring_commitments (id, item_id, event_id, rsvp_id, guest_name, quantity, note) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).bind(crypto.randomUUID(), itemId, eventId, rsvp_id, newName, 1, ci.note));
       }
+
+      if (statements.length > 0) await db.batch(statements);
 
       return json({ success: true });
     }
 
     return err("Not found", 404);
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Internal error";
-    return err(message, 500);
+    // Log the detail server-side; return a generic message to avoid leaking internals.
+    console.error("API error:", e);
+    return err("Internal error", 500);
   }
 };
 

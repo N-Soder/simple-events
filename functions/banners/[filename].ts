@@ -14,6 +14,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
   headers.set("cache-control", "public, max-age=31536000, immutable");
+  // Never let the browser sniff a stored object into an executable type.
+  headers.set("x-content-type-options", "nosniff");
 
   return new Response(object.body, { headers });
 };

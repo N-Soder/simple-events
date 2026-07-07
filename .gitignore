@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Wrangler / Miniflare local state
+.wrangler
+
 # Local environment files (keep .env.example tracked)
 .env
 .env.*

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
 import { format } from "date-fns";
+import { formatEventTime } from "@/lib/time";
 import MarkdownContent from "@/components/MarkdownContent";
 import BringListSection, { BringItem } from "@/components/BringListSection";
 import RsvpSuccessScreen from "@/components/RsvpSuccessScreen";
@@ -28,7 +29,10 @@ interface EventData {
     bring_list_mode: "signup" | "open";
     bring_list_message: string | null;
   };
-  rsvps: Array<{ id: string; guest_name: string; adults: number; kids: number; cancelled?: boolean }>;
+  // Names are only present when guest_visibility === "full" (enforced server-side).
+  rsvps?: Array<{ id: string; guest_name: string; adults: number; kids: number }>;
+  // Aggregate counts are present for "full" and "count_only", absent for "hidden".
+  rsvp_counts?: { count: number; adults: number; kids: number };
   bring_items: BringItem[];
 }
 
@@ -422,10 +426,11 @@ const EventPage = () => {
   }
 
   if (!data) return null;
-  const { event, rsvps, bring_items } = data;
-  const activeRsvps = rsvps.filter((r) => !r.cancelled);
-  const totalAdults = activeRsvps.reduce((s, r) => s + r.adults, 0);
-  const totalKids = activeRsvps.reduce((s, r) => s + r.kids, 0);
+  const { event, bring_items } = data;
+  const guestList = data.rsvps ?? [];
+  const totalAttending = data.rsvp_counts?.count ?? 0;
+  const totalAdults = data.rsvp_counts?.adults ?? 0;
+  const totalKids = data.rsvp_counts?.kids ?? 0;
   const showBringList = event.bring_list_enabled && bring_items.length > 0;
   const hasExistingRsvp = !!managedRsvp && !editMode;
   const isEditing = !!managedRsvp && editMode;
@@ -447,22 +452,16 @@ const EventPage = () => {
             {format(new Date(event.event_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
           </span>
           {event.event_time && (
-            <span
+            <button
+              type="button"
               className="flex items-center gap-1.5 cursor-pointer select-none underline decoration-dotted underline-offset-2"
               title={use12Hour ? "Switch to 24-hour" : "Switch to AM/PM"}
+              aria-label={use12Hour ? "Switch to 24-hour time" : "Switch to AM/PM time"}
               onClick={() => setUse12Hour((v) => !v)}
             >
               <Clock className="h-4 w-4" />
-              {(() => {
-                const [h, m] = event.event_time!.split(":").map(Number);
-                if (use12Hour) {
-                  const period = h >= 12 ? "PM" : "AM";
-                  const hour12 = h % 12 || 12;
-                  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
-                }
-                return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-              })()}
-            </span>
+              {formatEventTime(event.event_time, use12Hour)}
+            </button>
           )}
           {event.location && (
             <span className="flex items-center gap-1.5">
@@ -556,7 +555,7 @@ const EventPage = () => {
           </Card>
         )}
 
-        {event.guest_visibility !== "hidden" && activeRsvps.length > 0 && (
+        {event.guest_visibility !== "hidden" && totalAttending > 0 && (
           <Card className="mt-8">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -567,7 +566,7 @@ const EventPage = () => {
             <CardContent>
               {event.guest_visibility === "full" ? (
                 <ul className="space-y-2">
-                  {activeRsvps.map((r) => (
+                  {guestList.map((r) => (
                     <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
                       <span className="font-medium">{r.guest_name}</span>
                       <span className="text-sm text-muted-foreground">
