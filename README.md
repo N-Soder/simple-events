@@ -2,7 +2,7 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-A lightweight web app for creating private event pages and coordinating RSVPs — no accounts required. Hosts share a link; guests RSVP by name and optionally claim items from a bring list.
+A lightweight web app for creating private event pages and coordinating RSVPs, no accounts required. Hosts share a link; guests RSVP by name and optionally claim items from a bring list.
 
 ## Features
 
@@ -11,14 +11,36 @@ A lightweight web app for creating private event pages and coordinating RSVPs �
 - Upload a banner image
 - Optional password protection
 - Control guest list visibility: full names, count only, or hidden
-- Optional bring list — define items with quantities so guests can claim what they'll bring
+- Optional bring list: define items with quantities so guests can claim what they'll bring
 - Admin dashboard to view all RSVPs, manage bring list items, and delete entries
 
 **For guests**
-- No account needed — just enter your name
+- No account needed, just enter your name
 - RSVP with adult and kid counts
 - Claim items from the bring list or add your own
 - Edit or cancel your RSVP at any time via a personal manage link
+
+## Link previews
+
+Pasting a guest link into WhatsApp, iMessage, Slack, or similar shows that event's
+own name and banner image rather than a generic Simple Events card.
+
+Crawlers do not run JavaScript, so the metadata cannot come from React. Instead
+`functions/event/[id].ts` intercepts `/event/:id` at the edge, looks the event up
+in D1, and swaps the metadata block in `index.html` (delimited by the
+`social-preview:start` / `social-preview:end` comments) for event-specific tags
+before the HTML is served. No third-party service or image generator is involved.
+
+Two things are deliberately left out of the preview:
+
+- **The event description.** Descriptions are Markdown, can run long, and are
+  detail a host may not want rendered into a group chat, so a fixed tagline is
+  used instead.
+- **Password-protected events.** These keep the generic preview. `GET /api/event`
+  refuses to return a protected event's name or banner without the password, and
+  an unauthenticated preview should not undercut that if a link gets forwarded.
+
+Admin links (`/admin/:id`) are untouched and always preview generically.
 
 ## Tech stack
 
@@ -67,7 +89,7 @@ Update `wrangler.toml` with the returned `database_id`.
 **2. Apply the database migrations**
 
 Migrations live in `migrations/d1/` and are tracked by Wrangler (see `migrations_dir`
-in `wrangler.toml`), so applying them is idempotent — only unapplied files run.
+in `wrangler.toml`), so applying them is idempotent: only unapplied files run.
 
 ```bash
 npx wrangler d1 migrations apply simple-events-db --remote

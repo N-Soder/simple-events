@@ -36,7 +36,7 @@ const EventCreated = () => {
   // Determine guest link description
   let guestDescription: string;
   if (!password) {
-    guestDescription = "Anyone with this link can view your event — no password required.";
+    guestDescription = "Anyone with this link can view your event. No password required.";
   } else if (embed) {
     guestDescription = "The password is embedded in this link. Guests can open it directly without typing anything.";
   } else {
@@ -51,7 +51,7 @@ const EventCreated = () => {
             <Check className="h-7 w-7 text-primary" />
           </div>
           <h1 className="text-3xl font-bold sm:text-4xl">Event Created!</h1>
-          <p className="mt-3 text-muted-foreground">Save these links — you won't be able to see them again.</p>
+          <p className="mt-3 text-muted-foreground">Save these links. You won't be able to see them again.</p>
         </div>
 
         <div className="space-y-4">
