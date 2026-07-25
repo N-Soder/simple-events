@@ -33,6 +33,8 @@ export async function createEvent(params: {
   description?: string;
   event_date: string;
   event_time?: string;
+  event_end_time?: string;
+  timezone?: string;
   location?: string;
   banner_url?: string;
   password?: string;

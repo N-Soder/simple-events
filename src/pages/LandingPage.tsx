@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { PartyPopper, Users, ListChecks, ShieldCheck, Github } from "lucide-react";
+import { PartyPopper, Users, ListChecks, ShieldCheck, Github, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getMyEvents } from "@/lib/myEvents";
 
 const features = [
   {
@@ -21,6 +23,10 @@ const features = [
 ];
 
 const LandingPage = () => {
+  // Only returning hosts see the "your events" entry point; first-time
+  // visitors get the hero on its own.
+  const [savedCount] = useState(() => getMyEvents().length);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-3xl px-4 py-20 sm:py-32">
@@ -36,6 +42,17 @@ const LandingPage = () => {
           <Button asChild size="lg" className="mt-8 text-base px-8">
             <Link to="/create">Create an Event</Link>
           </Button>
+          {savedCount > 0 && (
+            <p className="mt-4">
+              <Link
+                to="/my-events"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Your {savedCount} saved event{savedCount !== 1 ? "s" : ""} on this device
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </p>
+          )}
         </div>
 
         {/* Features */}

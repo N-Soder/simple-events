@@ -11,6 +11,7 @@ import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, up
 import { format } from "date-fns";
 import { formatEventTime } from "@/lib/time";
 import MarkdownContent from "@/components/MarkdownContent";
+import AddToCalendarButton from "@/components/AddToCalendarButton";
 import BringListSection, { BringItem } from "@/components/BringListSection";
 import RsvpSuccessScreen from "@/components/RsvpSuccessScreen";
 import RsvpSummaryCard from "@/components/RsvpSummaryCard";
@@ -22,6 +23,8 @@ interface EventData {
     description: string | null;
     event_date: string;
     event_time: string | null;
+    event_end_time: string | null;
+    timezone: string | null;
     location: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
@@ -376,6 +379,14 @@ const EventPage = () => {
     ? `${window.location.origin}/event/${id}#manage=${managedRsvp.rsvp_id}.${managedRsvp.manage_code}`
     : "";
 
+  // Link to put in calendar entries. The password fragment is carried over only
+  // when the guest arrived with one already in the URL, so a calendar entry is
+  // never a wider disclosure than the link they were sent.
+  const arrivedWithPassword = !!password && window.location.hash.slice(1) === password;
+  const shareUrl = id
+    ? `${window.location.origin}/event/${id}${arrivedWithPassword ? `#${password}` : ""}`
+    : "";
+
   if (loading && !authenticated) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -410,7 +421,7 @@ const EventPage = () => {
     );
   }
 
-  if (showSuccessScreen && managedRsvp) {
+  if (showSuccessScreen && managedRsvp && data) {
     return (
       <main className="min-h-screen bg-background">
         <RsvpSuccessScreen
@@ -419,6 +430,7 @@ const EventPage = () => {
           kids={managedRsvp.kids}
           claimedItems={successClaimedItems}
           manageUrl={manageUrl}
+          calendarEvent={{ ...data.event, url: shareUrl }}
           onViewEvent={() => setShowSuccessScreen(false)}
         />
       </main>
@@ -461,6 +473,7 @@ const EventPage = () => {
             >
               <Clock className="h-4 w-4" />
               {formatEventTime(event.event_time, use12Hour)}
+              {event.event_end_time && ` – ${formatEventTime(event.event_end_time, use12Hour)}`}
             </button>
           )}
           {event.location && (
@@ -469,6 +482,10 @@ const EventPage = () => {
               {event.location}
             </span>
           )}
+        </div>
+
+        <div className="mt-4">
+          <AddToCalendarButton event={{ ...event, url: shareUrl }} />
         </div>
 
         {event.description && (
