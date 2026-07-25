@@ -14,10 +14,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { createEvent, uploadBanner } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
-import TimezoneSelect, { detectTimeZone } from "@/components/TimezoneSelect";
+import { detectTimeZone } from "@/lib/timezone";
+import TimeZoneNote from "@/components/TimeZoneNote";
 import TimeField from "@/components/TimeField";
+import LocationField from "@/components/LocationField";
 import { saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
+import { normalizeUrl } from "@/lib/url";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Event name is required").max(200),
@@ -52,6 +55,7 @@ const Index = () => {
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [timezone, setTimezone] = useState(detectTimeZone);
+  const [locationUrl, setLocationUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
@@ -102,6 +106,7 @@ const Index = () => {
         event_end_time: data.event_time ? data.event_end_time : undefined,
         timezone: data.event_time ? timezone : undefined,
         location: data.location,
+        location_url: normalizeUrl(locationUrl) || undefined,
         password,
         guest_visibility: data.guest_visibility,
         bring_list_enabled: bringListEnabled,
@@ -241,35 +246,24 @@ const Index = () => {
                       disabled={!startTime}
                       relativeTo={startTime || undefined}
                       defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60}
+                      placeholderExample="22:30"
                       aria-label="End time"
                     />
                     {errors.event_end_time && <p className="mt-1 text-sm text-destructive">{errors.event_end_time.message}</p>}
                   </div>
                 </div>
                 {startTime && (
-                  <div className="mt-4">
-                    <Label htmlFor="timezone">Time zone</Label>
-                    <TimezoneSelect id="timezone" value={timezone} onChange={setTimezone} />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Used for calendar exports. Defaults to your own — change it if the event is somewhere else.
-                    </p>
-                  </div>
-                )}
-                {startTime && !endTime && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    No end time? Calendar entries will be {DEFAULT_DURATION_HOURS} hours long.
-                  </p>
+                  <TimeZoneNote value={timezone} onChange={setTimezone} showDurationHint={!endTime} />
                 )}
               </div>
 
               {/* Location */}
-              <div>
-                <Label htmlFor="location">
-                  <MapPin className="mr-1.5 inline h-4 w-4" />
-                  Location
-                </Label>
-                <Input id="location" placeholder="123 Main St or 'John's backyard'" {...register("location")} className="mt-1.5" />
-              </div>
+              <LocationField
+                location={watch("location") || ""}
+                onLocationChange={(v) => setValue("location", v)}
+                url={locationUrl}
+                onUrlChange={setLocationUrl}
+              />
 
               {/* Password */}
               <div>

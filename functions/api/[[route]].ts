@@ -18,6 +18,21 @@ const VISIBILITIES = ["full", "count_only", "hidden"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
 
+const MAX_URL_LENGTH = 2000;
+
+// The location link is rendered as an anchor on the guest page, so only plain
+// web schemes are stored. This keeps "javascript:" and "data:" payloads out of
+// the database rather than relying on the client to filter them at render time.
+function isSafeHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string" || !value || value.length > MAX_URL_LENGTH) return false;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 // Reject anything that isn't a time zone the runtime actually knows about, so a
 // bad value can't be stored and later break date maths on the client.
 function isValidTimeZone(tz: unknown): tz is string {
@@ -128,10 +143,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // POST /api/create - Create a new event
     if (request.method === "POST" && path === "create") {
       const body = await request.json() as Record<string, unknown>;
-      const { name, description, event_date, event_time, event_end_time, timezone, location, banner_url, password, guest_visibility, bring_items, bring_list_enabled, bring_list_message, bring_list_mode } = body as {
+      const { name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, password, guest_visibility, bring_items, bring_list_enabled, bring_list_message, bring_list_mode } = body as {
         name?: string; description?: string; event_date?: string; event_time?: string;
         event_end_time?: string; timezone?: string;
-        location?: string; banner_url?: string; password?: string;
+        location?: string; location_url?: string; banner_url?: string; password?: string;
         guest_visibility?: string; bring_items?: Array<{ name: string; quantity: number } | string>;
         bring_list_enabled?: boolean; bring_list_message?: string;
         bring_list_mode?: string;
@@ -146,6 +161,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (timezone !== undefined && timezone !== null && !isValidTimeZone(timezone)) return err("invalid timezone");
       if (description && description.length > 5000) return err("description must be 5000 characters or fewer");
       if (location && location.length > 500) return err("location must be 500 characters or fewer");
+      if (location_url && !isSafeHttpUrl(location_url)) return err("location_url must be an http(s) URL");
       if (bring_list_message && bring_list_message.length > 5000) return err("bring_list_message must be 5000 characters or fewer");
       if (guest_visibility && !VISIBILITIES.includes(guest_visibility as typeof VISIBILITIES[number])) return err("invalid guest_visibility");
 
@@ -155,12 +171,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const mode = bring_list_mode === "signup" ? "signup" : "open";
 
       await db.prepare(
-        `INSERT INTO events (id, name, description, event_date, event_time, event_end_time, timezone, location, banner_url, password_hash, guest_visibility, admin_token, bring_list_enabled, bring_list_message, bring_list_mode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO events (id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, password_hash, guest_visibility, admin_token, bring_list_enabled, bring_list_message, bring_list_mode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         id, name, description ?? null, event_date, event_time ?? null,
         event_time ? (event_end_time ?? null) : null, timezone ?? null,
-        location ?? null, banner_url ?? null, password_hash,
+        location ?? null, location_url || null, banner_url ?? null, password_hash,
         guest_visibility ?? "full", admin_token,
         bring_list_enabled !== false ? 1 : 0,
         bring_list_message ?? null,
@@ -202,7 +218,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // Fetch first so a missing/deleted event returns 404 (not a password prompt).
       const eventRow = await db.prepare(
-        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at, password_hash FROM events WHERE id = ?"
+        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at, password_hash FROM events WHERE id = ?"
       ).bind(event_id).first<Record<string, unknown>>();
       if (!eventRow) return err("Event not found", 404);
 
@@ -252,7 +268,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!event_id || !token) return err("id and token are required");
 
       const event = await db.prepare(
-        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, admin_token, created_at FROM events WHERE id = ? AND admin_token = ?"
+        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, admin_token, created_at FROM events WHERE id = ? AND admin_token = ?"
       ).bind(event_id, token).first();
       if (!event) return err("Invalid admin link", 403);
 
@@ -404,6 +420,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
       if (typeof updates.description === "string" && updates.description.length > 5000) return err("description must be 5000 characters or fewer");
       if (typeof updates.location === "string" && updates.location.length > 500) return err("location must be 500 characters or fewer");
+      if (updates.location_url !== undefined && updates.location_url !== null && updates.location_url !== "" && !isSafeHttpUrl(updates.location_url)) return err("location_url must be an http(s) URL");
       if (typeof updates.bring_list_message === "string" && updates.bring_list_message.length > 5000) return err("bring_list_message must be 5000 characters or fewer");
       if (updates.event_date !== undefined && !(typeof updates.event_date === "string" && DATE_RE.test(updates.event_date))) return err("event_date must be in YYYY-MM-DD format");
       if (updates.event_time !== undefined && updates.event_time !== null && !(typeof updates.event_time === "string" && TIME_RE.test(updates.event_time))) return err("event_time must be in HH:MM format");
@@ -416,7 +433,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const effectiveStart = updates.event_time !== undefined ? updates.event_time : event.event_time;
       if (!effectiveStart) updates.event_end_time = null;
 
-      const allowed = ["name", "description", "event_date", "event_time", "event_end_time", "timezone", "location", "banner_url", "guest_visibility", "bring_list_enabled", "bring_list_message", "bring_list_mode"];
+      const allowed = ["name", "description", "event_date", "event_time", "event_end_time", "timezone", "location", "location_url", "banner_url", "guest_visibility", "bring_list_enabled", "bring_list_message", "bring_list_mode"];
       const fields: string[] = [];
       const values: unknown[] = [];
       for (const key of allowed) {
@@ -424,6 +441,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           fields.push(`${key} = ?`);
           if (key === "bring_list_enabled") {
             values.push(updates[key] ? 1 : 0);
+          } else if (key === "location_url") {
+            // An empty box means "no link", which is NULL rather than "".
+            values.push(updates[key] || null);
           } else if (key === "bring_list_mode") {
             values.push(updates[key] === "signup" ? "signup" : "open");
           } else {

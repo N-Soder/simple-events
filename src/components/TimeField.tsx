@@ -12,7 +12,7 @@ import {
   parseTimeInput,
   toHHMM,
 } from "@/lib/timeInput";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useCoarsePointer } from "@/hooks/use-coarse-pointer";
 
 const STEP_MINUTES = 30;
 
@@ -30,6 +30,8 @@ interface TimeFieldProps {
   relativeTo?: string;
   /** Offset from `relativeTo` the list scrolls to when no value is set yet. */
   defaultOffsetMinutes?: number;
+  /** Canonical "HH:MM" shown as the worked example in the placeholder. */
+  placeholderExample?: string;
   "aria-label"?: string;
 }
 
@@ -37,12 +39,15 @@ interface TimeFieldProps {
  * Time picker that defers to the platform on touch devices and offers a
  * typeahead combobox everywhere else.
  *
- * Native <input type="time"> is the best control on phones — it opens the OS
- * wheel or clock dial, is fully accessible, and already honours the user's own
- * 12/24-hour setting. On desktop it is the weakest part of the form: Firefox
- * offers no picker at all, and no browser lets you simply type "6pm". So
- * desktop gets a text field with forgiving parsing plus a list of half-hour
- * options, and phones keep the native control.
+ * Native <input type="time"> is the best control on phones: it opens the OS
+ * wheel or clock dial, is fully accessible, and already honours the reader's
+ * own 12/24-hour setting. On desktop it is the weakest part of the form.
+ * Firefox offers no picker at all, and no browser lets you simply type "6pm".
+ * So desktop gets a text field with forgiving parsing plus a list of half-hour
+ * options, and touch devices keep the native control.
+ *
+ * The split is on pointer type, not viewport width: a narrow desktop window is
+ * still driven by a mouse and keyboard and should keep the combobox.
  */
 const TimeField = ({
   id,
@@ -51,11 +56,12 @@ const TimeField = ({
   disabled,
   relativeTo,
   defaultOffsetMinutes = 180,
+  placeholderExample = "18:30",
   "aria-label": ariaLabel,
 }: TimeFieldProps) => {
-  const isMobile = useIsMobile();
+  const isTouch = useCoarsePointer();
 
-  if (isMobile) {
+  if (isTouch) {
     return (
       <Input
         id={id}
@@ -77,6 +83,7 @@ const TimeField = ({
       disabled={disabled}
       relativeTo={relativeTo}
       defaultOffsetMinutes={defaultOffsetMinutes}
+      placeholderExample={placeholderExample}
       aria-label={ariaLabel}
     />
   );
@@ -89,6 +96,7 @@ const TimeCombobox = ({
   disabled,
   relativeTo,
   defaultOffsetMinutes = 180,
+  placeholderExample = "18:30",
   "aria-label": ariaLabel,
 }: TimeFieldProps) => {
   const use12Hour = useMemo(prefers12Hour, []);
@@ -256,7 +264,7 @@ const TimeCombobox = ({
         aria-label={ariaLabel}
         autoComplete="off"
         disabled={disabled}
-        placeholder={use12Hour ? "e.g. 6:30 PM" : "e.g. 18:30"}
+        placeholder={`e.g. ${label(placeholderExample)}`}
         className="pl-9"
         value={draft ?? (value ? label(value) : "")}
         onChange={(e) => {

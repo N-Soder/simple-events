@@ -147,6 +147,26 @@ describe("buildIcs", () => {
     expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);
   });
 
+  it("puts a location link in the description, where clients linkify it", () => {
+    const ics = buildIcs(
+      {
+        id: "e1", name: "BBQ", event_date: "2026-08-01",
+        location: "12 Garden Way", location_url: "https://maps.app.goo.gl/xyz",
+      },
+      NOW,
+    );
+    expect(lineOf(ics, "LOCATION")).toBe("LOCATION:12 Garden Way");
+    expect(lineOf(ics, "DESCRIPTION")).toContain("Location: https://maps.app.goo.gl/xyz");
+  });
+
+  it("ignores a location link that is not a plain web address", () => {
+    const ics = buildIcs(
+      { id: "e1", name: "BBQ", event_date: "2026-08-01", location_url: "javascript:alert(1)" },
+      NOW,
+    );
+    expect(ics).not.toContain("javascript:");
+  });
+
   it("includes the event URL in both URL and DESCRIPTION", () => {
     const ics = buildIcs(
       { id: "e1", name: "BBQ", event_date: "2026-08-01", url: "https://example.com/event/e1" },

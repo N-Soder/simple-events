@@ -36,8 +36,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import CopyButton, { CopyableLink } from "@/components/CopyButton";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
-import TimezoneSelect, { detectTimeZone } from "@/components/TimezoneSelect";
+import { detectTimeZone } from "@/lib/timezone";
+import TimeZoneNote from "@/components/TimeZoneNote";
 import TimeField from "@/components/TimeField";
+import LocationField from "@/components/LocationField";
+import { normalizeUrl } from "@/lib/url";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { getMyEvent, saveMyEvent } from "@/lib/myEvents";
 import { BringItem } from "@/components/BringListSection";
@@ -52,6 +55,7 @@ interface EventData {
     event_end_time: string | null;
     timezone: string | null;
     location: string | null;
+    location_url: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
@@ -86,6 +90,7 @@ const AdminPage = () => {
   const [eventEndTime, setEventEndTime] = useState("");
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [location, setLocation] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
   const [bringListEnabled, setBringListEnabled] = useState(true);
   const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
@@ -109,6 +114,7 @@ const AdminPage = () => {
       setEventEndTime((result.event.event_end_time as string) || "");
       setTimezone((result.event.timezone as string) || detectTimeZone());
       setLocation((result.event.location as string) || "");
+      setLocationUrl((result.event.location_url as string) || "");
       setVisibility(result.event.guest_visibility as "full" | "count_only" | "hidden");
       setBringListEnabled(result.event.bring_list_enabled as boolean);
       const loadedMode = (result.event.bring_list_mode as "signup" | "open") ?? "open";
@@ -148,6 +154,7 @@ const AdminPage = () => {
         event_end_time: eventTime ? (eventEndTime || null) : null,
         timezone: eventTime ? timezone : null,
         location,
+        location_url: normalizeUrl(locationUrl) || null,
         guest_visibility: visibility, bring_list_enabled: bringListEnabled,
         bring_list_message: bringListMessage, bring_list_mode: bringListMode,
       });
@@ -365,25 +372,22 @@ const AdminPage = () => {
                     disabled={!eventTime}
                     relativeTo={eventTime || undefined}
                     defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60}
+                    placeholderExample="22:30"
                     aria-label="End time"
                   />
                 </div>
               </div>
               {eventTime && (
-                <div className="mt-4">
-                  <Label htmlFor="admin_timezone">Time zone</Label>
-                  <TimezoneSelect id="admin_timezone" value={timezone} onChange={setTimezone} />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Used for calendar exports.
-                    {!eventEndTime && ` With no end time, calendar entries are ${DEFAULT_DURATION_HOURS} hours long.`}
-                  </p>
-                </div>
+                <TimeZoneNote value={timezone} onChange={setTimezone} showDurationHint={!eventEndTime} />
               )}
             </div>
-            <div>
-              <Label><MapPin className="mr-1 inline h-4 w-4" />Location</Label>
-              <Input value={location} onChange={(e) => setLocation(e.target.value)} className="mt-1.5" />
-            </div>
+            <LocationField
+              idPrefix="admin_"
+              location={location}
+              onLocationChange={setLocation}
+              url={locationUrl}
+              onUrlChange={setLocationUrl}
+            />
 
             <div>
               <Label className="mb-3 block">Guest List Visibility</Label>

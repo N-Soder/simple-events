@@ -36,6 +36,7 @@ export async function createEvent(params: {
   event_end_time?: string;
   timezone?: string;
   location?: string;
+  location_url?: string;
   banner_url?: string;
   password?: string;
   guest_visibility: "full" | "count_only" | "hidden";

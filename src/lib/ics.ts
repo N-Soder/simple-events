@@ -13,6 +13,8 @@
  *                          events created before time zones were captured.
  */
 
+import { isSafeHttpUrl } from "./url";
+
 export interface CalendarEvent {
   id: string;
   name: string;
@@ -22,6 +24,7 @@ export interface CalendarEvent {
   event_end_time?: string | null;     // HH:MM
   timezone?: string | null;           // IANA zone, e.g. "Europe/London"
   location?: string | null;
+  location_url?: string | null;       // map pin / venue page, http(s) only
   url?: string;
 }
 
@@ -219,6 +222,9 @@ export function buildIcs(event: CalendarEvent, now = new Date()): string {
 
   const descriptionParts: string[] = [];
   if (event.description) descriptionParts.push(markdownToPlainText(event.description));
+  // Calendar clients do not linkify LOCATION, so the map link goes in the body
+  // where it is actually tappable.
+  if (isSafeHttpUrl(event.location_url)) descriptionParts.push(`Location: ${event.location_url}`);
   if (event.url) descriptionParts.push(event.url);
   if (descriptionParts.length > 0) {
     lines.push(`DESCRIPTION:${escapeText(descriptionParts.join("\n\n"))}`);
@@ -255,6 +261,7 @@ export function googleCalendarUrl(event: CalendarEvent): string {
 
   const details: string[] = [];
   if (event.description) details.push(markdownToPlainText(event.description));
+  if (isSafeHttpUrl(event.location_url)) details.push(`Location: ${event.location_url}`);
   if (event.url) details.push(event.url);
   if (details.length > 0) params.set("details", details.join("\n\n"));
   // Without a zone the dates are floating; tell Google to read them as the

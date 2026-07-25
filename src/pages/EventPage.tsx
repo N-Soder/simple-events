@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
+import { CalendarDays, Clock, ExternalLink, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
 import { format } from "date-fns";
 import { formatEventTime, prefers12Hour } from "@/lib/time";
+import { displayHost, isSafeHttpUrl } from "@/lib/url";
 import MarkdownContent from "@/components/MarkdownContent";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import BringListSection, { BringItem } from "@/components/BringListSection";
@@ -26,6 +27,7 @@ interface EventData {
     event_end_time: string | null;
     timezone: string | null;
     location: string | null;
+    location_url: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
@@ -475,10 +477,36 @@ const EventPage = () => {
             </button>
           )}
           {event.location && (
-            <span className="flex items-center gap-1.5">
+            // Only ever linked when the stored URL is a plain http(s) address.
+            isSafeHttpUrl(event.location_url) ? (
+              <a
+                href={event.location_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+              >
+                <MapPin className="h-4 w-4" />
+                {event.location}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-4 w-4" />
+                {event.location}
+              </span>
+            )
+          )}
+          {!event.location && isSafeHttpUrl(event.location_url) && (
+            <a
+              href={event.location_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+            >
               <MapPin className="h-4 w-4" />
-              {event.location}
-            </span>
+              {displayHost(event.location_url)}
+              <ExternalLink className="h-3 w-3" />
+            </a>
           )}
         </div>
 
