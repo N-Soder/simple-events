@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
 import { format } from "date-fns";
-import { formatEventTime } from "@/lib/time";
+import { formatEventTime, prefers12Hour } from "@/lib/time";
 import MarkdownContent from "@/components/MarkdownContent";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import BringListSection, { BringItem } from "@/components/BringListSection";
@@ -88,9 +88,7 @@ const EventPage = () => {
   const [successClaimedItems, setSuccessClaimedItems] = useState<string[]>([]);
 
   // Time format: detect browser locale preference, allow toggle
-  const [use12Hour, setUse12Hour] = useState<boolean>(
-    () => Intl.DateTimeFormat(navigator.language, { hour: "numeric" }).resolvedOptions().hour12 ?? true
-  );
+  const [use12Hour, setUse12Hour] = useState<boolean>(prefers12Hour);
 
   const parseHash = useCallback(() => {
     const hash = window.location.hash.slice(1);

@@ -37,6 +37,7 @@ import MarkdownEditor from "@/components/MarkdownEditor";
 import CopyButton, { CopyableLink } from "@/components/CopyButton";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import TimezoneSelect, { detectTimeZone } from "@/components/TimezoneSelect";
+import TimeField from "@/components/TimeField";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { getMyEvent, saveMyEvent } from "@/lib/myEvents";
 import { BringItem } from "@/components/BringListSection";
@@ -344,12 +345,28 @@ const AdminPage = () => {
                   <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="mt-1.5" />
                 </div>
                 <div>
-                  <Label><Clock className="mr-1 inline h-4 w-4" />Start time</Label>
-                  <Input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} className="mt-1.5" />
+                  <Label htmlFor="admin_event_time"><Clock className="mr-1 inline h-4 w-4" />Start time</Label>
+                  <TimeField
+                    id="admin_event_time"
+                    value={eventTime}
+                    onChange={(v) => {
+                      setEventTime(v);
+                      if (!v) setEventEndTime("");
+                    }}
+                    aria-label="Start time"
+                  />
                 </div>
                 <div>
-                  <Label><Clock className="mr-1 inline h-4 w-4" />End time</Label>
-                  <Input type="time" value={eventEndTime} onChange={(e) => setEventEndTime(e.target.value)} className="mt-1.5" disabled={!eventTime} />
+                  <Label htmlFor="admin_event_end_time"><Clock className="mr-1 inline h-4 w-4" />End time</Label>
+                  <TimeField
+                    id="admin_event_end_time"
+                    value={eventEndTime}
+                    onChange={setEventEndTime}
+                    disabled={!eventTime}
+                    relativeTo={eventTime || undefined}
+                    defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60}
+                    aria-label="End time"
+                  />
                 </div>
               </div>
               {eventTime && (

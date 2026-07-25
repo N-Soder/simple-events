@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { createEvent, uploadBanner } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import TimezoneSelect, { detectTimeZone } from "@/components/TimezoneSelect";
+import TimeField from "@/components/TimeField";
 import { saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 
@@ -217,14 +218,31 @@ const Index = () => {
                       <Clock className="mr-1.5 inline h-4 w-4" />
                       Start time
                     </Label>
-                    <Input id="event_time" type="time" {...register("event_time")} className="mt-1.5" />
+                    <TimeField
+                      id="event_time"
+                      value={startTime || ""}
+                      onChange={(v) => {
+                        setValue("event_time", v);
+                        // An end time without a start is meaningless.
+                        if (!v) setValue("event_end_time", "");
+                      }}
+                      aria-label="Start time"
+                    />
                   </div>
                   <div>
                     <Label htmlFor="event_end_time">
                       <Clock className="mr-1.5 inline h-4 w-4" />
                       End time
                     </Label>
-                    <Input id="event_end_time" type="time" {...register("event_end_time")} className="mt-1.5" disabled={!startTime} />
+                    <TimeField
+                      id="event_end_time"
+                      value={endTime || ""}
+                      onChange={(v) => setValue("event_end_time", v)}
+                      disabled={!startTime}
+                      relativeTo={startTime || undefined}
+                      defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60}
+                      aria-label="End time"
+                    />
                     {errors.event_end_time && <p className="mt-1 text-sm text-destructive">{errors.event_end_time.message}</p>}
                   </div>
                 </div>
