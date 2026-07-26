@@ -89,10 +89,21 @@ function metadataFor(event: EventRow, eventId: string, pageUrl: string): string 
 export const onRequest: PagesFunction<Env, "id"> = async (context) => {
   const { request, env, params } = context;
 
-  // Ask for the built shell by name. Nothing from the incoming request is
-  // forwarded: an If-None-Match from a repeat visitor would come back as a
-  // bodyless 304 and leave us with no HTML to rewrite.
-  const shell = await context.next(new URL("/index.html", request.url).href);
+  // Ask for the shell at the site root, not at /index.html. Pages canonicalises
+  // a direct request for /index.html into a 308 to /, with an empty body, so
+  // asking for it by name leaves nothing to rewrite. `wrangler pages dev`
+  // serves the file directly and does not reproduce that, so this only shows up
+  // once deployed.
+  //
+  // Nothing from the incoming request is forwarded either: an If-None-Match
+  // from a repeat visitor would come back as a bodyless 304.
+  const shell = await context.next(new URL("/", request.url).href);
+
+  // Only a plain 200 is a document worth rewriting. On anything else, fall back
+  // to serving this route the way Pages would without this function, rather
+  // than passing a redirect or an error page off as the event page.
+  if (shell.status !== 200) return context.next();
+
   const source = await shell.text();
 
   const rawId = params.id;
@@ -122,9 +133,13 @@ export const onRequest: PagesFunction<Env, "id"> = async (context) => {
           "\n    " +
           source.slice(end);
       }
-    } catch {
+    } catch (error) {
       // A D1 hiccup must not take the guest link down with it. Falling through
       // serves the generic preview, which is what shipped before this function.
+      // Logged rather than swallowed: a silent fallback is indistinguishable
+      // from a working generic preview, so without this the only symptom is
+      // "the preview is wrong". Read it with `wrangler pages deployment tail`.
+      console.error(`social preview failed for event ${eventId}:`, error);
     }
   }
 
@@ -134,7 +149,10 @@ export const onRequest: PagesFunction<Env, "id"> = async (context) => {
   // it. Leaving them would let one event's preview be served for another.
   headers.delete("etag");
   headers.delete("content-length");
+  // The shell was fetched from /, so a stray location header would send the
+  // guest link to the landing page.
+  headers.delete("location");
   headers.set("cache-control", "no-cache");
 
-  return new Response(html, { status: shell.status, headers });
+  return new Response(html, { status: 200, headers });
 };
