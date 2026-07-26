@@ -7,18 +7,22 @@ A lightweight web app for creating private event pages and coordinating RSVPs �
 ## Features
 
 **For hosts**
-- Create an event with name, date, time, location, and an optional Markdown description
+- Create an event with name, date, start and optional end time, location, and an optional
+  Markdown description (with a live preview)
 - Upload a banner image
 - Optional password protection
 - Control guest list visibility: full names, count only, or hidden
 - Optional bring list — define items with quantities so guests can claim what they'll bring
 - Admin dashboard to view all RSVPs, manage bring list items, and delete entries
+- Created events are remembered in the browser, so the admin link can be recovered from
+  **Your events** if the tab is closed without saving it
 
 **For guests**
 - No account needed — just enter your name
 - RSVP with adult and kid counts
 - Claim items from the bring list or add your own
 - Edit or cancel your RSVP at any time via a personal manage link
+- Add the event to a calendar — an `.ics` download or a Google Calendar link
 
 ## Tech stack
 
@@ -73,6 +77,16 @@ in `wrangler.toml`), so applying them is idempotent — only unapplied files run
 npx wrangler d1 migrations apply simple-events-db --remote
 ```
 
+**Re-run this whenever a change adds a migration, before deploying that change** —
+including for preview deployments, which share the same D1 database. Deploying code
+that references a column the database does not have yet makes the affected endpoints
+fail with a generic `500 Internal error`; the real cause (`no such column`) only
+appears in the Worker logs (`npx wrangler pages deployment tail`).
+
+Migrations here only ever add columns, so applying them ahead of a deploy is safe:
+the currently running code selects and inserts explicit column lists and ignores
+anything new.
+
 **3. Create the R2 bucket** (optional, for banner images)
 
 ```bash
@@ -103,6 +117,11 @@ cd cleanup-worker && npx wrangler deploy
 - The API is same-origin and sends no CORS headers. If you ever serve the front end
   from a different origin, add an explicit `Access-Control-Allow-Origin` allow-list in
   `functions/api/[[route]].ts`.
+- The **Your events** list is `localStorage` only — it stores each event's admin token in
+  the creating browser. Admin tokens already travel in URLs, and Markdown descriptions are
+  rendered without raw HTML, so this does not open a new exfiltration path. It is a
+  convenience, not a backup: clearing site data removes it, and Safari evicts local storage
+  after roughly seven days without a visit.
 - **Rate limiting is not handled in code.** Password-protected events and the
   upload/RSVP endpoints are otherwise open to automated abuse. Add a
   [Cloudflare Rate Limiting rule](https://developers.cloudflare.com/waf/rate-limiting-rules/)

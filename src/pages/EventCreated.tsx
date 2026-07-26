@@ -1,8 +1,8 @@
-import { useSearchParams } from "react-router-dom";
-import { Check, Copy, Link, Shield, Globe } from "lucide-react";
+import { useSearchParams, Link as RouterLink } from "react-router-dom";
+import { Check, Link, Shield, Globe, Laptop } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState } from "react";
+import { CopyableLink } from "@/components/CopyButton";
 
 const EventCreated = () => {
   const [params] = useSearchParams();
@@ -15,15 +15,6 @@ const EventCreated = () => {
   const baseGuestLink = `${window.location.origin}/event/${eventId}`;
   const guestLink = password && embed ? `${baseGuestLink}#${password}` : baseGuestLink;
   const adminLink = `${window.location.origin}/admin/${eventId}?token=${adminToken}`;
-
-  const [copiedGuest, setCopiedGuest] = useState(false);
-  const [copiedAdmin, setCopiedAdmin] = useState(false);
-
-  const copyToClipboard = async (text: string, type: "guest" | "admin") => {
-    await navigator.clipboard.writeText(text);
-    if (type === "guest") { setCopiedGuest(true); setTimeout(() => setCopiedGuest(false), 2000); }
-    else { setCopiedAdmin(true); setTimeout(() => setCopiedAdmin(false), 2000); }
-  };
 
   if (!eventId || !adminToken) {
     return (
@@ -51,7 +42,7 @@ const EventCreated = () => {
             <Check className="h-7 w-7 text-primary" />
           </div>
           <h1 className="text-3xl font-bold sm:text-4xl">Event Created!</h1>
-          <p className="mt-3 text-muted-foreground">Save these links — you won't be able to see them again.</p>
+          <p className="mt-3 text-muted-foreground">Save these links somewhere safe.</p>
         </div>
 
         <div className="space-y-4">
@@ -64,12 +55,7 @@ const EventCreated = () => {
             </CardHeader>
             <CardContent>
               <p className="mb-3 text-sm text-muted-foreground">{guestDescription}</p>
-              <div className="flex gap-2">
-                <code className="flex-1 overflow-hidden truncate rounded-md bg-muted px-3 py-2 text-sm">{guestLink}</code>
-                <Button variant="outline" size="icon" onClick={() => copyToClipboard(guestLink, "guest")}>
-                  {copiedGuest ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
+              <CopyableLink value={guestLink} successMessage="Guest link copied" label="Copy guest link" />
             </CardContent>
           </Card>
 
@@ -82,18 +68,26 @@ const EventCreated = () => {
             </CardHeader>
             <CardContent>
               <p className="mb-3 text-sm text-muted-foreground">Keep this private! Use it to edit your event, manage RSVPs, and update the bring list.</p>
-              <div className="flex gap-2">
-                <code className="flex-1 overflow-hidden truncate rounded-md bg-muted px-3 py-2 text-sm">{adminLink}</code>
-                <Button variant="outline" size="icon" onClick={() => copyToClipboard(adminLink, "admin")}>
-                  {copiedAdmin ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
+              <CopyableLink value={adminLink} successMessage="Admin link copied" label="Copy admin link" />
             </CardContent>
           </Card>
         </div>
 
+        <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+          <Laptop className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            Both links are also saved in this browser, so you can find them again under{" "}
+            <RouterLink to="/my-events" className="font-medium text-foreground underline underline-offset-2">
+              Your events
+            </RouterLink>
+            . That copy only lives on this device — if you clear your browser data or switch devices, it's gone.
+          </p>
+        </div>
+
         <div className="mt-8 text-center">
-          <Button variant="outline" onClick={() => window.location.href = "/create"}>Create Another Event</Button>
+          <Button variant="outline" asChild>
+            <RouterLink to="/create">Create Another Event</RouterLink>
+          </Button>
         </div>
       </div>
     </main>

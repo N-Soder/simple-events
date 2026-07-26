@@ -7,6 +7,7 @@ import CreateEvent from "./pages/CreateEvent";
 import EventCreated from "./pages/EventCreated";
 import EventPage from "./pages/EventPage";
 import AdminPage from "./pages/AdminPage";
+import MyEventsPage from "./pages/MyEventsPage";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
@@ -18,6 +19,7 @@ const App = () => (
         <Route path="/" element={<LandingPage />} />
         <Route path="/create" element={<CreateEvent />} />
         <Route path="/created" element={<EventCreated />} />
+        <Route path="/my-events" element={<MyEventsPage />} />
         <Route path="/event/:id" element={<EventPage />} />
         <Route path="/admin/:id" element={<AdminPage />} />
         <Route path="*" element={<NotFound />} />

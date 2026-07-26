@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 const OPEN_LIST_MESSAGE = "Bringing something? Pick an item from the list or add what you're planning to bring, and feel free to leave a comment.";
 const FIXED_SLOT_MESSAGE = "Bringing something? Grab an item before it's gone from the selection, and feel free to leave a comment.";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, Link, AlertTriangle, ListOrdered, ListPlus } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, AlertTriangle, ListOrdered, ListPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,15 @@ import {
 } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import CopyButton, { CopyableLink } from "@/components/CopyButton";
+import AddToCalendarButton from "@/components/AddToCalendarButton";
+import { detectTimeZone } from "@/lib/timezone";
+import TimeZoneNote from "@/components/TimeZoneNote";
+import TimeField from "@/components/TimeField";
+import LocationField from "@/components/LocationField";
+import { normalizeUrl } from "@/lib/url";
+import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
+import { getMyEvent, saveMyEvent } from "@/lib/myEvents";
 import { BringItem } from "@/components/BringListSection";
 
 interface EventData {
@@ -43,7 +52,10 @@ interface EventData {
     description: string | null;
     event_date: string;
     event_time: string | null;
+    event_end_time: string | null;
+    timezone: string | null;
     location: string | null;
+    location_url: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
@@ -75,7 +87,10 @@ const AdminPage = () => {
   const [description, setDescription] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventTime, setEventTime] = useState("");
+  const [eventEndTime, setEventEndTime] = useState("");
+  const [timezone, setTimezone] = useState(detectTimeZone);
   const [location, setLocation] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
   const [bringListEnabled, setBringListEnabled] = useState(true);
   const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
@@ -96,7 +111,10 @@ const AdminPage = () => {
       setDescription((result.event.description as string) || "");
       setEventDate(result.event.event_date as string);
       setEventTime((result.event.event_time as string) || "");
+      setEventEndTime((result.event.event_end_time as string) || "");
+      setTimezone((result.event.timezone as string) || detectTimeZone());
       setLocation((result.event.location as string) || "");
+      setLocationUrl((result.event.location_url as string) || "");
       setVisibility(result.event.guest_visibility as "full" | "count_only" | "hidden");
       setBringListEnabled(result.event.bring_list_enabled as boolean);
       const loadedMode = (result.event.bring_list_mode as "signup" | "open") ?? "open";
@@ -105,6 +123,16 @@ const AdminPage = () => {
         (result.event.bring_list_message as string) ||
         (loadedMode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE)
       );
+      // Landing here with a working token means this device should remember the
+      // event, even if it was created elsewhere. An existing entry keeps its
+      // guest link, which may carry a password fragment we cannot rebuild here.
+      saveMyEvent({
+        id: result.event.id as string,
+        name: result.event.name as string,
+        event_date: result.event.event_date as string,
+        admin_token: token,
+        guest_link: `${window.location.origin}/event/${id}`,
+      });
     } catch (error) {
       const message = error instanceof ApiError && error.status === 403
         ? "Invalid admin link"
@@ -122,7 +150,11 @@ const AdminPage = () => {
     setSaving(true);
     try {
       await updateEvent(id, token, {
-        name, description, event_date: eventDate, event_time: eventTime || null, location,
+        name, description, event_date: eventDate, event_time: eventTime || null,
+        event_end_time: eventTime ? (eventEndTime || null) : null,
+        timezone: eventTime ? timezone : null,
+        location,
+        location_url: normalizeUrl(locationUrl) || null,
         guest_visibility: visibility, bring_list_enabled: bringListEnabled,
         bring_list_message: bringListMessage, bring_list_mode: bringListMode,
       });
@@ -215,12 +247,8 @@ const AdminPage = () => {
     }
   };
 
-  const copyManageLink = (rsvp: EventData["rsvps"][number]) => {
-    const url = `${window.location.origin}/event/${id}#manage=${rsvp.id}.${rsvp.manage_code}`;
-    navigator.clipboard.writeText(url).then(() => {
-      toast({ title: `Manage link copied for ${rsvp.guest_name}` });
-    });
-  };
+  const manageLinkFor = (rsvp: EventData["rsvps"][number]) =>
+    `${window.location.origin}/event/${id}#manage=${rsvp.id}.${rsvp.manage_code}`;
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
@@ -230,7 +258,14 @@ const AdminPage = () => {
     return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Invalid admin link.</p></div>;
   }
 
-  const guestLink = `${window.location.origin}/event/${id}`;
+  // Prefer the link saved when the event was created: for a password-protected
+  // event it carries the "#password" fragment, which cannot be rebuilt here
+  // because the password is only stored as a hash.
+  const bareGuestLink = `${window.location.origin}/event/${id}`;
+  const savedGuestLink = getMyEvent(id ?? "")?.guest_link;
+  const guestLink = savedGuestLink?.includes("#") ? savedGuestLink : bareGuestLink;
+  const guestLinkHasPassword = guestLink !== bareGuestLink;
+  const adminLink = `${window.location.origin}/admin/${id}?token=${token}`;
   const activeRsvps = data.rsvps.filter((r) => !r.cancelled);
   const totalAdults = activeRsvps.reduce((s, r) => s + r.adults, 0);
   const totalKids = activeRsvps.reduce((s, r) => s + r.kids, 0);
@@ -243,11 +278,47 @@ const AdminPage = () => {
           <h1 className="text-3xl font-bold">Admin Dashboard</h1>
         </div>
 
-        {/* Guest Link */}
+        {/* Share links */}
         <Card className="mb-6">
-          <CardContent className="p-4">
-            <p className="mb-1 text-sm font-medium text-muted-foreground">Guest Link</p>
-            <code className="block truncate rounded bg-muted px-3 py-2 text-sm">{guestLink}</code>
+          <CardContent className="space-y-4 p-4">
+            <div>
+              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  Guest link
+                </p>
+                <AddToCalendarButton
+                  event={{
+                    id: data.event.id,
+                    name: data.event.name,
+                    description: data.event.description,
+                    event_date: data.event.event_date,
+                    event_time: data.event.event_time,
+                    event_end_time: data.event.event_end_time,
+                    timezone: data.event.timezone,
+                    location: data.event.location,
+                    url: guestLink,
+                  }}
+                />
+              </div>
+              <CopyableLink value={guestLink} successMessage="Guest link copied" label="Copy guest link" />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {guestLinkHasPassword
+                  ? "Share this with your guests — the password is embedded, so they won't need to type it."
+                  : "Share this with your guests."}
+              </p>
+            </div>
+
+            <div>
+              <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                <Shield className="h-4 w-4" />
+                Admin link
+              </p>
+              <CopyableLink value={adminLink} successMessage="Admin link copied" label="Copy admin link" />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                This page. Keep it private — anyone with it can edit the event and see every RSVP.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -274,20 +345,49 @@ const AdminPage = () => {
               <Label>Description</Label>
               <MarkdownEditor value={description} onChange={setDescription} placeholder="Event description..." rows={3} />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label><CalendarDays className="mr-1 inline h-4 w-4" />Date</Label>
-                <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="mt-1.5" />
-              </div>
-              <div>
-                <Label><Clock className="mr-1 inline h-4 w-4" />Time</Label>
-                <Input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} className="mt-1.5" />
-              </div>
-            </div>
             <div>
-              <Label><MapPin className="mr-1 inline h-4 w-4" />Location</Label>
-              <Input value={location} onChange={(e) => setLocation(e.target.value)} className="mt-1.5" />
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <Label><CalendarDays className="mr-1 inline h-4 w-4" />Date</Label>
+                  <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="mt-1.5" />
+                </div>
+                <div>
+                  <Label htmlFor="admin_event_time"><Clock className="mr-1 inline h-4 w-4" />Start time</Label>
+                  <TimeField
+                    id="admin_event_time"
+                    value={eventTime}
+                    onChange={(v) => {
+                      setEventTime(v);
+                      if (!v) setEventEndTime("");
+                    }}
+                    aria-label="Start time"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="admin_event_end_time"><Clock className="mr-1 inline h-4 w-4" />End time</Label>
+                  <TimeField
+                    id="admin_event_end_time"
+                    value={eventEndTime}
+                    onChange={setEventEndTime}
+                    disabled={!eventTime}
+                    relativeTo={eventTime || undefined}
+                    defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60}
+                    placeholderExample="22:30"
+                    aria-label="End time"
+                  />
+                </div>
+              </div>
+              {eventTime && (
+                <TimeZoneNote value={timezone} onChange={setTimezone} showDurationHint={!eventEndTime} />
+              )}
             </div>
+            <LocationField
+              idPrefix="admin_"
+              location={location}
+              onLocationChange={setLocation}
+              url={locationUrl}
+              onUrlChange={setLocationUrl}
+            />
 
             <div>
               <Label className="mb-3 block">Guest List Visibility</Label>
@@ -341,15 +441,13 @@ const AdminPage = () => {
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button
+                      <CopyButton
                         variant="ghost"
-                        size="icon"
                         className="h-8 w-8 text-muted-foreground"
-                        title="Copy manage link"
-                        onClick={() => copyManageLink(r)}
-                      >
-                        <Link className="h-4 w-4" />
-                      </Button>
+                        value={manageLinkFor(r)}
+                        label={`Copy manage link for ${r.guest_name}`}
+                        successMessage={`Manage link copied for ${r.guest_name}`}
+                      />
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button

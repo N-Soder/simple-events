@@ -14,15 +14,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { createEvent, uploadBanner } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
+import { detectTimeZone } from "@/lib/timezone";
+import TimeZoneNote from "@/components/TimeZoneNote";
+import TimeField from "@/components/TimeField";
+import LocationField from "@/components/LocationField";
+import { saveMyEvent } from "@/lib/myEvents";
+import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
+import { normalizeUrl } from "@/lib/url";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Event name is required").max(200),
   description: z.string().trim().max(2000).optional(),
   event_date: z.string().min(1, "Date is required"),
   event_time: z.string().optional(),
+  event_end_time: z.string().optional(),
   location: z.string().trim().max(500).optional(),
   password: z.string().max(100).optional(),
   guest_visibility: z.enum(["full", "count_only", "hidden"]),
+}).refine((d) => !d.event_end_time || !!d.event_time, {
+  message: "Set a start time first",
+  path: ["event_end_time"],
 });
 
 type FormData = z.infer<typeof schema>;
@@ -43,6 +54,8 @@ const Index = () => {
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
+  const [timezone, setTimezone] = useState(detectTimeZone);
+  const [locationUrl, setLocationUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
@@ -51,6 +64,8 @@ const Index = () => {
   });
 
   const visibility = watch("guest_visibility");
+  const startTime = watch("event_time");
+  const endTime = watch("event_end_time");
 
   const addItem = () => {
     const trimmed = newItem.trim();
@@ -88,7 +103,10 @@ const Index = () => {
         description: data.description,
         event_date: data.event_date,
         event_time: data.event_time,
+        event_end_time: data.event_time ? data.event_end_time : undefined,
+        timezone: data.event_time ? timezone : undefined,
         location: data.location,
+        location_url: normalizeUrl(locationUrl) || undefined,
         password,
         guest_visibility: data.guest_visibility,
         bring_list_enabled: bringListEnabled,
@@ -96,6 +114,17 @@ const Index = () => {
         bring_items: bringListEnabled ? bringItems : [],
         bring_list_message: bringListEnabled ? bringListMessage : undefined,
         bring_list_mode: bringListEnabled ? bringListMode : undefined,
+      });
+
+      // Remember the event on this device so the admin link is recoverable if
+      // the host closes the tab without copying it.
+      const guestLink = `${window.location.origin}/event/${result.id}`;
+      saveMyEvent({
+        id: result.id,
+        name: data.name,
+        event_date: data.event_date,
+        admin_token: result.admin_token,
+        guest_link: password && embedPassword ? `${guestLink}#${password}` : guestLink,
       });
 
       // Build created page URL with password + embed info
@@ -174,37 +203,67 @@ const Index = () => {
                   value={watch("description") || ""}
                   onChange={(v) => setValue("description", v)}
                   placeholder="Tell your guests what to expect..."
-                  rows={3}
+                  rows={6}
                 />
               </div>
 
               {/* Date & Time */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="event_date">
-                    <CalendarDays className="mr-1.5 inline h-4 w-4" />
-                    Date *
-                  </Label>
-                  <Input id="event_date" type="date" {...register("event_date")} className="mt-1.5" />
-                  {errors.event_date && <p className="mt-1 text-sm text-destructive">{errors.event_date.message}</p>}
+              <div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <Label htmlFor="event_date">
+                      <CalendarDays className="mr-1.5 inline h-4 w-4" />
+                      Date *
+                    </Label>
+                    <Input id="event_date" type="date" {...register("event_date")} className="mt-1.5" />
+                    {errors.event_date && <p className="mt-1 text-sm text-destructive">{errors.event_date.message}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="event_time">
+                      <Clock className="mr-1.5 inline h-4 w-4" />
+                      Start time
+                    </Label>
+                    <TimeField
+                      id="event_time"
+                      value={startTime || ""}
+                      onChange={(v) => {
+                        setValue("event_time", v);
+                        // An end time without a start is meaningless.
+                        if (!v) setValue("event_end_time", "");
+                      }}
+                      aria-label="Start time"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="event_end_time">
+                      <Clock className="mr-1.5 inline h-4 w-4" />
+                      End time
+                    </Label>
+                    <TimeField
+                      id="event_end_time"
+                      value={endTime || ""}
+                      onChange={(v) => setValue("event_end_time", v)}
+                      disabled={!startTime}
+                      relativeTo={startTime || undefined}
+                      defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60}
+                      placeholderExample="22:30"
+                      aria-label="End time"
+                    />
+                    {errors.event_end_time && <p className="mt-1 text-sm text-destructive">{errors.event_end_time.message}</p>}
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="event_time">
-                    <Clock className="mr-1.5 inline h-4 w-4" />
-                    Time
-                  </Label>
-                  <Input id="event_time" type="time" {...register("event_time")} className="mt-1.5" />
-                </div>
+                {startTime && (
+                  <TimeZoneNote value={timezone} onChange={setTimezone} showDurationHint={!endTime} />
+                )}
               </div>
 
               {/* Location */}
-              <div>
-                <Label htmlFor="location">
-                  <MapPin className="mr-1.5 inline h-4 w-4" />
-                  Location
-                </Label>
-                <Input id="location" placeholder="123 Main St or 'John's backyard'" {...register("location")} className="mt-1.5" />
-              </div>
+              <LocationField
+                location={watch("location") || ""}
+                onLocationChange={(v) => setValue("location", v)}
+                url={locationUrl}
+                onUrlChange={setLocationUrl}
+              />
 
               {/* Password */}
               <div>
