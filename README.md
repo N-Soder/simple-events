@@ -77,6 +77,16 @@ in `wrangler.toml`), so applying them is idempotent — only unapplied files run
 npx wrangler d1 migrations apply simple-events-db --remote
 ```
 
+**Re-run this whenever a change adds a migration, before deploying that change** —
+including for preview deployments, which share the same D1 database. Deploying code
+that references a column the database does not have yet makes the affected endpoints
+fail with a generic `500 Internal error`; the real cause (`no such column`) only
+appears in the Worker logs (`npx wrangler pages deployment tail`).
+
+Migrations here only ever add columns, so applying them ahead of a deploy is safe:
+the currently running code selects and inserts explicit column lists and ignores
+anything new.
+
 **3. Create the R2 bucket** (optional, for banner images)
 
 ```bash
