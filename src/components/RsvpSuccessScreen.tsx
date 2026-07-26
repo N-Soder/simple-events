@@ -2,6 +2,8 @@ import { CheckCircle, Copy, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import AddToCalendarButton from "@/components/AddToCalendarButton";
+import { CalendarEvent } from "@/lib/ics";
 
 interface RsvpSuccessScreenProps {
   guestName: string;
@@ -9,6 +11,7 @@ interface RsvpSuccessScreenProps {
   kids: number;
   claimedItems: string[];
   manageUrl: string;
+  calendarEvent: CalendarEvent;
   onViewEvent: () => void;
 }
 
@@ -18,6 +21,7 @@ const RsvpSuccessScreen = ({
   kids,
   claimedItems,
   manageUrl,
+  calendarEvent,
   onViewEvent,
 }: RsvpSuccessScreenProps) => {
   const { toast } = useToast();
@@ -61,6 +65,9 @@ const RsvpSuccessScreen = ({
               <span className="font-medium text-right">{claimedItems.join(", ")}</span>
             </div>
           )}
+          <div className="border-t pt-3">
+            <AddToCalendarButton event={calendarEvent} />
+          </div>
         </CardContent>
       </Card>
 

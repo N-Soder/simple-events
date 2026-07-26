@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
+import { CalendarDays, Clock, ExternalLink, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
 import { format } from "date-fns";
-import { formatEventTime } from "@/lib/time";
+import { formatEventTime, prefers12Hour } from "@/lib/time";
+import { displayHost, isSafeHttpUrl } from "@/lib/url";
 import MarkdownContent from "@/components/MarkdownContent";
+import AddToCalendarButton from "@/components/AddToCalendarButton";
 import BringListSection, { BringItem } from "@/components/BringListSection";
 import RsvpSuccessScreen from "@/components/RsvpSuccessScreen";
 import RsvpSummaryCard from "@/components/RsvpSummaryCard";
@@ -22,7 +24,10 @@ interface EventData {
     description: string | null;
     event_date: string;
     event_time: string | null;
+    event_end_time: string | null;
+    timezone: string | null;
     location: string | null;
+    location_url: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
@@ -85,9 +90,7 @@ const EventPage = () => {
   const [successClaimedItems, setSuccessClaimedItems] = useState<string[]>([]);
 
   // Time format: detect browser locale preference, allow toggle
-  const [use12Hour, setUse12Hour] = useState<boolean>(
-    () => Intl.DateTimeFormat(navigator.language, { hour: "numeric" }).resolvedOptions().hour12 ?? true
-  );
+  const [use12Hour, setUse12Hour] = useState<boolean>(prefers12Hour);
 
   const parseHash = useCallback(() => {
     const hash = window.location.hash.slice(1);
@@ -376,6 +379,14 @@ const EventPage = () => {
     ? `${window.location.origin}/event/${id}#manage=${managedRsvp.rsvp_id}.${managedRsvp.manage_code}`
     : "";
 
+  // Link to put in calendar entries. The password fragment is carried over only
+  // when the guest arrived with one already in the URL, so a calendar entry is
+  // never a wider disclosure than the link they were sent.
+  const arrivedWithPassword = !!password && window.location.hash.slice(1) === password;
+  const shareUrl = id
+    ? `${window.location.origin}/event/${id}${arrivedWithPassword ? `#${password}` : ""}`
+    : "";
+
   if (loading && !authenticated) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -410,7 +421,7 @@ const EventPage = () => {
     );
   }
 
-  if (showSuccessScreen && managedRsvp) {
+  if (showSuccessScreen && managedRsvp && data) {
     return (
       <main className="min-h-screen bg-background">
         <RsvpSuccessScreen
@@ -419,6 +430,7 @@ const EventPage = () => {
           kids={managedRsvp.kids}
           claimedItems={successClaimedItems}
           manageUrl={manageUrl}
+          calendarEvent={{ ...data.event, url: shareUrl }}
           onViewEvent={() => setShowSuccessScreen(false)}
         />
       </main>
@@ -461,14 +473,45 @@ const EventPage = () => {
             >
               <Clock className="h-4 w-4" />
               {formatEventTime(event.event_time, use12Hour)}
+              {event.event_end_time && ` – ${formatEventTime(event.event_end_time, use12Hour)}`}
             </button>
           )}
           {event.location && (
-            <span className="flex items-center gap-1.5">
-              <MapPin className="h-4 w-4" />
-              {event.location}
-            </span>
+            // Only ever linked when the stored URL is a plain http(s) address.
+            isSafeHttpUrl(event.location_url) ? (
+              <a
+                href={event.location_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+              >
+                <MapPin className="h-4 w-4" />
+                {event.location}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-4 w-4" />
+                {event.location}
+              </span>
+            )
           )}
+          {!event.location && isSafeHttpUrl(event.location_url) && (
+            <a
+              href={event.location_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+            >
+              <MapPin className="h-4 w-4" />
+              {displayHost(event.location_url)}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+
+        <div className="mt-4">
+          <AddToCalendarButton event={{ ...event, url: shareUrl }} />
         </div>
 
         {event.description && (

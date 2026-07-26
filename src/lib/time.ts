@@ -1,4 +1,16 @@
 /**
+ * Whether this browser's locale writes times as AM/PM rather than 24-hour.
+ * Used to display times the way the reader already expects to see them.
+ */
+export function prefers12Hour(): boolean {
+  try {
+    return Intl.DateTimeFormat(navigator.language, { hour: "numeric" }).resolvedOptions().hour12 ?? true;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Format an "HH:MM" (24-hour) time string for display.
  *
  * Returns the original string unchanged if it isn't a well-formed "HH:MM"
