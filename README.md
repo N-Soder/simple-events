@@ -78,6 +78,34 @@ npm run lint       # ESLint
 npm run test       # run tests with Vitest
 ```
 
+### Running the Pages Functions locally
+
+`npm run dev` runs Vite alone, which does **not** execute anything in
+`functions/`. Link previews, the API, and banner serving all live there, so use
+the edge runtime instead:
+
+```bash
+npm run db:local   # apply migrations to the local D1 (once, and after any new migration)
+npm run dev:edge   # build, then serve on http://localhost:8788 with D1 and R2 bound
+```
+
+This runs the same runtime Cloudflare does, with a local D1 under `.wrangler/`
+that starts empty, so create an event through the UI to get something to test
+against. `dev:edge` builds first and serves the built output, so re-run it after
+changing anything in `src/`. Functions themselves are picked up without a
+rebuild.
+
+To check a link preview, read the served HTML rather than pasting the link into
+a chat app, which caches unfurls per URL:
+
+```bash
+curl -s http://localhost:8788/event/<event-id> | grep -E 'og:|twitter:|<title>'
+```
+
+An event with no password should come back with its own name in `og:title` and
+its banner in `og:image`. A password-protected event is expected to keep the
+generic card.
+
 ## Deployment
 
 The app deploys to Cloudflare Pages with a D1 database and R2 bucket.
