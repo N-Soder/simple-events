@@ -293,7 +293,7 @@ const Index = () => {
                     <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
                       <div>
                         <p className="text-sm font-medium">Embed password in guest link</p>
-                        <p className="text-xs text-muted-foreground">Guests won't need to type it — it's in the URL</p>
+                        <p className="text-xs text-muted-foreground">Guests won't need to type it. It's in the URL</p>
                       </div>
                       <Switch checked={embedPassword} onCheckedChange={setEmbedPassword} />
                     </div>
@@ -327,7 +327,7 @@ const Index = () => {
                     <RadioGroupItem value="hidden" className="mt-0.5" />
                     <div>
                       <p className="font-medium">Hidden</p>
-                      <p className="text-sm text-muted-foreground">No guest info shown — only the bring list is visible</p>
+                      <p className="text-sm text-muted-foreground">No guest info shown. Only the bring list is visible</p>
                     </div>
                   </label>
                 </RadioGroup>
@@ -340,7 +340,7 @@ const Index = () => {
                   <Switch checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
                 </div>
                 {!bringListEnabled && (
-                  <p className="text-sm text-muted-foreground">Bring list is disabled — guests won't see it.</p>
+                  <p className="text-sm text-muted-foreground">Bring list is disabled. Guests won't see it.</p>
                 )}
                 {bringListEnabled && (
                   <>

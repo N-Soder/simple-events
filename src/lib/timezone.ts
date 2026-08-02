@@ -4,7 +4,7 @@
  */
 
 /**
- * Used when Intl.supportedValuesOf is unavailable. Not a complete list — the
+ * Used when Intl.supportedValuesOf is unavailable. Not a complete list: the
  * detected zone is always merged in, so the host's own zone is never missing.
  */
 const FALLBACK_ZONES = [

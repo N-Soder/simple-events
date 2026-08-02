@@ -29,7 +29,7 @@ async function deleteExpiredEvents(env: Env): Promise<void> {
     return;
   }
 
-  // Delete R2 banners (best-effort — don't block DB cleanup on failure)
+  // Delete R2 banners (best-effort, don't block DB cleanup on failure)
   await Promise.allSettled(
     results
       .filter((e) => e.banner_url)
@@ -83,7 +83,7 @@ async function sweepOrphanedBanners(env: Env): Promise<void> {
     const listing = await env.R2.list({ cursor });
     for (const obj of listing.objects) {
       if (referenced.has(obj.key)) continue;
-      if (obj.uploaded.getTime() >= cutoff) continue; // too recent — may be mid-create
+      if (obj.uploaded.getTime() >= cutoff) continue; // too recent, may be mid-create
       try {
         await env.R2.delete(obj.key);
         deleted++;

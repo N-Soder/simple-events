@@ -93,7 +93,7 @@ const MyEventsPage = () => {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Remove "{event.name}" from this list?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This only forgets the event on this device — the event itself, its RSVPs
+                            This only forgets the event on this device. The event itself, its RSVPs
                             and its links all keep working. If you haven't saved the admin link
                             elsewhere, you won't be able to get back to it.
                           </AlertDialogDescription>
@@ -146,7 +146,7 @@ const MyEventsPage = () => {
         <div className="mt-8 flex items-start gap-2.5 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
           <Laptop className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            This list is stored in this browser only — it isn't an account, and it doesn't sync.
+            This list is stored in this browser only. It isn't an account, and it doesn't sync.
             Clearing your browsing data removes it, and some browsers drop stored data after a
             few weeks of not visiting. Keep a copy of any admin link you care about.
           </p>

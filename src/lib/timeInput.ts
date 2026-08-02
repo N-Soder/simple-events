@@ -1,7 +1,7 @@
 /**
  * Parsing and option helpers for the time picker.
  *
- * The canonical form everywhere — state, API, database — is 24-hour "HH:MM".
+ * The canonical form everywhere (state, API, database) is 24-hour "HH:MM".
  * These helpers only exist to let people type times the way they say them.
  */
 
@@ -88,7 +88,7 @@ export function minutesBetween(start: string, end: string): number {
  *
  * Matches on what the reader sees, so "6" finds 6am, 6:30am, 6pm and 6:30pm,
  * while "6p" narrows to the afternoon ones. Anything unrecognisable returns the
- * full list rather than an empty one — a stuck dropdown is worse than a noisy
+ * full list rather than an empty one: a stuck dropdown is worse than a noisy
  * one, and free typing still works.
  */
 export function filterTimeOptions(options: string[], query: string): string[] {

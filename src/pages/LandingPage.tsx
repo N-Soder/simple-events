@@ -31,7 +31,7 @@ const LandingPage = () => {
   // visitors get the page on its own.
   const [savedCount] = useState(() => getMyEvents().length);
 
-  // The name is a head start, not a commitment — an empty box still opens the
+  // The name is a head start, not a commitment. An empty box still opens the
   // full form rather than blocking on validation the host hasn't seen yet.
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();

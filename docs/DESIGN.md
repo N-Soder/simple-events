@@ -1,8 +1,8 @@
-# Simple Events — UI/UX design guide
+# Simple Events UI/UX design guide
 
 Reference for anyone (human or agent) making visual or interaction changes here.
 It records what the product *is*, the conventions already in the codebase, and
-the decisions behind them — so future work extends the design instead of
+the decisions behind them, so future work extends the design instead of
 re-litigating it.
 
 Where this guide and the code disagree, the code is the bug. Fix the code.
@@ -12,7 +12,7 @@ Where this guide and the code disagree, the code is the bug. Fix the code.
 ## 1. What the product is
 
 A host creates a private event page, shares one link, and collects RSVPs and a
-bring list. **Nobody has an account** — not the host, not the guests.
+bring list. **Nobody has an account**, not the host and not the guests.
 
 Four consequences that should drive every design decision:
 
@@ -36,12 +36,12 @@ Four consequences that should drive every design decision:
 ### Colour
 
 All colour lives as HSL custom properties in `src/index.css` and is consumed
-through Tailwind semantic names. **Never hardcode a hex in a component** — use
+through Tailwind semantic names. **Never hardcode a hex in a component**. Use
 `bg-background`, `text-muted-foreground`, `border-border`, `text-primary`.
 
 | Token | Light | Role |
 | --- | --- | --- |
-| `background` | `40 33% 98%` | Warm cream page base — not white |
+| `background` | `40 33% 98%` | Warm cream page base, not white |
 | `foreground` | `220 20% 14%` | Near-black ink, slightly blue |
 | `primary` | `150 45% 38%` | Brand green. Actions and affirmatives |
 | `secondary` / `muted` | `40 30% 94%` / `40 20% 95%` | Warm neutral fills |
@@ -50,7 +50,7 @@ through Tailwind semantic names. **Never hardcode a hex in a component** — use
 | `border` / `input` | `40 15% 89%` | Hairlines |
 
 Green carries meaning: it marks the primary action, an affirmative state
-(going, claimed, confirmed), and the host. It is not decoration — a page with
+(going, claimed, confirmed), and the host. It is not decoration. A page with
 green in six unrelated places has lost the signal.
 
 Dark tokens exist and are maintained, but no dark-specific design work has been
@@ -62,14 +62,14 @@ dark as *supported*, not *designed*.
 Loaded in `src/index.css`, mapped in `tailwind.config.ts` so `font-sans` and
 `font-serif` resolve to the brand stack.
 
-- **DM Serif Display** — all headings, via a global `h1–h6` rule. Display face
+- **DM Serif Display**: all headings, via a global `h1` to `h6` rule. Display face
   for titles and numbers. **Single weight (400).**
-- **DM Sans** — body, labels, buttons, UI text. Weights 400/500/700.
+- **DM Sans**: body, labels, buttons, UI text. Weights 400/500/700.
 
 Two rules that follow from the single weight:
 
 1. **Never put `font-bold` or `font-semibold` on a heading.** There is no bold
-   cut, so the browser synthesises one — smeared, uneven strokes. Size and
+   cut, so the browser synthesises one: smeared, uneven strokes. Size and
    colour create hierarchy instead.
 2. **Non-heading text that should read as UI** (feature titles, field labels)
    needs an explicit `font-sans`, or the global rule will make it serif.
@@ -80,7 +80,7 @@ Two rules that follow from the single weight:
   `rounded-xl`/`2xl` only on large surfaces.
 - Prefer whitespace over borders and cards. A hairline `border-t` separating
   rows usually beats wrapping each row in a card.
-- Motion is restrained and always motivated — entrance, feedback, or state
+- Motion is restrained and always motivated: entrance, feedback, or state
   change, never ornament. The `rise` keyframe (`tailwind.config.ts`) staggered
   by `[animation-delay:Nms]` is the house entrance. A global
   `prefers-reduced-motion` guard in `index.css` neutralises all of it; don't
@@ -88,7 +88,7 @@ Two rules that follow from the single weight:
 
 ### Logo
 
-`src/components/Logo.tsx` — guests seated around a table, host in brand green.
+`src/components/Logo.tsx`: guests seated around a table, host in brand green.
 Standalone copy for the browser tab at `public/favicon.svg`.
 
 - **The filled centre is structural, not decoration.** Without it the ring of
@@ -106,10 +106,10 @@ Standalone copy for the browser tab at `public/favicon.svg`.
 Plain, warm, second person, British spelling. Say what a thing does, not how
 advanced it is.
 
-- **Sentence case everywhere** — headings, labels, buttons. (The create form
+- **Sentence case everywhere**: headings, labels, buttons. (The create form
   currently mixes this; see backlog.)
-- **Name the consequence, not the mechanism.** "Guests won't need to type it —
-  it's in the URL" beats "Embed credential in query fragment".
+- **Name the consequence, not the mechanism.** "Guests won't need to type it.
+  It's in the URL" beats "Embed credential in query fragment".
 - **Never over-promise durability.** See the "on this device" rule in §1.
 - No exclamation marks in system copy, no "Oops!", no emoji in UI chrome.
 - Buttons are verbs: *Create event*, *Copy link*, *Claim it*.
@@ -119,7 +119,7 @@ advanced it is.
 ## 4. Layout
 
 - **Page shell:** `<main className="min-h-[100dvh] bg-background">` wrapping a
-  centred container. Use `100dvh`, never `h-screen` — mobile browser chrome
+  centred container. Use `100dvh`, never `h-screen`: mobile browser chrome
   makes `vh` lie.
 - **Container width:** `max-w-2xl` is the house default for task pages
   (create, event, admin, my-events). `max-w-xl` for single-purpose
@@ -131,7 +131,7 @@ advanced it is.
 
 ### The landing page pattern
 
-The landing page is not a pitch — it is the first step of the flow. It asks
+The landing page is not a pitch. It is the first step of the flow. It asks
 *"What are you planning?"*, takes the event name inline, and hands it to
 `/create?name=…`. An empty submit still opens the form rather than blocking on
 validation the host hasn't seen.
@@ -163,7 +163,7 @@ Non-negotiable, and cheaper to keep than to retrofit:
 - Visible focus states; never remove the ring without replacing it.
 - Icon-only buttons carry an accessible name.
 - Body text ≥ 14px; hit targets ≥ 44px on touch.
-- Colour is never the only signal — pair it with text or an icon.
+- Colour is never the only signal. Pair it with text or an icon.
 - Decorative SVG gets `aria-hidden`; meaningful SVG gets `role="img"` and a
   label.
 
@@ -184,7 +184,7 @@ mobile, and only **two of its nine fields are required** (name, date).
    name (and date) to the top; demote the banner.
 2. **No progressive disclosure.** Password, guest visibility, and bring list
    are all expanded at equal weight. Group the essentials, collapse the rest
-   behind a clearly labelled "More options" — the defaults are already sensible.
+   behind a clearly labelled "More options". The defaults are already sensible.
 3. **Inconsistent label casing.** "Event Name", "Require Guest Password",
    "Guest List Visibility", "Bring List" are Title Case; "Description",
    "List type", "Message for guests" are sentence case. Standardise on
@@ -200,14 +200,14 @@ mobile, and only **two of its nine fields are required** (name, date).
 ### App-wide
 
 7. **Synthetic bold on every heading.** `font-bold` is applied to `h1` in
-   `CreateEvent`, `EventCreated`, `EventPage`, `MyEventsPage`, and `NotFound`,
-   but DM Serif Display ships only weight 400. Every one of those headings is
-   browser-smeared. Removing `font-bold` is a visual improvement, not a
-   regression.
+   `AdminPage`, `CreateEvent`, `EventCreated`, `EventPage`, `MyEventsPage` and
+   `NotFound`, but DM Serif Display ships only weight 400. Every one of those
+   headings is browser-smeared. Removing `font-bold` is a visual improvement,
+   not a regression.
 8. **Fonts load via `@import` in `index.css`**, which blocks and serialises the
    request behind the stylesheet. Moving to `<link rel="preconnect">` +
    `<link>` in `index.html` measurably improves first paint.
-9. **`EventCreated` is the highest-stakes screen in the product** — it is the
+9. **`EventCreated` is the highest-stakes screen in the product**: it is the
    only time the admin link is shown, and losing it is unrecoverable. It
    deserves a dedicated pass on saving, copying, and warning.
 10. **Bundle is ~700kB** in one chunk. Route-level code splitting is the
@@ -225,5 +225,5 @@ Why things are the way they are, so they don't get undone by accident.
 | Landing page is a name field, not a pitch | Fastest path to a created event. Three rounds of conventional marketing-page layouts were tried and rejected first. |
 | Headline serif, everything else sans | Existing brand pairing, retained deliberately. |
 | No dark-mode design work | Explicitly out of scope; semantic tokens keep it functional without it being designed. |
-| Placeholder stock photography rejected | A live product is not a comp — no image beats a `picsum.photos` filler. |
+| Placeholder stock photography rejected | A live product is not a comp. No image beats a `picsum.photos` filler. |
 | Copy on the landing page is provisional | Written to fit the layout; not yet owner-approved wording. |

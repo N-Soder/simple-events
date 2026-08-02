@@ -74,7 +74,7 @@ function write(events: StoredEvent[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(events.slice(0, MAX_ENTRIES)));
   } catch {
-    // Quota exceeded or storage disabled — losing the convenience copy is not
+    // Quota exceeded or storage disabled. Losing the convenience copy is not
     // worth breaking event creation over.
   }
 }

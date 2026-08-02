@@ -3,19 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
-    <title>Simple Events</title>
+    <!-- Outside the social-preview block on purpose: that block is replaced
+         wholesale for guest links, which would drop the icons with it. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate icon" href="/favicon.ico" sizes="any" />
-    <meta name="description" content="Create a private event page, share a link, collect RSVPs, and coordinate who's bringing what — all without accounts." />
     <meta name="author" content="Nick Söderholm" />
 
+    <!-- social-preview:start -->
+    <!--
+      functions/event/[id].ts replaces everything between these two markers when
+      a guest link is requested, so a shared /event/:id link previews with that
+      event's own name and banner. Keep the markers in place, keep the block to
+      social and SEO metadata only, and mirror any tag added here in that
+      function so the two previews stay in step.
+    -->
+    <title>Simple Events</title>
+    <meta name="description" content="Create a private event page, share a link, collect RSVPs, and coordinate who's bringing what. All without accounts." />
+
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Simple Events" />
     <meta property="og:title" content="Simple Events" />
-    <meta property="og:description" content="Create a private event page, share a link, and collect RSVPs — no accounts required." />
+    <meta property="og:description" content="Create a private event page, share a link, and collect RSVPs. No accounts required." />
 
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Simple Events" />
-    <meta name="twitter:description" content="Create a private event page, share a link, and collect RSVPs — no accounts required." />
+    <meta name="twitter:description" content="Create a private event page, share a link, and collect RSVPs. No accounts required." />
+    <!-- social-preview:end -->
   </head>
 
   <body>
