@@ -14,6 +14,12 @@ export default {
       },
     },
     extend: {
+      // Mirrors the faces loaded in index.css, so `font-sans` / `font-serif`
+      // resolve to the brand stack instead of Tailwind's defaults.
+      fontFamily: {
+        sans: ['"DM Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+        serif: ['"DM Serif Display"', "ui-serif", "Georgia", "serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

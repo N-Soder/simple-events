@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarDays, MapPin, Clock, Plus, X, Upload, PartyPopper, ListOrdered, ListPlus } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Plus, X, Upload, ListOrdered, ListPlus } from "lucide-react";
+import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,9 +59,14 @@ const Index = () => {
   const [locationUrl, setLocationUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // The landing page hands the event name over in the query string, so a host
+  // who typed it there doesn't have to type it again.
+  const [searchParams] = useSearchParams();
+  const [presetName] = useState(() => (searchParams.get("name") ?? "").trim().slice(0, 200));
+
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { guest_visibility: "full" },
+    defaultValues: { guest_visibility: "full", name: presetName },
   });
 
   const visibility = watch("guest_visibility");
@@ -150,9 +156,7 @@ const Index = () => {
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-2xl px-4 py-12 sm:py-20">
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-            <PartyPopper className="h-7 w-7 text-primary" />
-          </div>
+          <Logo className="mx-auto mb-4 h-11 w-11" />
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Create an Event</h1>
           <p className="mt-3 text-lg text-muted-foreground">
             Set up your gathering and share a private link with your guests.
