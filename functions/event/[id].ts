@@ -89,14 +89,13 @@ function metadataFor(event: EventRow, eventId: string, pageUrl: string): string 
 export const onRequest: PagesFunction<Env, "id"> = async (context) => {
   const { request, env, params } = context;
 
-  // Ask for the shell at the site root, not at /index.html. Pages canonicalises
-  // a direct request for /index.html into a 308 to /, with an empty body, so
-  // asking for it by name leaves nothing to rewrite. `wrangler pages dev`
-  // serves the file directly and does not reproduce that, so this only shows up
-  // once deployed.
+  // Ask for the shell at the site root. A direct request for /index.html is
+  // canonicalised by Pages into a 308 to /, with an empty body; next() reaches
+  // the asset either way, but / is the canonical path and keeps a redirect out
+  // of the path entirely.
   //
-  // Nothing from the incoming request is forwarded either: an If-None-Match
-  // from a repeat visitor would come back as a bodyless 304.
+  // Nothing from the incoming request is forwarded: an If-None-Match from a
+  // repeat visitor would come back as a bodyless 304.
   const shell = await context.next(new URL("/", request.url).href);
 
   // Only a plain 200 is a document worth rewriting. On anything else, fall back
