@@ -131,7 +131,7 @@ const TimeCombobox = ({
     // A time typed off the half-hour grid ("6:15 PM") is offered as its own row.
     const exact = parseTimeInput(query, relativeTo || undefined);
     if (exact && !matches.includes(exact)) return [exact, ...matches];
-    // Never strand the reader with an empty list — free typing still works.
+    // Never strand the reader with an empty list; free typing still works.
     return matches.length > 0 ? matches : allOptions;
   }, [draft, allOptions, relativeTo]);
 

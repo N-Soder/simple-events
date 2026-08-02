@@ -27,7 +27,7 @@ const EventCreated = () => {
   // Determine guest link description
   let guestDescription: string;
   if (!password) {
-    guestDescription = "Anyone with this link can view your event — no password required.";
+    guestDescription = "Anyone with this link can view your event. No password required.";
   } else if (embed) {
     guestDescription = "The password is embedded in this link. Guests can open it directly without typing anything.";
   } else {
@@ -80,7 +80,7 @@ const EventCreated = () => {
             <RouterLink to="/my-events" className="font-medium text-foreground underline underline-offset-2">
               Your events
             </RouterLink>
-            . That copy only lives on this device — if you clear your browser data or switch devices, it's gone.
+            . That copy only lives on this device, so if you clear your browser data or switch devices, it's gone.
           </p>
         </div>
 

@@ -79,7 +79,7 @@ function formatUtcStamp(d: Date): string {
   return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
-/** "20260801T170000" — a floating local time, deliberately without a zone. */
+/** "20260801T170000": a floating local time, deliberately without a zone. */
 function formatFloatingStamp(date: string, time: string): string {
   return `${date.replace(/-/g, "")}T${time.replace(":", "")}00`;
 }

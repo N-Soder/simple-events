@@ -75,7 +75,7 @@ const RsvpSuccessScreen = ({
         <CardContent className="pt-6 space-y-3">
           <p className="text-sm font-medium">Edit your RSVP</p>
           <p className="text-xs text-muted-foreground">
-            You can edit your RSVP from this device at any time. To edit from another device, save the link below — or contact the host.
+            You can edit your RSVP from this device at any time. To edit from another device, save the link below, or contact the host.
           </p>
           <div
             className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs font-mono cursor-pointer"

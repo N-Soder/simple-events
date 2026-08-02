@@ -8,7 +8,7 @@ const features = [
   {
     icon: Users,
     title: "No Accounts Needed",
-    description: "Guests RSVP with just their name — no signups or logins required.",
+    description: "Guests RSVP with just their name. No signups or logins required.",
   },
   {
     icon: ListChecks,
@@ -37,7 +37,7 @@ const LandingPage = () => {
           </div>
           <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">Simple Events</h1>
           <p className="mx-auto mt-4 max-w-lg text-lg text-muted-foreground">
-            Create a private event page, share a link, collect RSVPs, and coordinate who's bringing what — all without accounts.
+            Create a private event page, share a link, collect RSVPs, and coordinate who's bringing what. All without accounts.
           </p>
           <Button asChild size="lg" className="mt-8 text-base px-8">
             <Link to="/create">Create an Event</Link>

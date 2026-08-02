@@ -18,7 +18,7 @@ interface AddToCalendarButtonProps {
 /**
  * "Add to calendar" with two routes: an .ics download (Apple Calendar, Outlook,
  * anything else) and a Google Calendar link, whose web flow is far smoother
- * than downloading a file — especially on Android.
+ * than downloading a file, especially on Android.
  */
 const AddToCalendarButton = ({
   event,

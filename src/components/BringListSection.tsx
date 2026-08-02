@@ -126,11 +126,11 @@ const BringListSection = ({
                 </div>
 
                 <div className="flex items-center gap-2 ml-auto shrink-0">
-                  {/* Sign-up Sheet: Full badge — always for full+unselected */}
+                  {/* Sign-up Sheet: Full badge, always for full+unselected */}
                   {mode === "signup" && isFull && !isSelected && (
                     <span className="text-xs font-medium text-red-500">Full</span>
                   )}
-                  {/* Sign-up Sheet: slot counter — only for multi-slot items, hidden when full+unselected */}
+                  {/* Sign-up Sheet: slot counter, only for multi-slot items, hidden when full+unselected */}
                   {mode === "signup" && item.target_quantity > 1 && !(isFull && !isSelected) && (
                     <span className={cn(
                       "text-xs",
@@ -140,7 +140,7 @@ const BringListSection = ({
                     </span>
                   )}
 
-                  {/* Sign-up Sheet: quantity controls — only for multi-slot items */}
+                  {/* Sign-up Sheet: quantity controls, only for multi-slot items */}
                   {mode === "signup" && isSelected && item.target_quantity > 1 && (
                     <div
                       className="flex items-center gap-1"
@@ -172,7 +172,7 @@ const BringListSection = ({
                 </div>
               </div>
 
-              {/* Inline note input — shown when selected, both modes */}
+              {/* Inline note input, shown when selected, both modes */}
               {isSelected && (
                 <div
                   className="mt-2 pt-2 border-t border-border/50"
@@ -214,7 +214,7 @@ const BringListSection = ({
         ))}
       </ul>
 
-      {/* Custom item input — open mode only */}
+      {/* Custom item input, open mode only */}
       {mode === "open" && (
         <div className="space-y-1.5">
           <p className="text-sm text-muted-foreground">Bringing something else?</p>

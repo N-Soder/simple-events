@@ -304,7 +304,7 @@ const AdminPage = () => {
               <CopyableLink value={guestLink} successMessage="Guest link copied" label="Copy guest link" />
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {guestLinkHasPassword
-                  ? "Share this with your guests — the password is embedded, so they won't need to type it."
+                  ? "Share this with your guests. The password is embedded, so they won't need to type it."
                   : "Share this with your guests."}
               </p>
             </div>
@@ -316,7 +316,7 @@ const AdminPage = () => {
               </p>
               <CopyableLink value={adminLink} successMessage="Admin link copied" label="Copy admin link" />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                This page. Keep it private — anyone with it can edit the event and see every RSVP.
+                This page. Keep it private: anyone with it can edit the event and see every RSVP.
               </p>
             </div>
           </CardContent>
