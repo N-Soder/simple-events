@@ -28,63 +28,48 @@ const LandingPage = () => {
   const [savedCount] = useState(() => getMyEvents().length);
 
   return (
-    <main className="relative min-h-[100dvh] overflow-hidden bg-background">
-      {/* Warm wash behind the hero, built from brand tokens rather than a stock gradient. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-[radial-gradient(60rem_28rem_at_15%_-10%,hsl(var(--accent))_0%,transparent_70%)] opacity-70"
-      />
-
-      <div className="relative mx-auto max-w-3xl px-6 pb-20 pt-20 sm:pb-28 sm:pt-24">
-        {/* Hero — left-aligned at desktop so the page doesn't read as a centered template. */}
-        <section>
-          <div className="mb-7 flex h-14 w-14 animate-rise items-center justify-center rounded-2xl bg-primary/10">
-            <PartyPopper className="h-7 w-7 text-primary" />
+    <main className="min-h-screen bg-background">
+      <div className="mx-auto max-w-3xl px-4 py-20 sm:py-32">
+        {/* Hero */}
+        <div className="text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+            <PartyPopper className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="animate-rise text-5xl leading-[1.05] tracking-tight [animation-delay:60ms] sm:text-7xl">
-            Simple Events
-          </h1>
-          <p className="mt-5 max-w-xl animate-rise text-lg leading-relaxed text-muted-foreground [animation-delay:120ms] sm:text-xl">
-            Create a private event page, share a link, collect RSVPs, and coordinate who's bringing what — all without
-            accounts.
+          <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">Simple Events</h1>
+          <p className="mx-auto mt-4 max-w-lg text-lg text-muted-foreground">
+            Create a private event page, share a link, collect RSVPs, and coordinate who's bringing what — all without accounts.
           </p>
-          <div className="mt-9 flex animate-rise flex-wrap items-center gap-x-7 gap-y-4 [animation-delay:180ms]">
-            <Button asChild size="lg" className="px-8 text-base">
-              <Link to="/create">Create an Event</Link>
-            </Button>
-            {savedCount > 0 && (
+          <Button asChild size="lg" className="mt-8 text-base px-8">
+            <Link to="/create">Create an Event</Link>
+          </Button>
+          {savedCount > 0 && (
+            <p className="mt-4">
               <Link
                 to="/my-events"
-                className="group inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Your {savedCount} saved event{savedCount !== 1 ? "s" : ""} on this device
-                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                <ArrowRight className="h-4 w-4" />
               </Link>
-            )}
-          </div>
-        </section>
+            </p>
+          )}
+        </div>
 
-        {/* Features — an editorial row stack instead of three identical centered cards. */}
-        <section className="mt-20 animate-rise border-t [animation-delay:260ms] sm:mt-24">
+        {/* Features */}
+        <div className="mt-24 grid gap-8 sm:grid-cols-3">
           {features.map((f) => (
-            <div
-              key={f.title}
-              className="group flex gap-5 border-b py-7 transition-colors duration-300 hover:bg-secondary/40 sm:gap-8 sm:py-8"
-            >
-              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary transition-colors duration-300 group-hover:bg-primary/10">
-                <f.icon className="h-5 w-5 text-secondary-foreground transition-colors duration-300 group-hover:text-primary" />
+            <div key={f.title} className="text-center">
+              <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-secondary">
+                <f.icon className="h-5 w-5 text-secondary-foreground" />
               </div>
-              <div className="sm:flex sm:flex-1 sm:items-baseline sm:gap-8">
-                <h2 className="text-xl sm:w-52 sm:shrink-0">{f.title}</h2>
-                <p className="mt-1.5 text-muted-foreground sm:mt-0 sm:flex-1">{f.description}</p>
-              </div>
+              <h3 className="font-semibold">{f.title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{f.description}</p>
             </div>
           ))}
-        </section>
+        </div>
 
         {/* Footer */}
-        <footer className="mt-16 flex flex-col gap-3 text-sm text-muted-foreground sm:mt-20 sm:flex-row sm:items-center sm:justify-between">
-          <p>Open source under the AGPL-3.0 license.</p>
+        <footer className="mt-24 flex flex-col items-center gap-3 border-t pt-8 text-sm text-muted-foreground">
           <div className="flex items-center gap-6">
             <a
               href="https://github.com/N-Soder/simple-events"
@@ -104,6 +89,7 @@ const LandingPage = () => {
               More projects
             </a>
           </div>
+          <p>Open source under the AGPL-3.0 license.</p>
         </footer>
       </div>
     </main>
