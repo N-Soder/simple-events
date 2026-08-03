@@ -41,7 +41,7 @@ const EventCreated = () => {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
             <Check className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold sm:text-4xl">Event Created!</h1>
+          <h1 className="text-3xl font-bold sm:text-4xl">Event created!</h1>
           <p className="mt-3 text-muted-foreground">Save these links somewhere safe.</p>
         </div>
 
@@ -50,7 +50,7 @@ const EventCreated = () => {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 {password ? <Link className="h-5 w-5 text-primary" /> : <Globe className="h-5 w-5 text-primary" />}
-                Guest Link
+                Guest link
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -63,7 +63,7 @@ const EventCreated = () => {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Shield className="h-5 w-5 text-accent-foreground" />
-                Admin Link
+                Admin link
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -86,7 +86,7 @@ const EventCreated = () => {
 
         <div className="mt-8 text-center">
           <Button variant="outline" asChild>
-            <RouterLink to="/create">Create Another Event</RouterLink>
+            <RouterLink to="/create">Create another event</RouterLink>
           </Button>
         </div>
       </div>

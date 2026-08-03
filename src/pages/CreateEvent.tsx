@@ -157,7 +157,7 @@ const Index = () => {
       <div className="mx-auto max-w-2xl px-4 py-12 sm:py-20">
         <div className="mb-10 text-center">
           <Logo className="mx-auto mb-4 h-11 w-11" />
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Create an Event</h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Create an event</h1>
           <p className="mt-3 text-lg text-muted-foreground">
             Set up your gathering and share a private link with your guests.
           </p>
@@ -168,7 +168,7 @@ const Index = () => {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Banner Upload */}
               <div>
-                <Label>Banner Photo (optional)</Label>
+                <Label>Banner photo (optional)</Label>
                 <div className="mt-2">
                   {bannerPreview ? (
                     <div className="relative">
@@ -195,7 +195,7 @@ const Index = () => {
 
               {/* Event Name */}
               <div>
-                <Label htmlFor="name">Event Name *</Label>
+                <Label htmlFor="name">Event name *</Label>
                 <Input id="name" placeholder="Summer BBQ, Birthday Party..." {...register("name")} className="mt-1.5" />
                 {errors.name && <p className="mt-1 text-sm text-destructive">{errors.name.message}</p>}
               </div>
@@ -272,7 +272,7 @@ const Index = () => {
               {/* Password */}
               <div>
                 <div className="mb-3 flex items-center justify-between">
-                  <Label>Require Guest Password</Label>
+                  <Label>Require guest password</Label>
                   <Switch checked={requirePassword} onCheckedChange={setRequirePassword} />
                 </div>
                 {!requirePassword && (
@@ -303,7 +303,7 @@ const Index = () => {
 
               {/* Guest Visibility */}
               <div>
-                <Label className="mb-3 block">Guest List Visibility</Label>
+                <Label className="mb-3 block">Guest list visibility</Label>
                 <RadioGroup
                   value={visibility}
                   onValueChange={(v) => setValue("guest_visibility", v as FormData["guest_visibility"])}
@@ -336,7 +336,7 @@ const Index = () => {
               {/* Bring List */}
               <div>
                 <div className="mb-3 flex items-center justify-between">
-                  <Label>Bring List</Label>
+                  <Label>Bring list</Label>
                   <Switch checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
                 </div>
                 {!bringListEnabled && (
@@ -361,14 +361,14 @@ const Index = () => {
                     <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "open" ? "border-primary bg-primary/5" : "border-border"}`}>
                       <RadioGroupItem value="open" className="mt-0.5" />
                       <div>
-                        <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open List</p>
+                        <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open list</p>
                         <p className="text-sm text-muted-foreground">No limits. Guests can choose from suggestions or add their own items.</p>
                       </div>
                     </label>
                     <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "signup" ? "border-primary bg-primary/5" : "border-border"}`}>
                       <RadioGroupItem value="signup" className="mt-0.5" />
                       <div>
-                        <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Fixed Slot List</p>
+                        <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Fixed slot list</p>
                         <p className="text-sm text-muted-foreground">Each category has a limited number of slots. Once full, no more items can be added. Custom items are not allowed.</p>
                       </div>
                     </label>
@@ -430,7 +430,7 @@ const Index = () => {
               </div>
 
               <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Event"}
+                {isSubmitting ? "Creating..." : "Create event"}
               </Button>
             </form>
           </CardContent>

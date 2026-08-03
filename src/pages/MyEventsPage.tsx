@@ -59,7 +59,7 @@ const MyEventsPage = () => {
                 </p>
               </div>
               <Button asChild>
-                <Link to="/create">Create an Event</Link>
+                <Link to="/create">Create an event</Link>
               </Button>
             </CardContent>
           </Card>

@@ -106,8 +106,8 @@ Standalone copy for the browser tab at `public/favicon.svg`.
 Plain, warm, second person, British spelling. Say what a thing does, not how
 advanced it is.
 
-- **Sentence case everywhere**: headings, labels, buttons. (The create form
-  currently mixes this; see backlog.)
+- **Sentence case everywhere**: headings, labels, buttons, card titles. Proper
+  nouns keep their capitals (GitHub, Google Calendar, RSVP, Simple Events).
 - **Name the consequence, not the mechanism.** "Guests won't need to type it.
   It's in the URL" beats "Embed credential in query fragment".
 - **Never over-promise durability.** See the "on this device" rule in §1.
@@ -121,7 +121,10 @@ advanced it is.
   Note that analytics can also be switched on in the Cloudflare dashboard
   without any change in this repo, so "no analytics" is not verifiable from
   code alone.
-- No exclamation marks in system copy, no "Oops!", no emoji in UI chrome.
+- Exclamation marks only at genuine moments of success, where the app already
+  uses them ("Event created!", "RSVP submitted!", "Link copied!"). Never in
+  errors, warnings or neutral notices, and never to manufacture enthusiasm.
+  No "Oops!", no emoji in UI chrome.
 - Buttons are verbs: *Create event*, *Copy link*, *Claim it*.
 
 ---
@@ -195,16 +198,12 @@ mobile, and only **two of its nine fields are required** (name, date).
 2. **No progressive disclosure.** Password, guest visibility, and bring list
    are all expanded at equal weight. Group the essentials, collapse the rest
    behind a clearly labelled "More options". The defaults are already sensible.
-3. **Inconsistent label casing.** "Event Name", "Require Guest Password",
-   "Guest List Visibility", "Bring List" are Title Case; "Description",
-   "List type", "Message for guests" are sentence case. Standardise on
-   sentence case (§3).
-4. **Guest list visibility spends three large radio cards** on a setting most
+3. **Guest list visibility spends three large radio cards** on a setting most
    hosts never change. A compact control with the detail behind it would return
    a lot of vertical space.
-5. **Submit sits at the bottom of a long scroll** with no sticky affordance and
+4. **Submit sits at the bottom of a long scroll** with no sticky affordance and
    no scroll-to-first-error on failed validation.
-6. **The heavy `Card` wrapper** (`border-0 shadow-lg`) fights the flat, warm
+5. **The heavy `Card` wrapper** (`border-0 shadow-lg`) fights the flat, warm
    language used elsewhere.
 
 ### App-wide

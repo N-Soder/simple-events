@@ -275,7 +275,7 @@ const AdminPage = () => {
       <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
         <div className="mb-8 flex items-center gap-3">
           <Shield className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold">Admin dashboard</h1>
         </div>
 
         {/* Share links */}
@@ -334,11 +334,11 @@ const AdminPage = () => {
         {/* Edit Event Details */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-lg">Edit Event Details</CardTitle>
+            <CardTitle className="text-lg">Edit event details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Event Name</Label>
+              <Label>Event name</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1.5" />
             </div>
             <div>
@@ -390,7 +390,7 @@ const AdminPage = () => {
             />
 
             <div>
-              <Label className="mb-3 block">Guest List Visibility</Label>
+              <Label className="mb-3 block">Guest list visibility</Label>
               <RadioGroup value={visibility} onValueChange={(v) => setVisibility(v as typeof visibility)} className="space-y-2">
                 {[
                   { value: "full", label: "Full guest list", desc: "Names and counts visible" },
@@ -410,7 +410,7 @@ const AdminPage = () => {
 
             <Button onClick={handleSave} disabled={saving}>
               <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving..." : "Save Changes"}
+              {saving ? "Saving..." : "Save changes"}
             </Button>
           </CardContent>
         </Card>
@@ -505,14 +505,14 @@ const AdminPage = () => {
                 <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "open" ? "border-primary bg-primary/5" : "border-border"}`}>
                   <RadioGroupItem value="open" className="mt-0.5" />
                   <div>
-                    <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open List</p>
+                    <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open list</p>
                     <p className="text-sm text-muted-foreground">No limits. Guests can choose from suggestions or add their own items.</p>
                   </div>
                 </label>
                 <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "signup" ? "border-primary bg-primary/5" : "border-border"}`}>
                   <RadioGroupItem value="signup" className="mt-0.5" />
                   <div>
-                    <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Fixed Slot List</p>
+                    <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Fixed slot list</p>
                     <p className="text-sm text-muted-foreground">Each category has a limited number of slots. Once full, no more items can be added. Custom items are not allowed.</p>
                   </div>
                 </label>
@@ -595,7 +595,7 @@ const AdminPage = () => {
         {/* Danger Zone */}
         <Card className="mt-6 border-destructive/40">
           <CardHeader>
-            <CardTitle className="text-lg text-destructive">Danger Zone</CardTitle>
+            <CardTitle className="text-lg text-destructive">Danger zone</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm text-muted-foreground">
@@ -605,7 +605,7 @@ const AdminPage = () => {
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={deleting}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Event
+                  Delete event
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -621,7 +621,7 @@ const AdminPage = () => {
                     onClick={handleDeleteEvent}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    Delete Event
+                    Delete event
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -642,7 +642,7 @@ const AdminPage = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setPendingModeSwitch(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmModeSwitch}>Switch Anyway</AlertDialogAction>
+            <AlertDialogAction onClick={confirmModeSwitch}>Switch anyway</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

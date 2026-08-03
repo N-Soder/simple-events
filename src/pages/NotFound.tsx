@@ -15,7 +15,7 @@ const NotFound = () => {
       <div className="flex min-h-screen items-center justify-center bg-muted px-4">
         <div className="text-center max-w-md">
           <CalendarX className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-          <h1 className="mb-2 text-4xl font-bold">Event Not Found</h1>
+          <h1 className="mb-2 text-4xl font-bold">Event not found</h1>
           <p className="mb-6 text-muted-foreground">
             This event no longer exists. Events are automatically deleted 90 days after they occur.
           </p>
