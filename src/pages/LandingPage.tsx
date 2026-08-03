@@ -10,12 +10,12 @@ const features = [
   {
     icon: Users,
     title: "No accounts needed",
-    description: "Guests RSVP with just their name.",
+    description: "Share one link. Guests RSVP with just their name.",
   },
   {
     icon: ListChecks,
-    title: "Bring list",
-    description: "Guests claim what they'll bring, nothing doubled up.",
+    title: "Optional bring list",
+    description: "Plan who brings what, so nothing gets doubled up.",
   },
   {
     icon: ShieldCheck,
@@ -78,7 +78,7 @@ const LandingPage = () => {
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Anna's birthday dinner…"
+            placeholder="Ana's birthday dinner…"
             aria-label="Event name"
             maxLength={200}
             className="h-14 flex-1 bg-card px-5 text-base shadow-sm"
