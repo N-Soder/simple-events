@@ -111,6 +111,16 @@ advanced it is.
 - **Name the consequence, not the mechanism.** "Guests won't need to type it.
   It's in the URL" beats "Embed credential in query fragment".
 - **Never over-promise durability.** See the "on this device" rule in §1.
+- **Never make a privacy claim the code cannot back.** The landing page briefly
+  said "Nothing tracked". There is no analytics, no third-party script and no
+  cookie in the app, but event names, guest names, locations and bring list
+  items all sit in **plain text** in D1 (only `password_hash` is hashed), and
+  Cloudflare keeps its own platform logs regardless. Prefer a specific,
+  checkable fact: the copy now says events are auto-deleted 90 days after the
+  event date, which matches `RETENTION_DAYS` in `cleanup-worker/src/index.ts`.
+  Note that analytics can also be switched on in the Cloudflare dashboard
+  without any change in this repo, so "no analytics" is not verifiable from
+  code alone.
 - No exclamation marks in system copy, no "Oops!", no emoji in UI chrome.
 - Buttons are verbs: *Create event*, *Copy link*, *Claim it*.
 

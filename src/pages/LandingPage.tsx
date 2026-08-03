@@ -63,15 +63,17 @@ const LandingPage = () => {
         </nav>
       </header>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-14">
-        <h1 className="animate-rise text-center text-4xl leading-tight sm:text-5xl">What are you planning?</h1>
-        <p className="mt-4 max-w-lg animate-rise text-center text-lg leading-relaxed text-muted-foreground [animation-delay:60ms]">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 sm:py-14">
+        <h1 className="animate-rise text-center text-[2rem] leading-[1.15] sm:text-5xl sm:leading-tight">
+          What are you planning?
+        </h1>
+        <p className="mt-3.5 max-w-lg animate-rise text-center leading-relaxed text-muted-foreground [animation-delay:60ms] sm:mt-4 sm:text-lg">
           Name it and you'll have a shareable event page in about ten seconds. No account, yours or theirs.
         </p>
 
         <form
           onSubmit={handleSubmit}
-          className="mt-9 flex w-full max-w-xl animate-rise flex-col gap-3 [animation-delay:120ms] sm:flex-row"
+          className="mt-7 flex w-full max-w-xl animate-rise flex-col gap-2.5 [animation-delay:120ms] sm:mt-9 sm:flex-row sm:gap-3"
         >
           <Input
             value={name}
@@ -87,19 +89,22 @@ const LandingPage = () => {
           </Button>
         </form>
 
-        <p className="mt-5 animate-rise text-sm text-muted-foreground [animation-delay:180ms]">
-          Free and open source <span className="mx-1.5 opacity-50">·</span>
-          <span className="text-primary">No sign-up required</span>
-          <span className="mx-1.5 opacity-50">·</span> Nothing tracked
-        </p>
+        {/* Claims here have to be ones the code actually backs. "Nothing tracked"
+            did not: event names, guest names and bring list items are stored in
+            plain text in D1. The retention window is verifiable, so say that. */}
+        <ul className="mt-5 flex animate-rise flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-muted-foreground [animation-delay:180ms]">
+          <li>Free and open source</li>
+          <li className="text-primary">No sign-up required</li>
+          <li>Auto-deleted 90 days after the event</li>
+        </ul>
 
-        <div className="mt-16 grid w-full max-w-3xl animate-rise gap-8 border-t pt-9 [animation-delay:260ms] sm:grid-cols-3 sm:gap-10">
+        <div className="mt-11 grid w-full max-w-3xl animate-rise gap-5 border-t pt-7 [animation-delay:260ms] sm:mt-16 sm:gap-10 sm:pt-9 sm:grid-cols-3">
           {features.map((f) => (
             <div key={f.title} className="flex gap-3">
-              <f.icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <f.icon className="mt-0.5 h-4 w-4 shrink-0 text-primary sm:h-5 sm:w-5" />
               <div>
                 <h2 className="font-sans text-sm font-medium text-foreground">{f.title}</h2>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{f.description}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground sm:mt-1">{f.description}</p>
               </div>
             </div>
           ))}
