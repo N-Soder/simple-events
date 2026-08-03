@@ -39,13 +39,13 @@ const RsvpSuccessScreen = ({
     <div className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
       <div className="flex flex-col items-center text-center">
         <CheckCircle className="h-16 w-16 text-primary" />
-        <h1 className="mt-4 text-3xl font-bold">RSVP Submitted!</h1>
+        <h1 className="mt-4 text-3xl font-bold">RSVP submitted!</h1>
         <p className="mt-2 text-muted-foreground">Thanks, {guestName}. You're all set.</p>
       </div>
 
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle className="text-lg">Your RSVP Summary</CardTitle>
+          <CardTitle className="text-lg">Your RSVP summary</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex justify-between">
@@ -100,7 +100,7 @@ const RsvpSuccessScreen = ({
       </Card>
 
       <Button className="mt-6 w-full" onClick={onViewEvent}>
-        View Event Details
+        View event details
         <ArrowRight className="ml-2 h-4 w-4" />
       </Button>
     </div>

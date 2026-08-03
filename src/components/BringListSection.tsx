@@ -58,7 +58,7 @@ const BringListSection = ({
               : "bg-secondary text-secondary-foreground"
           )}
         >
-          {mode === "signup" ? "Fixed Slot List" : "Open List"}
+          {mode === "signup" ? "Fixed slot list" : "Open list"}
         </span>
       </div>
 

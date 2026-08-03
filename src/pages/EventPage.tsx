@@ -400,7 +400,7 @@ const EventPage = () => {
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle>Enter Password</CardTitle>
+            <CardTitle>Enter password</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
@@ -534,7 +534,7 @@ const EventPage = () => {
                 )}
 
                 <div>
-                  <Label htmlFor="guest_name">Your Name *</Label>
+                  <Label htmlFor="guest_name">Your name *</Label>
                   <Input id="guest_name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Your name" className="mt-1.5" required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">

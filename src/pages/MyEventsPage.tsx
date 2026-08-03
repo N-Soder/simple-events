@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, Laptop, PartyPopper, Shield, Trash2, Users } from "lucide-react";
+import { CalendarDays, Laptop, Shield, Trash2, Users } from "lucide-react";
+import Logo from "@/components/Logo";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,9 +50,7 @@ const MyEventsPage = () => {
         {events.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                <PartyPopper className="h-6 w-6 text-primary" />
-              </div>
+              <Logo className="h-10 w-10" />
               <div>
                 <p className="font-medium">No events saved on this device</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -60,7 +59,7 @@ const MyEventsPage = () => {
                 </p>
               </div>
               <Button asChild>
-                <Link to="/create">Create an Event</Link>
+                <Link to="/create">Create an event</Link>
               </Button>
             </CardContent>
           </Card>

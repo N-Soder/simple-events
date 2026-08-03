@@ -14,6 +14,12 @@ export default {
       },
     },
     extend: {
+      // Mirrors the faces loaded in index.css, so `font-sans` / `font-serif`
+      // resolve to the brand stack instead of Tailwind's defaults.
+      fontFamily: {
+        sans: ['"DM Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+        serif: ['"DM Serif Display"', "ui-serif", "Georgia", "serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -81,10 +87,21 @@ export default {
             height: "0",
           },
         },
+        rise: {
+          from: {
+            opacity: "0",
+            transform: "translateY(0.75rem)",
+          },
+          to: {
+            opacity: "1",
+            transform: "translateY(0)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        rise: "rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both",
       },
     },
   },
