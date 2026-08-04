@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Crop, Loader2, Upload, X } from "lucide-react";
+import { Crop, Info, Loader2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import BannerCropDialog from "@/components/BannerCropDialog";
 import {
@@ -22,6 +23,18 @@ interface Picked {
   original: File;
   crop: CropRect | null;
   prepared: PreparedBanner;
+}
+
+/** "image/webp" as a reader would write it. */
+function formatLabel(type: string): string {
+  const names: Record<string, string> = {
+    "image/webp": "WebP",
+    "image/jpeg": "JPEG",
+    "image/png": "PNG",
+    "image/gif": "GIF",
+    "image/avif": "AVIF",
+  };
+  return names[type] ?? type.replace("image/", "").toUpperCase();
 }
 
 /**
@@ -106,26 +119,60 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
     void process(file, null);
   };
 
-  /** One quiet line of what will actually be stored. */
-  const caption = ({ prepared, crop }: Picked): string => {
-    const size = formatFileSize(prepared.file.size);
-    const dimensions = `${prepared.width} × ${prepared.height}`;
-    if (prepared.file.type === "image/gif") {
-      return `${dimensions} · ${size} · a GIF is uploaded as it is, so any animation survives`;
-    }
-    if (!prepared.processed) return `${dimensions} · ${size} · already small enough to upload as it is`;
+  /**
+   * What was actually stored, for the details popover.
+   *
+   * Measurements are behind a button rather than under the photo because a host
+   * setting up a barbecue does not need a file size in their eyeline. It is kept
+   * available, though: it is the only place the resize is visible, and someone
+   * wondering why their photo looks softer than the original deserves an answer.
+   */
+  const details = ({ prepared, crop }: Picked): { measurements: string; note: string } => {
+    const measurements = `${prepared.width} × ${prepared.height} · ${formatLabel(
+      prepared.file.type,
+    )} · ${formatFileSize(prepared.file.size)}`;
     const from = `${prepared.source.width} × ${prepared.source.height}`;
-    if (crop) return `${dimensions} · ${size} · cropped from ${from}`;
+    if (prepared.file.type === "image/gif") {
+      return { measurements, note: "A GIF is uploaded as it is, so any animation survives." };
+    }
+    if (!prepared.processed) {
+      return { measurements, note: "Already small enough to upload as it is." };
+    }
+    if (crop) {
+      return { measurements, note: `Cropped from ${from} in your browser, so guests download less.` };
+    }
     const shrank =
       prepared.width !== prepared.source.width || prepared.height !== prepared.source.height;
-    return shrank ? `${dimensions} · ${size} · resized from ${from}` : `${dimensions} · ${size}`;
+    return {
+      measurements,
+      note: shrank
+        ? `Resized from ${from} in your browser, so guests download less.`
+        : "Kept at its original size.",
+    };
   };
 
   const canCrop = !!picked && !!originalUrl && picked.original.type !== "image/gif";
+  const info = picked && details(picked);
 
   return (
     <div>
-      <Label>Banner photo (optional)</Label>
+      <div className="flex items-center gap-1">
+        <Label>Banner photo (optional)</Label>
+        {info && (
+          <Popover>
+            <PopoverTrigger
+              className="-my-1 flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              aria-label="About this image"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto max-w-xs p-3">
+              <p className="text-xs font-medium">{info.measurements}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{info.note}</p>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
       <div className="mt-2">
         {picked && previewUrl ? (
           <div>
@@ -166,7 +213,6 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
                 </div>
               )}
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">{caption(picked)}</p>
           </div>
         ) : (
           <label
