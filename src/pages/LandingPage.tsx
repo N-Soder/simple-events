@@ -41,21 +41,13 @@ const LandingPage = () => {
 
   return (
     <main className="flex min-h-[100dvh] flex-col bg-background">
-      <header className="flex items-center justify-between px-6 py-6 sm:px-10">
+      {/* Wordmark only. This is a tool for planning a party first, so the
+          repo link lives in the footer rather than greeting people here. */}
+      <header className="flex items-center px-6 py-6 sm:px-10">
         <Link to="/" className="flex items-center gap-2.5">
           <Logo className="h-6 w-6" />
           <span className="font-medium text-foreground">Simple Events</span>
         </Link>
-        <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-          <a
-            href="https://github.com/N-Soder/simple-events"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="transition-colors hover:text-foreground"
-          >
-            GitHub
-          </a>
-        </nav>
       </header>
 
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 sm:py-14">
@@ -125,14 +117,24 @@ const LandingPage = () => {
 
       <footer className="flex flex-col gap-2 px-6 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-10">
         <p>Open source under the AGPL-3.0 license.</p>
-        <a
-          href="https://soderholm.app/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="transition-colors hover:text-foreground"
-        >
-          More projects
-        </a>
+        <div className="flex items-center gap-5">
+          <a
+            href="https://github.com/N-Soder/simple-events"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://soderholm.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            More projects
+          </a>
+        </div>
       </footer>
     </main>
   );
