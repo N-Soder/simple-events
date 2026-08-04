@@ -133,21 +133,21 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
     )} · ${formatFileSize(prepared.file.size)}`;
     const from = `${prepared.source.width} × ${prepared.source.height}`;
     if (prepared.file.type === "image/gif") {
-      return { measurements, note: "A GIF is uploaded as it is, so any animation survives." };
+      return { measurements, note: "GIFs get a free pass — that's how the animation survives." };
     }
     if (!prepared.processed) {
-      return { measurements, note: "Already small enough to upload as it is." };
+      return { measurements, note: "Already small. Nothing to do here." };
     }
     if (crop) {
-      return { measurements, note: `Cropped from ${from} in your browser, so guests download less.` };
+      return { measurements, note: `Cropped down from ${from}, so it lands fast on your guests' phones.` };
     }
     const shrank =
       prepared.width !== prepared.source.width || prepared.height !== prepared.source.height;
     return {
       measurements,
       note: shrank
-        ? `Resized from ${from} in your browser, so guests download less.`
-        : "Kept at its original size.",
+        ? `Slimmed down from ${from}, so it lands fast on your guests' phones.`
+        : "No shrinking needed — it already fits.",
     };
   };
 
@@ -239,9 +239,6 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
               <>
                 <Upload className="mb-2 h-6 w-6 text-muted-foreground" aria-hidden="true" />
                 <span className="text-sm text-muted-foreground">Click to upload, or drop a photo here</span>
-                <span className="mt-1 text-xs text-muted-foreground">
-                  Any size. It's resized in your browser before it's uploaded
-                </span>
               </>
             )}
             <input
