@@ -235,4 +235,7 @@ Why things are the way they are, so they don't get undone by accident.
 | Headline serif, everything else sans | Existing brand pairing, retained deliberately. |
 | No dark-mode design work | Explicitly out of scope; semantic tokens keep it functional without it being designed. |
 | Placeholder stock photography rejected | A live product is not a comp. No image beats a `picsum.photos` filler. |
+| Banners are resized in the browser, not on upload | The band is 224–288 px tall, so storing a 4032 px original pays R2 for pixels nobody sees and makes guests download them on a phone. Doing it at pick time rather than at submit also means a host is never told their photo is too big after filling in the whole form. |
+| Crop frame fixed at 2:1, and the copy says the edges can be trimmed | The banner band ranges from about 1.7:1 on a phone to over 5:1 on a wide desktop, so no crop is faithful everywhere. Promising WYSIWYG would be the lie; giving the host control of the *subject* is the real need. 2:1 also suits the link-preview card. |
+| A GIF banner is uploaded untouched | A canvas only sees the first frame, so resizing one would quietly drop the animation that was the reason for choosing it. The crop control is hidden for GIFs for the same reason. |
 | Copy on the landing page is provisional | Written to fit the layout; not yet owner-approved wording. |
