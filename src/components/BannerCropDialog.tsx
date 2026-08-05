@@ -223,8 +223,7 @@ const BannerCropDialog = ({
         <DialogHeader>
           <DialogTitle>Crop banner</DialogTitle>
           <DialogDescription>
-            Drag to reposition, zoom to fill. Anything dimmed is cropped out, and the very
-            edges can go on some screens.
+            Drag to reposition the image. Areas near the edge may not be visible on all devices.
           </DialogDescription>
         </DialogHeader>
 
