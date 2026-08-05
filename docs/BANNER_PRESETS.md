@@ -50,8 +50,11 @@ cloned and forked". The Pexels restriction people reach for reads:
 > wallpaper platforms.
 
 That is scoped to stock photo and wallpaper platforms. This is an event page app,
-nothing is sold, and every file is cropped, graded and re-encoded before it ships,
-so it is not an unaltered copy either. Bundling them is within the licence.
+nothing is sold, and every file is cropped to a 2:1 window and re-encoded to WebP
+at 1600 x 800 from an original between 3 and 6 K wide, so it is not an unaltered
+copy either. Bundling them is within the licence. (An earlier version of this
+paragraph also claimed a grade, which no longer exists — see §4. The crop and
+re-encode carry the point on their own.)
 
 Two other clauses do shape the set, and neither is about redistribution:
 
@@ -174,10 +177,11 @@ photos towards a house style, and removing that was worth two lessons:
   the size budget only because discarding colour also discards detail, which is
   a compression saving. Taking the grade out pushed the file to 203 KB. Paying
   for size with `quality` instead puts the cost where it can be seen.
-- Grading cannot rescue a photograph whose colour you dislike. `string-lights`
-  is graded orange-against-teal in the source, and 0.88 and 0.80 both leave the
-  teal exactly where it was — desaturating dulls a colour relationship without
-  changing it. If a preset's colour is wrong, replace the preset.
+- Grading cannot change a colour relationship, only dull it. `string-lights` is
+  graded orange-against-teal in the source, and `saturation` at 0.88 and 0.80
+  both leave the teal exactly where it is. Its cyan is the loudest thing in the
+  set and it is meant to be there — but if a future preset's colour is ever
+  genuinely wrong, the fix is a different photograph, not a multiplier.
 
 ### Do not use sharp's `.tint()`
 
