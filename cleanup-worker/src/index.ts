@@ -4,6 +4,14 @@ interface Env {
 }
 
 const RETENTION_DAYS = 90;
+// Banners picked from the bundled set are static files on the Pages origin, not
+// R2 objects: there is nothing here to delete, and nothing to treat as orphaned
+// either. Keep in step with BANNER_PRESET_DIR in src/lib/bannerPresets.ts.
+const BANNER_PRESET_PREFIX = "/banner-presets/";
+
+const isPresetBanner = (bannerUrl: string | null): boolean =>
+  !!bannerUrl && bannerUrl.startsWith(BANNER_PRESET_PREFIX);
+
 // Grace period before an unreferenced R2 object is considered orphaned. This
 // protects banners uploaded moments before their event row is created.
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -32,7 +40,7 @@ async function deleteExpiredEvents(env: Env): Promise<void> {
   // Delete R2 banners (best-effort, don't block DB cleanup on failure)
   await Promise.allSettled(
     results
-      .filter((e) => e.banner_url)
+      .filter((e) => e.banner_url && !isPresetBanner(e.banner_url))
       .map((e) => {
         const r2Key = e.banner_url!.split("/").pop();
         if (!r2Key) return Promise.resolve();
@@ -71,6 +79,7 @@ async function sweepOrphanedBanners(env: Env): Promise<void> {
 
   const referenced = new Set(
     (results ?? [])
+      .filter((e) => !isPresetBanner(e.banner_url))
       .map((e) => e.banner_url.split("/").pop())
       .filter((k): k is string => Boolean(k))
   );

@@ -1,216 +1,193 @@
-# Banner presets: research
+# Banner presets
 
-Hosts can already upload a banner photo (`src/components/BannerField.tsx`). Most
-of them will not have one to hand. This is the research behind offering a small
-set of ready-made banners to pick from instead, covering where the images can
-legally come from, how many to ship, and what they should be of.
+Hosts can upload a banner photo (`src/components/BannerField.tsx`). Most of them
+have none to hand, so the field gets skipped and the event page loses its only
+piece of colour. The fix is a small fixed set of ready-made banners to pick from.
 
-No code has been written yet. This document is the decision record that the
-implementation should follow.
+This document is why the set is what it is, and how to rebuild it.
 
 ---
 
-## 1. The constraint that decides everything
+## 1. What ships
 
-This repo is AGPL-3.0 and self-hostable. Anything we ship in `public/` is
-**redistributed**: to every fork, every clone, every self-hoster, in a public
-git history, forever. That is a much stronger requirement than "we are allowed
-to use this image on our site", which is all most free-stock licences grant.
+Eight presets, listed in `src/lib/bannerPresets.ts`, served as static files from
+`public/banner-presets/`:
 
-Two separate questions, and they have different answers:
+| id | Subject |
+| --- | --- |
+| `string-lights` | Festoon lights at dusk |
+| `embers` | Barbecue |
+| `laid-table` | Dinner table |
+| `coffee` | Coffee and pastries |
+| `picnic` | Hamper on a gingham blanket |
+| `confetti` | Confetti flat-lay |
+| `gradient-warm` | Generated, from `--accent` |
+| `gradient-cool` | Generated, ending on `--primary` |
 
-1. **May we display the image in our product?** Almost every free stock site
-   says yes.
-2. **May we ship the image file itself, as part of a set, in a redistributable
-   open-source repo?** Only public-domain / CC0 sources say yes cleanly.
+Eight fills a 4x2 grid on desktop and 2x4 on a phone and stays scannable.
+Choosing from eight is a decision; choosing from thirty is a task, and this form
+is for planning a dinner rather than browsing a photo library. The six subjects
+were picked to spread across what people actually use this for (birthdays,
+barbecues, dinners, brunch, picnics, celebrations) without repeating a mood.
 
-A second constraint, easy to miss: no free stock site provides **model
-releases**. A model release is what makes it safe to use a recognisable
-person's face to promote something. Without one, a photo of an identifiable
-person baked into our product is the riskiest thing on this list, and it is
-risky in a way that scales with the project rather than with us. Preset banners
-should contain **no recognisable faces**. This turns out to be easy, and it also
-makes for better banners: a preset is a backdrop, and a stranger's face staring
-out of the top of your barbecue invite is worse design anyway.
-
----
-
-## 2. Sources
-
-### Recommended: CC0 / public domain, bundled as static assets
-
-| Source | Licence | Why it fits |
-| --- | --- | --- |
-| [WordPress Photo Directory](https://wordpress.org/photos/) | CC0 | Best single fit. Every submission is CC0, and the [guidelines](https://wordpress.org/photos/guidelines/) forbid faces and anything identifying a person or private location, which is exactly our rule already enforced upstream. Curated, modern, and photographic rather than arty. |
-| [Openverse](https://openverse.org/) | Filterable, set it to CC0 | Aggregates ~800M openly licensed files across sources, with a licence filter. Use it to fill gaps the WordPress directory cannot, then verify the licence at the original source rather than trusting the index. |
-| [Met Open Access](https://www.metmuseum.org/hubs/open-access), [Smithsonian Open Access](https://www.si.edu/openaccess), [Rijksmuseum Rijksstudio](https://www.rijksmuseum.nl/en/rijksstudio) | CC0 | ~375k, ~4.5M and ~800k CC0 images respectively. Not for "photo of a barbecue", but excellent for the illustrated or vintage options in the set (botanical prints, star charts, patterned textiles). High resolution, no faces needed, and impossible to argue with legally. |
-| [Public Domain Review](https://publicdomainreview.org/collections/) | Public domain (check per item) | Curated route into the same museum material when you want taste rather than search results. |
-
-CC0 has no attribution requirement. We should credit anyway, in the repo rather
-than in the UI: a `public/banner-presets/CREDITS.md` listing source URL,
-photographer or institution, and licence for each file. That is what makes the
-set auditable by a self-hoster, and what lets us swap one image without
-re-researching the other seven.
-
-### Deliberately not recommended for bundling: Unsplash, Pexels, Pixabay
-
-These are the obvious first thought and they are the wrong tool for a bundled
-set. Not because using them is forbidden in general, but because each one has a
-clause aimed squarely at what a preset picker looks like from the outside.
-
-- **Unsplash.** The [licence](https://unsplash.com/license) is generous: an
-  "irrevocable, nonexclusive, worldwide copyright license to download, copy,
-  modify, distribute, perform, and use" photos, commercially, without
-  attribution. But it explicitly does not grant the right to compile Unsplash
-  photos "to replicate a similar or competing service", and the
-  [help centre](https://help.unsplash.com/en/articles/2612332-what-do-you-mean-by-compiling-photos-to-replicate-a-similar-or-competing-service)
-  describes that in terms of users browsing and choosing images. Eight photos in
-  a picker is not a stock service, and we would very likely be fine. "Very
-  likely fine" is a bad thing to hand to every downstream fork.
-- **Pexels.** The [licence](https://www.pexels.com/license/) says plainly: do
-  not redistribute the photos on other platforms, and do not sell unaltered
-  copies. Shipping the files in a repo is redistribution.
-- **Pixabay.** Content uploaded after 9 January 2019 falls under the
-  [Content License](https://pixabay.com/service/license-summary/), which forbids
-  redistributing content on a standalone basis. Same problem, stated more
-  directly.
-
-### If we ever want a searchable library instead of a fixed set
-
-Then the Unsplash API is the right answer, and its rules become workable
-because we would no longer be bundling anything. The
-[API guidelines](https://help.unsplash.com/en/articles/2511245-unsplash-api-guidelines)
-require three things: hotlink their CDN URLs rather than re-hosting, credit the
-photographer and Unsplash with a link back (attribution is *not* optional on the
-API, unlike the plain licence), and hit the `download_location` endpoint when a
-user picks a photo. Rate limits are 50 requests/hour in demo mode and 5,000/hour
-once approved for production.
-
-Three reasons this is the wrong first move here:
-
-1. It needs a server-side key and a proxy route, so it is real backend work.
-2. Hotlinking makes every guest's page load depend on a third party, and makes
-   the link-preview image (`functions/event/[id].ts`) point off-site.
-3. Self-hosters would need their own Unsplash key, or the feature silently dies
-   for them. A bundled CC0 set works everywhere with no configuration.
-
-Worth revisiting only if hosts tell us eight options is too few.
+The last two are gradients rather than photographs on purpose. They cost nothing
+legally, weigh almost nothing, and are what a host wants when they would rather
+have colour than someone else's party. They also give the set a floor: if a photo
+ever has to be pulled, the feature still works.
 
 ---
 
-## 3. How many, and what shape
+## 2. Where the photographs come from, and the licence reasoning
 
-**Eight photos plus two non-photo options.** Ten tiles total.
+All six are from [Pexels](https://www.pexels.com/), under the
+[Pexels licence](https://www.pexels.com/license/).
 
-Reasoning:
+The question that mattered was not "may we display these" (every free stock site
+allows that) but "may we ship the files themselves in an AGPL repo that gets
+cloned and forked". The Pexels restriction people reach for reads:
 
-- Eight fills a 4x2 grid on desktop and 2x4 on mobile, and stays scannable at a
-  glance. Choosing from eight is a decision; choosing from thirty is a task, and
-  the design guide's "occasions, not admin" rule says the form should not grow a
-  browsing UI.
-- Eight also covers the real spread of events this app gets used for without
-  duplicating moods (see the list below).
-- The two non-photo options are generated gradients or soft patterns, drawn from
-  the existing palette in `src/index.css`. They cost nothing legally, weigh
-  almost nothing, and are what a host wants when they would rather have colour
-  than a stock photo. They also give the set a floor: if we ever have to pull a
-  photo, the feature still works.
+> Don't redistribute or sell the photos and videos on other stock photo or
+> wallpaper platforms.
 
-Sizing follows what the upload path already produces, so presets and uploads
-render identically:
+That is scoped to stock photo and wallpaper platforms. This is an event page app,
+nothing is sold, and every file is cropped, graded and re-encoded before it ships,
+so it is not an unaltered copy either. Bundling them is within the licence.
 
-- Store at **1600x800** (the 2:1 `BANNER_ASPECT`, at `BANNER_MAX_WIDTH`), WebP
-  at quality ~0.82, which lands around 80-140 KB each.
-- Ship a **~400x200 thumbnail** per preset for the picker grid, around 10-20 KB.
-  Only thumbnails load when the picker is open, so the grid costs roughly 150 KB
-  total and the full banner is fetched only for the one that gets chosen.
+Two other clauses do shape the set, and neither is about redistribution:
 
----
+- **"Don't imply endorsement of your product by people or brands on the
+  imagery."** This is the real reason **no preset contains a recognisable face**.
+  A copyright licence from Pexels says nothing about the depicted person's own
+  rights, and a face in a product's UI is exactly the endorsement-shaped use that
+  clause names. Two candidates were dropped over this: a concert crowd with an
+  identifiable performer, and a golden-hour park shot with a dozen identifiable
+  people. Hold any replacement to the same line.
+- **No logos, and no text or numbers in frame.** A gold-balloon shot spelling out
+  `21` and `party` was dropped for this. Lettering also gets sliced mid-word by
+  the desktop crop below, and the host's own title is doing that job anyway.
 
-## 4. What the eight should be of
+Pexels can withdraw a photo, and git history cannot. That is hygiene rather than a
+licence problem, and it is why `public/banner-presets/CREDITS.md` records a source
+URL per file: any one preset can be swapped without re-researching the set.
 
-The brief for each is "a backdrop that flatters a title", not "a picture of the
-event". No faces, no legible brand logos, no text in the image, nothing so
-literal that it fights the host's own words. Shot wide, with a calm area
-somewhere for the title to sit over.
+### Sources considered and not used
 
-| # | Preset | Covers | What to search for |
-| --- | --- | --- | --- |
-| 1 | **String lights at dusk** | Birthdays, drinks, garden parties, engagements | "festoon lights", "fairy lights bokeh", "garden lights evening" |
-| 2 | **Laid table from above** | Dinner parties, potlucks, Sunday lunch, supper clubs | "table setting overhead", "flat lay dinner table", "cutlery linen" |
-| 3 | **Grill or fire** | Barbecues, cookouts, bonfire nights | "barbecue coals", "campfire embers", "grill flames close up" |
-| 4 | **Park grass and picnic blanket** | Picnics, kids' parties, sports days, meetups | "picnic blanket grass", "park summer afternoon", "meadow blanket" |
-| 5 | **Glasses and pours** | Drinks, housewarmings, launches, anniversaries | "cocktail glasses bar", "sparkling wine pour", "glassware backlit" |
-| 6 | **Confetti or balloons on colour** | Birthdays, graduations, celebrations generally | "confetti on pastel", "balloons plain background", "streamers colour" |
-| 7 | **Coffee and pastries** | Brunch, baby showers, book clubs, morning things | "coffee cups table", "pastries flat lay", "cafe morning light" |
-| 8 | **Night sky or dusk gradient** | Late events, NYE, gigs, anything after dark | "night sky stars", "dusk gradient sky", "twilight horizon" |
-
-Plus:
-
-- **9. Warm gradient**, generated from the palette.
-- **10. Cool gradient**, likewise. Pattern rather than plain if plain reads
-  cheap next to the photos.
-
-Alternates worth having researched but not shipping in v1: pool or water,
-autumn leaves, snow and pine, board games on a table, flowers, sports pitch
-lines. If we later learn what hosts actually create, swap from this bench rather
-than adding tiles.
-
-The illustrated route is the interesting fallback if the photo set feels too
-stock: eight CC0 museum images (a botanical plate, a star chart, a Japanese
-woodblock landscape, a patterned textile) would look more distinctive than any
-free photo set and carry zero licence doubt. Worth mocking up one tile of each
-before committing.
+- **Unsplash** grants an irrevocable licence to distribute, but explicitly not the
+  right to compile its photos "to replicate a similar or competing service", and
+  their own explainer frames that in terms of users browsing and choosing images.
+  Very likely fine for eight tiles. "Very likely fine" is a bad thing to hand to
+  every downstream fork.
+- **Pixabay** forbids redistributing content on a standalone basis, which is
+  harder to argue past than the Pexels wording.
+- **CC0 sources** are the cleanest of all and remain the fallback if the Pexels
+  position ever looks shakier than it does: the
+  [WordPress Photo Directory](https://wordpress.org/photos/) is entirely CC0 and
+  already forbids faces by policy, [Openverse](https://openverse.org/) can be
+  filtered to CC0, and the Met, Smithsonian and Rijksmuseum open-access
+  collections are CC0 if an illustrated set is ever preferred to photographs.
+- **The Unsplash API** would be the right answer for a searchable library rather
+  than a fixed set: hotlink their CDN, mandatory attribution, trigger the
+  `download_location` endpoint, 50 requests/hour until approved for production.
+  It needs a server-side key, which self-hosters would not have, so the feature
+  would silently die for them. Worth revisiting only if hosts say eight is too
+  few.
 
 ---
 
-## 5. Implementation notes
+## 3. The crop that dictates every composition
 
-Grounded in what is already here, so whoever picks this up does not have to
-rediscover it.
+The banner renders as a full-viewport-width band, `h-56 sm:h-72`, with
+`object-cover` (`src/pages/EventPage.tsx`). The event title sits below the band,
+not on it, so no clear space for text is needed. But the crop is severe and
+asymmetric:
 
-- **Presets need no upload and no R2 object.** `banner_url` is a free-text
-  column (`migrations/d1/0001_initial.sql`) that the event page and the social
-  preview both read as a URL. A preset is just a stable static path, so picking
-  one skips `POST /api/upload` entirely: no bytes uploaded, no R2 storage, no
-  cleanup obligation.
-- **Serve them from `public/banner-presets/`, not `public/banners/`.**
-  `/banners/<key>` is already the fallback shape for R2-backed uploads
-  (`functions/api/[[route]].ts`). Keeping the namespaces separate stops a preset
-  path ever being mistaken for an R2 key. Cloudflare Pages serves real static
-  files ahead of the `/*  /index.html  200` rewrite in `public/_redirects`, so a
-  file on disk resolves before the SPA catch-all.
-- **Check the two R2 delete paths.** Both `DELETE /api/admin/delete-event` and
-  the cleanup worker's `deleteExpiredEvents` do `banner_url.split("/").pop()`
-  and delete that as an R2 key. For a preset that is a harmless no-op (deleting
-  a missing key succeeds, and upload keys are UUIDs so they cannot collide), but
-  it should skip the call explicitly rather than rely on that. Same for
-  `sweepOrphanedBanners`, where preset filenames would land in the `referenced`
-  set and match nothing.
-- **Social previews already work.** `functions/event/[id].ts` resolves a
-  relative `banner_url` against the page URL before putting it in `og:image`, so
-  a preset path becomes an absolute URL for crawlers with no extra work.
-- **The CSP allows both.** `img-src 'self' data: blob: https:` in
-  `public/_headers` covers same-origin presets and the existing blob previews.
-- **Where it goes in the UI.** `BannerField` currently has one empty state (the
-  drop zone). The presets belong behind a secondary action next to it rather
-  than always-open above it, so a host who has a photo is not made to scroll
-  past a gallery. Picking a preset should land in the same `picked` state as an
-  upload, minus the crop affordance (they are already the right aspect ratio)
-  and minus the details popover (there is nothing to explain about a file the
-  host did not choose the size of).
-- **Ship the credits file** at `public/banner-presets/CREDITS.md`: filename,
-  source URL, creator or institution, licence. It is not legally required under
-  CC0, but it is what makes the set maintainable and auditable.
+- **Desktop, ~1440 px wide:** the band is effectively 5:1. A 2:1 image is scaled
+  to the band's width, so roughly the top 30% and bottom 30% are cut away. Only
+  the centre horizontal third survives.
+- **Mobile, ~390 px wide:** the band is roughly 1.74:1, so about 13% is cut from
+  each side.
+
+So the subject belongs in the centre band of the 1600 x 800 frame, roughly
+y = 240 to y = 560, and the outer ~200 px of each side has to be non-essential.
+The whole 2:1 frame is still shown in two places, the picker preview and the
+`og:image` link-preview card, so it also has to look composed rather than
+letterboxed.
+
+`focusY` in the build script is what places that window. Two of the six needed it
+away from centre.
+
+---
+
+## 4. Rebuilding the assets
+
+    npm run banners
+
+Reads originals from `public/banner-presets/source/<id>.<ext>` and writes
+`public/banner-presets/<id>.webp` (1600 x 800, WebP q82, under 200 KB) plus
+`<id>-thumb.webp` (400 x 200, under 20 KB). The gradients need no source and are
+regenerated every run. The script reports dimensions and sizes for everything it
+produced and exits non-zero if anything is out of spec or missing.
+
+The originals are **not committed** (see `.gitignore`): they are 5-15 MB each and
+only the built output ships. `public/banner-presets/source/README.md` says what
+goes in there, and `CREDITS.md` has the URLs to fetch them again.
+
+Crop and grade live in the `TUNING` object at the top of
+`scripts/build-banner-presets.mjs`, one entry per photo. They are corrections in
+one direction: stock photos run louder than this product does, so the numbers pull
+saturation down and colour temperature towards the app's warm cream background.
+They are a starting point to be judged by eye, not measurements. Nudge, re-run,
+look again.
+
+Sizing mirrors the upload path (`BANNER_MAX_WIDTH`, `BANNER_ASPECT` in
+`src/lib/bannerImage.ts`) so a preset and an uploaded photo render identically.
+
+---
+
+## 5. How a preset differs from an upload
+
+A preset is not an upload, and that is most of its appeal:
+
+- Picking one writes its path straight into `banner_url` and **skips
+  `POST /api/upload` entirely**. No bytes leave the browser, no R2 object is
+  created, nothing needs cleaning up later.
+- `BannerField` reports its choice as a `BannerChoice`, either `{ kind: "file" }`
+  or `{ kind: "preset" }`, and `CreateEvent` uploads only in the first case.
+- The crop dialog and the details popover are hidden for presets. They are already
+  the right aspect ratio, and the host did not choose the file, so its size is not
+  theirs to account for.
+- Both R2 delete paths recognise preset URLs and leave them alone: the
+  `admin/delete-event` handler in `functions/api/[[route]].ts`, and both
+  `deleteExpiredEvents` and `sweepOrphanedBanners` in `cleanup-worker`. Deleting
+  the key a preset path ends in would be a harmless no-op today, since upload keys
+  are UUIDs, but relying on that is one rename away from deleting a real object.
+- Social previews need no special handling: `functions/event/[id].ts` already
+  resolves a relative `banner_url` against the page URL before putting it in
+  `og:image`.
+
+The prefix `/banner-presets/` is the marker for all of this, and it is duplicated
+in three places (`src/lib/bannerPresets.ts`, `functions/api/[[route]].ts`,
+`cleanup-worker/src/index.ts`) because those are separate bundles that cannot
+import from each other. The repo already does this for `MAX_BANNER_BYTES`. Keep
+them in step.
+
+It deliberately does **not** live under `/banners/`, which is the fallback shape
+for R2-backed uploads. Cloudflare Pages serves real static files ahead of the
+`/*  /index.html  200` rewrite in `public/_redirects`, so files on disk resolve
+before the SPA catch-all.
 
 ---
 
 ## 6. Open questions
 
-- Do we want photos or the illustrated museum route? Mock one tile of each
-  before deciding. This is a taste call, not a research call.
-- Should a preset be recorded distinctly from an upload, so we can tell later
-  which presets get used and which are dead weight? There is nowhere to put that
-  today short of a new column, and the project keeps no analytics, so the honest
-  answer may be "we will never know", which is an argument for keeping the set
-  small and opinionated.
+- Nothing records whether a host picked a preset or uploaded their own, so we
+  cannot tell which tiles earn their place. There is nowhere to put that short of
+  a new column, and the project keeps no analytics, so the honest answer may be
+  "we will never know" — which is an argument for keeping the set small and
+  opinionated rather than growing it on a hunch.
+- Two of the six (`laid-table`, `picnic`) have wine visible, so the set skews
+  faintly adult. Hosts pick, so it is not a problem, but a kids'-party subject
+  would be the first addition if the set ever grows.
+- Bench of alternates, already researched, if one has to be replaced: night sky at
+  dusk, glasses being poured, pool or water, autumn leaves, flowers, board games
+  on a table.

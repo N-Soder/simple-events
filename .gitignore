@@ -30,3 +30,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Banner preset originals: only the built WebPs ship. See
+# public/banner-presets/source/README.md
+public/banner-presets/source/*
+!public/banner-presets/source/README.md
