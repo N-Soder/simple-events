@@ -36,6 +36,12 @@ const THUMB_WIDTH = 400;
 const THUMB_HEIGHT = 200;
 
 const PHOTO_QUALITY = 82;
+/**
+ * Thumbs are only ever drawn at 400x200 in the picker grid, so they carry more
+ * compression than the banner without it being visible. At PHOTO_QUALITY the
+ * two noisiest sources (embers, picnic) came out over the 20 KB budget.
+ */
+const THUMB_QUALITY = 74;
 /** Gradients band badly at photo quality, so they get their own. */
 const GRADIENT_QUALITY = 94;
 
@@ -43,7 +49,7 @@ const MAX_BANNER_BYTES = 200 * 1024;
 const MAX_THUMB_BYTES = 20 * 1024;
 
 /**
- * Per-photo crop and grade.
+ * Per-photo crop. Nothing here grades: every photo ships as shot.
  *
  * `focusY` is where the 2:1 window sits on a taller source: 0 keeps the top
  * edge, 1 the bottom, 0.5 centres it. `focusX` does the same horizontally on a
@@ -51,58 +57,71 @@ const MAX_THUMB_BYTES = 20 * 1024;
  * top and bottom thirds again at desktop width, so whatever you centre here is
  * the only part most guests see.
  *
- * `saturation` and `brightness` multiply the source. `tint` applies a light
- * colour cast at constant luminance, which is how the cooler sources get pulled
- * towards the app's warm cream background (`--background`, #FCFAF7). Stock
- * photos run louder than this product does; the numbers below are all
- * corrections in that direction, and all of them are a starting point to be
- * judged by eye rather than a measurement.
+ * `zoom` shrinks that window before it is placed, so the subject fills more of
+ * the frame. Only `coffee` needs it, and it needs it because `focusY` cannot
+ * help: its subject sits in the bottom third of a 3:2 source, while a
+ * full-width 2:1 window can only slide by a quarter of the source height. Keep
+ * `zoom` as low as the composition allows — the window must stay at least
+ * 1600 px wide or the output is upscaled, and the script fails if it is.
+ *
+ * There is no grade on any of these, on purpose. `saturation` and `brightness`
+ * are still read if you add them, and multiply the source, but the set ships
+ * without them: the photographs were chosen for their subject, and correcting
+ * them towards a house style was a guess about a problem nobody had reported.
+ * If one ever does look loud on the page, add the knob to that one photo only.
+ *
+ * There is deliberately no colour-cast knob at all. An earlier version warmed
+ * the cooler sources towards the app's cream background (`--background`,
+ * #FCFAF7) with sharp's `.tint()`, which does not do that: it maps the image
+ * onto a single hue, so a near-white tint is a greyscale conversion. It cost
+ * `string-lights`, `picnic` and `confetti` about 85% of their chroma and all
+ * three shipped monochrome. If a cast is ever genuinely wanted, it is
+ * `.linear([r, g, b], [0, 0, 0])` with per-channel gains — a white-point move,
+ * which preserves hue relationships — and not `.tint()`.
  */
 const TUNING = {
-  "string-lights": {
-    focusY: 0.5,
-    saturation: 0.88,
-    brightness: 1.0,
-    // The source is graded orange against teal. Warming it and dropping the
-    // saturation kills the cyan without touching the bulbs.
-    tint: { r: 255, g: 248, b: 236 },
-  },
-  embers: {
-    focusY: 0.5,
-    saturation: 0.82,
-    brightness: 1.0,
-    tint: null,
-  },
+  "string-lights": { focusY: 0.5 },
+  embers: { focusY: 0.5 },
   "laid-table": {
-    focusY: 0.5,
-    saturation: 1.0,
-    brightness: 1.0,
-    tint: null,
+    // The wine glass is the tallest thing in the frame and the eye goes to it,
+    // so the band has to contain its rim. Centred, the rim sat above the band
+    // and the glass read as a stem. 0.2 puts the rim exactly on the band's top
+    // edge; this keeps a margin without pulling the dark top of the source in.
+    focusY: 0.1,
   },
   coffee: {
-    // Cup and croissants sit low in the frame, so the window drops to keep them
-    // inside the band the event page actually shows.
-    focusY: 0.68,
-    saturation: 1.0,
-    brightness: 1.0,
-    tint: null,
+    // The only photo needing a tighter window. Cup and croissants sit in the
+    // bottom third of a 3:2 source, so the widest 2:1 window cannot reach them
+    // however far focusY slides: it leaves the cup below the centre band and
+    // fills the band with background bokeh.
+    //
+    // Chosen off a sweep of 1.0 to 1.87. Centring the cup in the band would
+    // take about 1.87, because the window is bottom-anchored and the cup's
+    // centre sits at source y≈1620 — but at that zoom the band is a macro shot
+    // of a rim and stops reading as coffee at all. 1.4 is the compromise: the
+    // cup is big and legible left of centre, the croissants hold the right, and
+    // the base of the cup falling below the band costs nothing. Past 1.55 the
+    // rim itself gets cropped.
+    zoom: 1.4,
+    // Bottom-anchored: the subject is the bottom edge of the source.
+    focusY: 1.0,
+    // Left of centre, which puts the cup at about a third across and lets the
+    // croissants hold the right half.
+    focusX: 0.43,
   },
   picnic: {
-    focusY: 0.55,
-    // The strongest correction in the set: the gingham red and the grass green
-    // are both louder than anything else here.
-    saturation: 0.78,
-    brightness: 1.02,
-    tint: { r: 255, g: 250, b: 240 },
+    // Top-anchored, because the open lid is the top of the subject and the band
+    // has to contain it. At 0.1 the wicker edge is already gone; at the old 0.55
+    // the band was blanket and grass with the hamper cut off above it.
+    focusY: 0,
+    // Grass and gingham are both fine high-frequency detail, which is the most
+    // expensive thing a WebP encoder can be handed: at the shared quality this
+    // one photo lands just over the 200 KB budget. It was under it before only
+    // because a saturation cut was throwing away detail as a side effect. This
+    // pays for the size directly instead, where it is visible in the diff.
+    quality: 78,
   },
-  confetti: {
-    focusY: 0.5,
-    saturation: 0.92,
-    brightness: 1.0,
-    // The source's background is a cool blue-white, which reads as grubby
-    // directly above a warm cream page. This shifts it towards the cream.
-    tint: { r: 255, g: 252, b: 245 },
-  },
+  confetti: { focusY: 0.5 },
 };
 
 /**
@@ -151,7 +170,7 @@ function gradientSvg({ stops, highlight }) {
  * anchors to an edge or the centre, and two of these six need to sit somewhere
  * in between.
  */
-function cropWindow(sourceWidth, sourceHeight, focusX = 0.5, focusY = 0.5) {
+function cropWindow(sourceWidth, sourceHeight, { focusX = 0.5, focusY = 0.5, zoom = 1 }) {
   const sourceAspect = sourceWidth / sourceHeight;
   const target = WIDTH / HEIGHT;
 
@@ -161,6 +180,13 @@ function cropWindow(sourceWidth, sourceHeight, focusX = 0.5, focusY = 0.5) {
     width = Math.round(sourceHeight * target);
   } else {
     height = Math.round(sourceWidth / target);
+  }
+
+  if (zoom !== 1) {
+    width = Math.round(width / zoom);
+    // Derived from the width rather than scaled independently, so rounding
+    // cannot walk the window off 2:1.
+    height = Math.round(width / target);
   }
 
   const clamp = (value, max) => Math.max(0, Math.min(Math.round(value), max));
@@ -200,17 +226,21 @@ async function buildGradient(id, spec) {
 async function buildPhoto(id, source, tuning) {
   const out = path.join(OUT_DIR, `${id}.webp`);
   const meta = await sharp(source).metadata();
-  const window = cropWindow(meta.width, meta.height, tuning.focusX ?? 0.5, tuning.focusY);
+  const window = cropWindow(meta.width, meta.height, tuning);
 
-  let pipeline = sharp(source)
-    .extract(window)
-    .resize(WIDTH, HEIGHT)
-    .modulate({ saturation: tuning.saturation, brightness: tuning.brightness });
-  if (tuning.tint) pipeline = pipeline.tint(tuning.tint);
+  let pipeline = sharp(source).extract(window).resize(WIDTH, HEIGHT);
+  // Opt-in, and currently opted into by nothing: an absent knob means the photo
+  // ships as shot rather than passing through a no-op modulate.
+  if (tuning.saturation !== undefined || tuning.brightness !== undefined) {
+    pipeline = pipeline.modulate({
+      saturation: tuning.saturation ?? 1,
+      brightness: tuning.brightness ?? 1,
+    });
+  }
 
-  await pipeline.webp({ quality: PHOTO_QUALITY }).toFile(out);
-  await writeThumb(out, id, PHOTO_QUALITY);
-  return { out, source: `${meta.width} x ${meta.height}` };
+  await pipeline.webp({ quality: tuning.quality ?? PHOTO_QUALITY }).toFile(out);
+  await writeThumb(out, id, THUMB_QUALITY);
+  return { out, source: `${meta.width} x ${meta.height}`, window };
 }
 
 async function describe(file) {
@@ -239,7 +269,14 @@ async function main() {
       missing.push(id);
       continue;
     }
-    const { source: sourceSize } = await buildPhoto(id, source, tuning);
+    const { source: sourceSize, window } = await buildPhoto(id, source, tuning);
+    // Cropping below the output width means sharp is scaling up, which no
+    // amount of quality setting recovers. Easy to cause by nudging `zoom`.
+    if (window.width < WIDTH) {
+      problems.push(
+        `${id}: crop window is ${window.width} px wide, upscaled to ${WIDTH}; lower zoom`,
+      );
+    }
     rows.push([id, `from ${path.basename(source)} (${sourceSize})`]);
   }
 

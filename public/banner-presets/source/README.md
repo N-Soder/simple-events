@@ -4,10 +4,11 @@ Drop the full-resolution originals here, named after their preset id, then run:
 
     npm run banners
 
-The script reads `<id>.<ext>` (any format sharp can decode), cuts the 2:1 frame,
-grades it, and writes `../<id>.webp` plus `../<id>-thumb.webp`. Six files are
-expected: `string-lights`, `embers`, `laid-table`, `coffee`, `picnic`,
-`confetti`. The two gradients need no source.
+The script reads `<id>.<ext>` (any format sharp can decode), cuts the 2:1 frame
+and writes `../<id>.webp` plus `../<id>-thumb.webp`. It does not grade: the
+colour you put in is the colour that ships. Six files are expected:
+`string-lights`, `embers`, `laid-table`, `coffee`, `picnic`, `confetti`. The two
+gradients need no source.
 
 Nothing in this directory is committed except this note. The originals are
 5-15 MB each and only the built output ships, so keeping them out of git history

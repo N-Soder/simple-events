@@ -113,8 +113,29 @@ The whole 2:1 frame is still shown in two places, the picker preview and the
 `og:image` link-preview card, so it also has to look composed rather than
 letterboxed.
 
-`focusY` in the build script is what places that window. Two of the six needed it
-away from centre.
+`focusY` in the build script is what places that window, and `zoom` sets how big
+it is. Four of the six needed one or the other, which is more than it sounds:
+every photograph worth using has its subject somewhere other than the middle.
+
+The rule that decided all four is that **the band has to contain the top of the
+subject**. A wine glass cut off above its rim reads as a stem; a hamper cut off
+above its lid reads as a basket weave. So:
+
+- `laid-table` at `focusY: 0.1`. Centred, the glass rim sat above the band. 0.2
+  puts the rim exactly on the band's top edge, so 0.1 keeps a margin.
+- `picnic` at `focusY: 0`, top-anchored. At 0.1 the wicker lid edge is already
+  gone.
+- `coffee` needed `zoom`, because `focusY` could not help it at all: its subject
+  sits in the bottom third of a 3:2 source, and a full-width 2:1 window only
+  slides by a quarter of the source height. See the note in `TUNING` for why 1.4
+  rather than the 1.875 that would centre the cup.
+- `string-lights`, `embers` and `confetti` stay centred. They are a repeating
+  pattern and two flat-lays, with no top-of-subject to lose.
+
+Do not guess these numbers. Sweep a range, render the band for each, and look:
+the arithmetic will tell you a subject is inside the band while the picture
+tells you it has become unrecognisable, which is what happened to `coffee` at
+the zoom that centred it perfectly.
 
 ---
 
@@ -124,20 +145,53 @@ away from centre.
 
 Reads originals from `public/banner-presets/source/<id>.<ext>` and writes
 `public/banner-presets/<id>.webp` (1600 x 800, WebP q82, under 200 KB) plus
-`<id>-thumb.webp` (400 x 200, under 20 KB). The gradients need no source and are
-regenerated every run. The script reports dimensions and sizes for everything it
-produced and exits non-zero if anything is out of spec or missing.
+`<id>-thumb.webp` (400 x 200, WebP q74, under 20 KB). Thumbs are only ever drawn
+at 400 x 200 in the picker grid, so they carry the extra compression invisibly.
+The gradients need no source and are regenerated every run. The script reports
+dimensions and sizes for everything it produced and exits non-zero if anything is
+out of spec or missing, including if a crop window came out narrower than 1600 px
+and was therefore upscaled.
+
+One photo overrides the shared quality: `picnic` is at q78 because grass and
+gingham are both fine high-frequency detail, the most expensive thing a WebP
+encoder can be handed, and at q82 it lands just over the 200 KB budget.
 
 The originals are **not committed** (see `.gitignore`): they are 5-15 MB each and
 only the built output ships. `public/banner-presets/source/README.md` says what
 goes in there, and `CREDITS.md` has the URLs to fetch them again.
 
-Crop and grade live in the `TUNING` object at the top of
-`scripts/build-banner-presets.mjs`, one entry per photo. They are corrections in
-one direction: stock photos run louder than this product does, so the numbers pull
-saturation down and colour temperature towards the app's warm cream background.
-They are a starting point to be judged by eye, not measurements. Nudge, re-run,
-look again.
+Crops live in the `TUNING` object at the top of
+`scripts/build-banner-presets.mjs`, one entry per photo, with a comment on each
+number saying what it is for. They are a starting point to be judged by eye, not
+measurements. Nudge, re-run, look again.
+
+**Nothing is graded.** Every photograph ships as shot. `saturation` and
+`brightness` knobs still exist and still work if you add them to a photo, but no
+preset uses one. An earlier version set them across the whole set to pull stock
+photos towards a house style, and removing that was worth two lessons:
+
+- One of those numbers was not taste. `picnic` at `saturation: 0.78` was under
+  the size budget only because discarding colour also discards detail, which is
+  a compression saving. Taking the grade out pushed the file to 203 KB. Paying
+  for size with `quality` instead puts the cost where it can be seen.
+- Grading cannot rescue a photograph whose colour you dislike. `string-lights`
+  is graded orange-against-teal in the source, and 0.88 and 0.80 both leave the
+  teal exactly where it was — desaturating dulls a colour relationship without
+  changing it. If a preset's colour is wrong, replace the preset.
+
+### Do not use sharp's `.tint()`
+
+It does not apply a colour cast. It maps the image onto a single hue, so a
+near-white tint is a greyscale conversion. An earlier version of this script
+used it to warm the cooler sources towards `--background` (#FCFAF7) and cost
+`string-lights`, `picnic` and `confetti` about 85% of their chroma: measured on
+mean per-pixel `max(RGB) - min(RGB)`, `confetti` fell from 60.9 to 5.2. All
+three shipped monochrome, and it is not obvious from the code that they would.
+
+If a white-point move is ever genuinely wanted, it is
+`.linear([r, g, b], [0, 0, 0])` with per-channel gains, which preserves hue
+relationships. Verify any grade by looking at the built file, not the pipeline:
+this bug is invisible in a diff and obvious in a contact sheet.
 
 Sizing mirrors the upload path (`BANNER_MAX_WIDTH`, `BANNER_ASPECT` in
 `src/lib/bannerImage.ts`) so a preset and an uploaded photo render identically.
