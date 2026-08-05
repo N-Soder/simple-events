@@ -57,9 +57,12 @@ anything is uploaded (`src/lib/bannerImage.ts`):
   engine that can't encode WebP). Downscaling happens in halving steps, because a
   single large `drawImage()` aliases fine detail. An 11 MB, 4032 × 3024 photo comes
   out around 90 KB.
-- **Cropping is optional** (`BannerCropDialog`): a 2:1 frame with drag, pinch, and a
-  zoom slider. Every crop re-encodes from the original file, so adjusting a crop
-  twice does not stack two generations of lossy encoding.
+- **Cropping is optional** (`BannerCropDialog`): a fixed 2:1 frame with drag, pinch,
+  wheel and a zoom slider. The photo is drawn whole with the discarded part dimmed
+  rather than hidden, and the stage is shaped to the source (`cropStageAspect`) so
+  those margins hold picture instead of dead space. Every crop re-encodes from the
+  original file, so adjusting a crop twice does not stack two generations of lossy
+  encoding.
 - **GIFs are uploaded untouched.** A canvas only sees a GIF's first frame, so
   re-encoding one would silently drop the animation. They answer to the server's
   size limit instead, and the crop control is hidden for them.

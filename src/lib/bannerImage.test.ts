@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   BANNER_ASPECT,
   clampCropOrigin,
+  cropGutterShare,
   cropRectAt,
+  cropStageAspect,
   fitWithin,
   formatFileSize,
   isFullFrame,
@@ -92,6 +94,44 @@ describe("cropRectAt", () => {
   it("treats a zoom below 1 as 1, so the frame is never underfilled", () => {
     expect(cropRectAt(PHONE_PHOTO, BANNER_ASPECT, 0.2, centre)).toEqual(
       cropRectAt(PHONE_PHOTO, BANNER_ASPECT, 1, centre),
+    );
+  });
+});
+
+describe("cropGutterShare", () => {
+  it("shows exactly the overhang a landscape photo will lose", () => {
+    // A 4:3 photo is drawn 1.5× the frame's height, so a quarter of that height
+    // hangs over each edge.
+    expect(cropGutterShare(PHONE_PHOTO, BANNER_ASPECT)).toBeCloseTo(0.25, 5);
+    expect(cropGutterShare({ width: 1920, height: 1080 }, BANNER_ASPECT)).toBeCloseTo(0.0625, 5);
+  });
+
+  it("falls back to a thin gutter when nothing hangs over the top or bottom", () => {
+    // Already the frame's shape, or wider: the overhang is sideways instead.
+    expect(cropGutterShare({ width: 1600, height: 800 }, BANNER_ASPECT)).toBeCloseTo(0.04, 5);
+    expect(cropGutterShare({ width: 4000, height: 1200 }, BANNER_ASPECT)).toBeCloseTo(0.04, 5);
+  });
+
+  it("caps the gutter so a portrait photo can't make the dialog absurd", () => {
+    expect(cropGutterShare({ width: 3024, height: 4032 }, BANNER_ASPECT)).toBeCloseTo(0.3, 5);
+    expect(cropGutterShare({ width: 1000, height: 1000 }, BANNER_ASPECT)).toBeCloseTo(0.3, 5);
+  });
+});
+
+describe("cropStageAspect", () => {
+  const stageHeight = (source: { width: number; height: number }, stageWidth: number) =>
+    stageWidth / cropStageAspect(source, BANNER_ASPECT);
+
+  it("leaves room for the frame plus both gutters", () => {
+    const stageWidth = 500;
+    const frameHeight = (stageWidth * 0.9) / BANNER_ASPECT;
+    const gutter = frameHeight * cropGutterShare(PHONE_PHOTO, BANNER_ASPECT);
+    expect(stageHeight(PHONE_PHOTO, stageWidth)).toBeCloseTo(frameHeight + 2 * gutter, 5);
+  });
+
+  it("is shorter for a photo with less to show", () => {
+    expect(stageHeight({ width: 4000, height: 1200 }, 500)).toBeLessThan(
+      stageHeight(PHONE_PHOTO, 500),
     );
   });
 });

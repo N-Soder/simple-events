@@ -133,6 +133,49 @@ export function cropRectAt(source: Size, aspect: number, zoom: number, centre: P
   return { ...clampCropOrigin(centre, size, source), ...size };
 }
 
+/**
+ * The crop frame's width as a share of the stage it sits in. The remainder is
+ * the gutter down each side, where a photo wider than the frame shows what is
+ * being cut off.
+ */
+export const CROP_FRAME_WIDTH_SHARE = 0.9;
+
+/**
+ * Bounds on the gutter above and below the crop frame, as a share of the frame's
+ * own height. The floor keeps the frame's edge off the edge of the stage; the
+ * ceiling stops a portrait photo, which overhangs by more than the frame's whole
+ * height, from making the dialog taller than a phone screen.
+ */
+const MIN_GUTTER_SHARE = 0.04;
+const MAX_GUTTER_SHARE = 0.3;
+
+/**
+ * Gutter above and below the crop frame, as a share of the frame's height.
+ *
+ * Sized to the photo: exactly enough to show the part that the frame will cut
+ * off, so a 16:9 source gets a thin gutter and a 4:3 source a deep one, and
+ * neither is surrounded by dead space. A photo already wider than the frame
+ * overhangs sideways rather than vertically and gets the floor.
+ *
+ * `aspect / sourceAspect` is how many times taller than the frame the photo is
+ * drawn at minimum zoom, which is where the halved overhang comes from.
+ */
+export function cropGutterShare(source: Size, aspect: number): number {
+  const overhang = (Math.max(1, aspect / (source.width / source.height)) - 1) / 2;
+  return Math.min(Math.max(overhang, MIN_GUTTER_SHARE), MAX_GUTTER_SHARE);
+}
+
+/**
+ * Width ÷ height of the whole crop stage for a given photo.
+ *
+ * Derived from the source's shape alone, so the stage can be sized in CSS before
+ * anything is measured, and does not change as the host zooms.
+ */
+export function cropStageAspect(source: Size, aspect: number): number {
+  const frameHeightShare = CROP_FRAME_WIDTH_SHARE / aspect;
+  return 1 / (frameHeightShare * (1 + 2 * cropGutterShare(source, aspect)));
+}
+
 /** Zoom and centre that reproduce an existing crop rect, for reopening the dialog. */
 export function viewFromCropRect(
   source: Size,
