@@ -41,26 +41,13 @@ const LandingPage = () => {
 
   return (
     <main className="flex min-h-[100dvh] flex-col bg-background">
-      <header className="flex items-center justify-between px-6 py-6 sm:px-10">
+      {/* Wordmark only. This is a tool for planning a party first, so the
+          repo link lives in the footer rather than greeting people here. */}
+      <header className="flex items-center px-6 py-6 sm:px-10">
         <Link to="/" className="flex items-center gap-2.5">
           <Logo className="h-6 w-6" />
           <span className="font-medium text-foreground">Simple Events</span>
         </Link>
-        <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-          {savedCount > 0 && (
-            <Link to="/my-events" className="transition-colors hover:text-foreground">
-              Your {savedCount} saved event{savedCount !== 1 ? "s" : ""}
-            </Link>
-          )}
-          <a
-            href="https://github.com/N-Soder/simple-events"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="transition-colors hover:text-foreground"
-          >
-            GitHub
-          </a>
-        </nav>
       </header>
 
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 sm:py-14">
@@ -89,10 +76,27 @@ const LandingPage = () => {
           </Button>
         </form>
 
+        {/* Returning hosts only. A route to an empty list is a dead end for
+            anyone who has not made an event yet. Deliberately quieter than the
+            primary action: bordered rather than filled, so it stays legible
+            without competing with it. */}
+        {savedCount > 0 && (
+          <Button
+            asChild
+            variant="outline"
+            className="group mt-3 h-12 w-full max-w-xl animate-rise text-base font-normal text-muted-foreground [animation-delay:160ms] hover:text-foreground sm:h-11 sm:w-auto sm:px-6"
+          >
+            <Link to="/my-events">
+              Your {savedCount} saved event{savedCount !== 1 ? "s" : ""}
+              <ArrowRight className="transition-transform duration-300 group-hover:translate-x-0.5" />
+            </Link>
+          </Button>
+        )}
+
         {/* Claims here have to be ones the code actually backs. "Nothing tracked"
             did not: event names, guest names and bring list items are stored in
             plain text in D1. The retention window is verifiable, so say that. */}
-        <ul className="mt-5 flex animate-rise flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-muted-foreground [animation-delay:180ms]">
+        <ul className="mt-5 flex animate-rise flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-muted-foreground [animation-delay:200ms]">
           <li>Free and open source</li>
           <li className="text-primary">No sign-up required</li>
           <li>Auto-deleted 90 days after the event</li>
@@ -113,14 +117,24 @@ const LandingPage = () => {
 
       <footer className="flex flex-col gap-2 px-6 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-10">
         <p>Open source under the AGPL-3.0 license.</p>
-        <a
-          href="https://soderholm.app/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="transition-colors hover:text-foreground"
-        >
-          More projects
-        </a>
+        <div className="flex items-center gap-5">
+          <a
+            href="https://github.com/N-Soder/simple-events"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://soderholm.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-foreground"
+          >
+            More projects
+          </a>
+        </div>
       </footer>
     </main>
   );
