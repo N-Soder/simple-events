@@ -54,6 +54,12 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/webp": "webp",
   "image/avif": "avif",
 };
+// The browser resizes a banner to at most 1600 px wide and re-encodes it as
+// WebP before uploading (`src/lib/bannerImage.ts`), so a real banner arrives
+// here at well under 200 KB and only an uncropped GIF or a hand-crafted request
+// gets near this limit. Keep it in step with `MAX_UPLOAD_BYTES` on the client,
+// which is what stops a host being told their photo is too big after they have
+// filled in the whole form.
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
 function json(data: unknown, status = 200) {

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarDays, MapPin, Clock, Plus, X, Upload, ListOrdered, ListPlus } from "lucide-react";
+import { CalendarDays, Clock, Plus, X, ListOrdered, ListPlus } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { detectTimeZone } from "@/lib/timezone";
 import TimeZoneNote from "@/components/TimeZoneNote";
 import TimeField from "@/components/TimeField";
 import LocationField from "@/components/LocationField";
+import BannerField from "@/components/BannerField";
 import { saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { normalizeUrl } from "@/lib/url";
@@ -53,7 +54,6 @@ const Index = () => {
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
-  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [locationUrl, setLocationUrl] = useState("");
@@ -84,14 +84,6 @@ const Index = () => {
 
   const removeItem = (index: number) => {
     setBringItems(bringItems.filter((_, i) => i !== index));
-  };
-
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setBannerFile(file);
-      setBannerPreview(URL.createObjectURL(file));
-    }
   };
 
   const onSubmit = async (data: FormData) => {
@@ -167,31 +159,7 @@ const Index = () => {
           <CardContent className="p-6 sm:p-8">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Banner Upload */}
-              <div>
-                <Label>Banner photo (optional)</Label>
-                <div className="mt-2">
-                  {bannerPreview ? (
-                    <div className="relative">
-                      <img src={bannerPreview} alt="Banner preview" className="h-48 w-full rounded-lg object-cover" />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute right-2 top-2 h-8 w-8"
-                        onClick={() => { setBannerFile(null); setBannerPreview(null); }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <label className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/50 transition-colors hover:bg-muted">
-                      <Upload className="mb-2 h-6 w-6 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Click to upload</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={handleBannerChange} />
-                    </label>
-                  )}
-                </div>
-              </div>
+              <BannerField onChange={setBannerFile} />
 
               {/* Event Name */}
               <div>

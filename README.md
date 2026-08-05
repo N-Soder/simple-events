@@ -9,7 +9,9 @@ A lightweight web app for creating private event pages and coordinating RSVPs, n
 **For hosts**
 - Create an event with name, date, start and optional end time, location, and an optional
   Markdown description (with a live preview)
-- Upload a banner image
+- Upload a banner image, with an optional crop. Any size photo can be picked: the
+  browser resizes it to at most 1600 px wide and re-encodes it as WebP before it is
+  uploaded, so a 12 MB phone photo is stored as roughly 100 KB
 - Optional password protection
 - Control guest list visibility: full names, count only, or hidden
 - Optional bring list: define items with quantities so guests can claim what they'll bring
@@ -45,6 +47,29 @@ Two things are deliberately left out of the preview:
   an unauthenticated preview should not undercut that if a link gets forwarded.
 
 Admin links (`/admin/:id`) are untouched and always preview generically.
+
+## Banner images
+
+Hosts pick whatever their camera produced, and the browser does the work before
+anything is uploaded (`src/lib/bannerImage.ts`):
+
+- The photo is scaled to fit **1600 × 1000** and re-encoded as **WebP** (JPEG on an
+  engine that can't encode WebP). Downscaling happens in halving steps, because a
+  single large `drawImage()` aliases fine detail. An 11 MB, 4032 × 3024 photo comes
+  out around 90 KB.
+- **Cropping is optional** (`BannerCropDialog`): a fixed 2:1 frame with drag, pinch,
+  wheel and a zoom slider. The photo is drawn whole with the discarded part dimmed
+  rather than hidden, and the stage is shaped to the source (`cropStageAspect`) so
+  those margins hold picture instead of dead space. Every crop re-encodes from the
+  original file, so adjusting a crop twice does not stack two generations of lossy
+  encoding.
+- **GIFs are uploaded untouched.** A canvas only sees a GIF's first frame, so
+  re-encoding one would silently drop the animation. They answer to the server's
+  size limit instead, and the crop control is hidden for them.
+
+The server still validates type and size (`functions/api`), since none of the above
+can be trusted from the client. `MAX_UPLOAD_BYTES` in `src/lib/bannerImage.ts` and
+`MAX_BANNER_BYTES` in `functions/api/[[route]].ts` are the same number on purpose.
 
 ## Tech stack
 
