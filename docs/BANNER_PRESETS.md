@@ -146,7 +146,7 @@ the zoom that centred it perfectly.
 
     npm run banners
 
-Reads originals from `public/banner-presets/source/<id>.<ext>` and writes
+Reads originals from `banner-sources/<id>.<ext>` and writes
 `public/banner-presets/<id>.webp` (1600 x 800, WebP q82, under 200 KB) plus
 `<id>-thumb.webp` (400 x 200, WebP q74, under 20 KB). Thumbs are only ever drawn
 at 400 x 200 in the picker grid, so they carry the extra compression invisibly.
@@ -160,8 +160,19 @@ gingham are both fine high-frequency detail, the most expensive thing a WebP
 encoder can be handed, and at q82 it lands just over the 200 KB budget.
 
 The originals are **not committed** (see `.gitignore`): they are 5-15 MB each and
-only the built output ships. `public/banner-presets/source/README.md` says what
-goes in there, and `CREDITS.md` has the URLs to fetch them again.
+only the built output ships. `banner-sources/README.md` says what goes in there,
+and `CREDITS.md` has the URLs to fetch them again.
+
+They live in `banner-sources/` at the repo root rather than beside the output,
+and that placement is load-bearing rather than tidiness. They were originally in
+`public/banner-presets/source/`, where gitignoring them keeps them out of the
+repo but not out of a deploy: Vite copies `public/` into `dist` verbatim and
+offers no way to exclude a subdirectory, so every build published 12 MB of
+unaltered full-resolution stock photos at `/banner-presets/source/<id>.jpg`. That
+is worse than wasted bandwidth — the licence reasoning in §2 turns on this repo
+shipping cropped, re-encoded derivatives rather than redistributing the files as
+they came, and serving the untouched original contradicts it directly. Anything
+that is build input, not a served asset, belongs outside `public/`.
 
 Crops live in the `TUNING` object at the top of
 `scripts/build-banner-presets.mjs`, one entry per photo, with a comment on each

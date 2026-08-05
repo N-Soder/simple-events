@@ -3,10 +3,11 @@
  *
  *   npm run banners
  *
- * Photographs come from originals you drop in `public/banner-presets/source/`,
- * named after their preset id (`coffee.jpg`, `picnic.jpg`, ...). Those originals
- * are deliberately not committed: they are 5-15 MB each and only the built
- * output ships. The two gradients need no source and are generated every run.
+ * Photographs come from originals you drop in `banner-sources/`, named after
+ * their preset id (`coffee.jpg`, `picnic.jpg`, ...). Those originals are
+ * deliberately not committed and deliberately not under `public/`: they are
+ * 5-15 MB each and only the built output ships. The two gradients need no
+ * source and are generated every run.
  *
  * Why a script rather than hand-edited files: the crop and the grade are the
  * whole job here, and both need tuning by eye. Having them as numbers in one
@@ -26,7 +27,13 @@ import sharp from "sharp";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const OUT_DIR = path.join(ROOT, "public/banner-presets");
-const SOURCE_DIR = path.join(OUT_DIR, "source");
+/**
+ * Outside `public/` on purpose. Vite copies `public/` into `dist` verbatim, with
+ * no way to exclude a subdirectory, so originals kept next to the output were
+ * published on every deploy: 12 MB of unaltered stock photos at
+ * `/banner-presets/source/<id>.jpg`. Gitignoring them is not enough.
+ */
+const SOURCE_DIR = path.join(ROOT, "banner-sources");
 
 /** Mirrors BANNER_MAX_WIDTH and BANNER_ASPECT in src/lib/bannerImage.ts. */
 const WIDTH = 1600;
@@ -304,7 +311,7 @@ async function main() {
 
   if (missing.length) {
     console.log(`\n  Not built, no source file: ${missing.join(", ")}`);
-    console.log(`  Drop originals named <id>.<ext> in public/banner-presets/source/ and re-run.`);
+    console.log(`  Drop originals named <id>.<ext> in banner-sources/ and re-run.`);
   }
 
   if (problems.length) {

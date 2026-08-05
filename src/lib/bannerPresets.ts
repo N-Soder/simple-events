@@ -13,8 +13,7 @@
  * URLs and leave them alone.
  *
  * The files are produced by `npm run banners` from originals in
- * `public/banner-presets/source/`, which are not committed. See
- * `docs/BANNER_PRESETS.md`.
+ * `banner-sources/`, which are not committed. See `docs/BANNER_PRESETS.md`.
  */
 
 /** Directory the built assets are served from. Also the marker for `isPresetUrl`. */

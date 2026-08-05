@@ -31,7 +31,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Banner preset originals: only the built WebPs ship. See
-# public/banner-presets/source/README.md
-public/banner-presets/source/*
-!public/banner-presets/source/README.md
+# Banner preset originals: only the built WebPs ship. See banner-sources/README.md
+# Kept out of public/ as well as out of git, because Vite copies public/
+# verbatim into dist and would publish 12 MB of unaltered stock photos.
+banner-sources/*
+!banner-sources/README.md
