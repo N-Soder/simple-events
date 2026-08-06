@@ -315,7 +315,7 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
               className="mt-2 text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => setPresetsOpen(true)}
             >
-              No photo? Pick one of ours
+              Or choose from the gallery
             </button>
           </>
         )}

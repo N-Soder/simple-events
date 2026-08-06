@@ -36,10 +36,8 @@ const BannerPresetDialog = ({
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-2xl">
       <DialogHeader>
-        <DialogTitle>Pick a banner</DialogTitle>
-        <DialogDescription>
-          Free to use, no photo of your own needed. You can swap it for your own later.
-        </DialogDescription>
+        <DialogTitle>Choose a banner</DialogTitle>
+        <DialogDescription>You can change it any time.</DialogDescription>
       </DialogHeader>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
