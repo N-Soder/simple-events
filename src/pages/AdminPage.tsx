@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -44,6 +44,8 @@ import { normalizeUrl } from "@/lib/url";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { getMyEvent, saveMyEvent } from "@/lib/myEvents";
 import { BringItem } from "@/components/BringListSection";
+import AppHeader from "@/components/AppHeader";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface EventData {
   event: {
@@ -158,7 +160,7 @@ const AdminPage = () => {
         guest_visibility: visibility, bring_list_enabled: bringListEnabled,
         bring_list_message: bringListMessage, bring_list_mode: bringListMode,
       });
-      toast({ title: "Event updated!" });
+      toast({ title: "Event updated" });
       loadData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
@@ -251,11 +253,11 @@ const AdminPage = () => {
     `${window.location.origin}/event/${id}#manage=${rsvp.id}.${rsvp.manage_code}`;
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
+    return <main id="main-content" className="min-h-[100dvh] bg-background"><AppHeader /><div className="mx-auto max-w-4xl px-4 py-12 sm:px-6" aria-busy="true" aria-label="Loading event dashboard"><Skeleton className="h-4 w-24" /><Skeleton className="mt-5 h-12 w-2/3" /><Skeleton className="mt-10 h-64 w-full rounded-lg" /></div></main>;
   }
 
   if (!data) {
-    return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Invalid admin link.</p></div>;
+    return <main id="main-content" className="page-texture min-h-[100dvh] bg-background"><AppHeader /><div className="mx-auto max-w-md px-4 py-20 text-center"><h1 className="text-3xl">This admin link doesn’t work</h1><p className="mt-3 text-muted-foreground">Check that the complete link was copied, including the private token.</p></div></main>;
   }
 
   // Prefer the link saved when the event was created: for a password-protected
@@ -271,17 +273,19 @@ const AdminPage = () => {
   const totalKids = activeRsvps.reduce((s, r) => s + r.kids, 0);
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
-        <div className="mb-8 flex items-center gap-3">
-          <Shield className="h-6 w-6 text-primary" />
-          <h1 className="text-3xl font-bold">Admin dashboard</h1>
-        </div>
+    <main id="main-content" className="page-texture min-h-[100dvh] bg-background">
+      <AppHeader showCreate showMyEvents />
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+        <header className="mb-9">
+          <p className="eyebrow flex items-center gap-2"><Shield className="h-4 w-4" />Private dashboard</p>
+          <h1 className="mt-3 text-4xl tracking-[-0.025em] sm:text-5xl">{data.event.name}</h1>
+          <p className="mt-3 text-muted-foreground">Share the plan, update the details, and keep track of replies.</p>
+        </header>
 
         {/* Share links */}
-        <Card className="mb-6">
-          <CardContent className="space-y-4 p-4">
-            <div>
+        <Card className="surface-panel mb-5 border-0 shadow-none">
+          <CardContent className="grid gap-6 p-5 sm:grid-cols-2 sm:p-6">
+            <div className="min-w-0">
               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                 <p className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                   <Users className="h-4 w-4" />
@@ -309,7 +313,7 @@ const AdminPage = () => {
               </p>
             </div>
 
-            <div>
+            <div className="min-w-0 border-t border-border pt-5 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
               <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                 <Shield className="h-4 w-4" />
                 Admin link
@@ -323,7 +327,7 @@ const AdminPage = () => {
         </Card>
 
         {/* Auto-deletion notice */}
-        <Alert className="mb-6">
+        <Alert className="mb-5 bg-card/70">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             This event and all guest data will be automatically deleted on{" "}
@@ -332,9 +336,10 @@ const AdminPage = () => {
         </Alert>
 
         {/* Edit Event Details */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-lg">Edit event details</CardTitle>
+        <Card className="surface-panel mb-5 border-0 shadow-none">
+          <CardHeader className="border-b border-border pb-5">
+            <p className="eyebrow">The plan</p>
+            <h2 className="mt-1 font-serif text-2xl">Event details</h2>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -391,13 +396,13 @@ const AdminPage = () => {
 
             <div>
               <Label className="mb-3 block">Guest list visibility</Label>
-              <RadioGroup value={visibility} onValueChange={(v) => setVisibility(v as typeof visibility)} className="space-y-2">
+              <RadioGroup value={visibility} onValueChange={(v) => setVisibility(v as typeof visibility)} className="grid gap-2 sm:grid-cols-3">
                 {[
                   { value: "full", label: "Full guest list", desc: "Names and counts visible" },
                   { value: "count_only", label: "Total count only", desc: "Aggregate numbers only" },
                   { value: "hidden", label: "Hidden", desc: "No guest info shown" },
                 ].map((opt) => (
-                  <label key={opt.value} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${visibility === opt.value ? "border-primary bg-primary/5" : "border-border"}`}>
+                  <label key={opt.value} className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors ${visibility === opt.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
                     <RadioGroupItem value={opt.value} className="mt-0.5" />
                     <div>
                       <p className="font-medium">{opt.label}</p>
@@ -410,29 +415,29 @@ const AdminPage = () => {
 
             <Button onClick={handleSave} disabled={saving}>
               <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving..." : "Save changes"}
+              {saving ? "Saving…" : "Save changes"}
             </Button>
           </CardContent>
         </Card>
 
         {/* RSVPs */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+        <Card className="surface-panel mb-5 border-0 shadow-none">
+          <CardHeader className="border-b border-border pb-5">
+            <h2 className="flex flex-wrap items-center gap-2 font-serif text-2xl">
               <Users className="h-5 w-5" />
               RSVPs ({activeRsvps.length}{data.rsvps.length !== activeRsvps.length ? ` of ${data.rsvps.length}` : ""})
               <span className="ml-auto text-sm font-normal text-muted-foreground">
                 {totalAdults} adults, {totalKids} kids
               </span>
-            </CardTitle>
+            </h2>
           </CardHeader>
           <CardContent>
             {data.rsvps.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No RSVPs yet.</p>
+              <div className="py-6 text-center"><p className="font-medium">No replies yet</p><p className="mt-1 text-sm text-muted-foreground">Share the guest link above when you’re ready.</p></div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="divide-y divide-border">
                 {data.rsvps.map((r) => (
-                  <li key={r.id} className={`flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 ${r.cancelled ? "opacity-50" : ""}`}>
+                  <li key={r.id} className={`flex items-center justify-between gap-3 py-3 ${r.cancelled ? "opacity-50" : ""}`}>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`font-medium truncate ${r.cancelled ? "line-through" : ""}`}>{r.guest_name}</span>
                       {r.cancelled && <Badge variant="secondary" className="text-xs shrink-0">Cancelled</Badge>}
@@ -455,6 +460,7 @@ const AdminPage = () => {
                             size="icon"
                             className="h-8 w-8 text-destructive"
                             disabled={deletingRsvpId === r.id}
+                            aria-label={`Remove RSVP for ${r.guest_name}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -486,16 +492,16 @@ const AdminPage = () => {
         </Card>
 
         {/* Bring List */}
-        <Card className={!bringListEnabled ? "opacity-60" : ""}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+        <Card className={`surface-panel border-0 shadow-none ${!bringListEnabled ? "opacity-70" : ""}`}>
+          <CardHeader className="border-b border-border pb-5">
+            <h2 className="flex flex-wrap items-center gap-2 font-serif text-2xl">
               <UtensilsCrossed className="h-5 w-5" />
-              Bring List
+              Bring list
               <div className="ml-auto flex items-center gap-2">
                 <span className="text-sm font-normal text-muted-foreground">{bringListEnabled ? "Visible to guests" : "Hidden from guests"}</span>
                 <Switch checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
               </div>
-            </CardTitle>
+            </h2>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Mode selector */}
@@ -540,7 +546,7 @@ const AdminPage = () => {
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{item.item_name}</span>
                           {bringListMode === "signup" && (
-                            <span className={`text-xs ${covered ? "text-emerald-600 font-medium" : "text-muted-foreground"}`}>
+                            <span className={`text-xs ${covered ? "font-medium text-primary" : "text-muted-foreground"}`}>
                               {item.committed_quantity}/{item.target_quantity}
                               {covered ? " ✓" : ""}
                             </span>
@@ -557,7 +563,7 @@ const AdminPage = () => {
                           </p>
                         )}
                       </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" disabled={deletingItemId === item.id} onClick={() => handleDeleteItem(item.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" disabled={deletingItemId === item.id} onClick={() => handleDeleteItem(item.id)} aria-label={`Remove ${item.item_name}`}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </li>
@@ -586,16 +592,16 @@ const AdminPage = () => {
                   placeholder="Slots"
                 />
               )}
-              <Button variant="outline" size="icon" onClick={handleAddItem}>
+              <Button variant="outline" size="icon" onClick={handleAddItem} aria-label="Add bring-list item">
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
           </CardContent>
         </Card>
         {/* Danger Zone */}
-        <Card className="mt-6 border-destructive/40">
+        <Card className="mt-5 border-destructive/35 bg-background/60 shadow-none">
           <CardHeader>
-            <CardTitle className="text-lg text-destructive">Danger zone</CardTitle>
+            <h2 className="font-serif text-2xl text-destructive">Danger zone</h2>
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm text-muted-foreground">

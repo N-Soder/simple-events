@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, Laptop, Shield, Trash2, Users } from "lucide-react";
-import Logo from "@/components/Logo";
+import { ArrowRight, CalendarDays, Laptop, Shield, Trash2, Users } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,51 +37,49 @@ const MyEventsPage = () => {
   };
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold sm:text-4xl">Your events</h1>
-          <p className="mt-2 text-muted-foreground">
-            Events you created in this browser, with the links you'll need to manage them.
+    <main id="main-content" className="page-texture min-h-[100dvh] bg-background">
+      <AppHeader showCreate />
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+        <header className="mb-9 max-w-2xl">
+          <p className="eyebrow">Saved on this device</p>
+          <h1 className="mt-3 text-4xl tracking-[-0.025em] sm:text-5xl">Your events</h1>
+          <p className="mt-3 text-lg leading-8 text-muted-foreground">
+            The guest and admin links for events you created in this browser.
           </p>
-        </div>
+        </header>
 
         {events.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-              <Logo className="h-10 w-10" />
-              <div>
-                <p className="font-medium">No events saved on this device</p>
-                <p className="mt-1 text-sm text-muted-foreground">
+          <div className="surface-panel px-5 py-12 text-center sm:px-10">
+              <p className="font-serif text-3xl">Nothing saved here yet.</p>
+              <div className="mx-auto mt-3 max-w-lg">
+                <p className="text-sm leading-6 text-muted-foreground">
                   Events you create are listed here. If you created one in a different browser
                   or cleared your browsing data, you'll need the admin link you saved at the time.
                 </p>
               </div>
-              <Button asChild>
-                <Link to="/create">Create an event</Link>
+              <Button asChild className="mt-6">
+                <Link to="/create">Create an event <ArrowRight /></Link>
               </Button>
-            </CardContent>
-          </Card>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {events.map((event) => (
-              <Card key={event.id} className={isPast(event.event_date) ? "opacity-75" : ""}>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-start justify-between gap-3 text-lg">
-                    <span className="min-w-0">
-                      <span className="block truncate">{event.name}</span>
-                      <span className="mt-1 flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
+              <article key={event.id} className={`surface-panel overflow-hidden ${isPast(event.event_date) ? "opacity-75" : ""}`}>
+                <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-6">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-2xl">{event.name}</h2>
+                      <p className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
                         <CalendarDays className="h-4 w-4 shrink-0" />
                         {formatEventDate(event.event_date)}
                         {isPast(event.event_date) && " · past"}
-                      </span>
-                    </span>
+                      </p>
+                    </div>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 shrink-0 text-muted-foreground"
+                          className="shrink-0 text-muted-foreground"
                           title="Remove from this list"
                           aria-label={`Remove ${event.name} from this list`}
                         >
@@ -109,10 +106,9 @@ const MyEventsPage = () => {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
+                </div>
+                <div className="grid gap-5 px-5 py-5 sm:grid-cols-2 sm:px-6">
+                  <div className="min-w-0">
                     <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                       <Users className="h-4 w-4" />
                       Guest link
@@ -123,7 +119,7 @@ const MyEventsPage = () => {
                       label={`Copy guest link for ${event.name}`}
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                       <Shield className="h-4 w-4" />
                       Admin link
@@ -134,16 +130,16 @@ const MyEventsPage = () => {
                       label={`Copy admin link for ${event.name}`}
                     />
                   </div>
-                  <Button variant="secondary" size="sm" asChild>
-                    <Link to={`/admin/${event.id}?token=${event.admin_token}`}>Open admin dashboard</Link>
+                  <Button variant="secondary" asChild className="sm:col-span-2 sm:justify-self-start">
+                    <Link to={`/admin/${event.id}?token=${event.admin_token}`}>Open dashboard <ArrowRight /></Link>
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </article>
             ))}
           </div>
         )}
 
-        <div className="mt-8 flex items-start gap-2.5 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+        <div className="mt-8 flex items-start gap-3 border-t border-border pt-5 text-sm leading-6 text-muted-foreground">
           <Laptop className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
             This list is stored in this browser only. It isn't an account, and it doesn't sync.

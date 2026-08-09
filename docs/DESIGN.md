@@ -182,45 +182,25 @@ Non-negotiable, and cheaper to keep than to retrofit:
 
 ---
 
-## 7. Known issues and backlog
+## 7. Redesign checkpoint (August 2026)
 
-Grounded in the current code, roughly highest value first.
+The app-wide review resolved the previous high-priority backlog:
 
-### Create form (`src/pages/CreateEvent.tsx`)
+- The create flow now leads with name and date, keeps optional settings behind
+  **More options**, and keeps the primary action reachable in a sticky footer.
+- Banner upload and the preset gallery share one secondary "Event photo" area,
+  preserving the preset-picker work added in `47d5b1d`.
+- Guest visibility is a compact select rather than three competing cards.
+- The created-event handoff makes the guest link primary and treats the
+  one-time admin link as private, important information.
+- Headings use the available 400-weight display face; fonts load from document
+  links rather than a blocking CSS import.
+- Route-level lazy loading replaces the previous single JavaScript bundle.
+- Shared controls now carry consistent 44px touch targets, focus treatment,
+  and reduced-motion behaviour.
 
-The largest single opportunity in the app. ~1600px tall on desktop, ~1790px on
-mobile, and only **two of its nine fields are required** (name, date).
-
-1. **Field order is inverted.** *Banner Photo (optional)* is the first field,
-   above *Event Name*. Since the landing page now collects the name first, a
-   host arrives to find an empty upload box where their answer should be. Move
-   name (and date) to the top; demote the banner.
-2. **No progressive disclosure.** Password, guest visibility, and bring list
-   are all expanded at equal weight. Group the essentials, collapse the rest
-   behind a clearly labelled "More options". The defaults are already sensible.
-3. **Guest list visibility spends three large radio cards** on a setting most
-   hosts never change. A compact control with the detail behind it would return
-   a lot of vertical space.
-4. **Submit sits at the bottom of a long scroll** with no sticky affordance and
-   no scroll-to-first-error on failed validation.
-5. **The heavy `Card` wrapper** (`border-0 shadow-lg`) fights the flat, warm
-   language used elsewhere.
-
-### App-wide
-
-7. **Synthetic bold on every heading.** `font-bold` is applied to `h1` in
-   `AdminPage`, `CreateEvent`, `EventCreated`, `EventPage`, `MyEventsPage` and
-   `NotFound`, but DM Serif Display ships only weight 400. Every one of those
-   headings is browser-smeared. Removing `font-bold` is a visual improvement,
-   not a regression.
-8. **Fonts load via `@import` in `index.css`**, which blocks and serialises the
-   request behind the stylesheet. Moving to `<link rel="preconnect">` +
-   `<link>` in `index.html` measurably improves first paint.
-9. **`EventCreated` is the highest-stakes screen in the product**: it is the
-   only time the admin link is shown, and losing it is unrecoverable. It
-   deserves a dedicated pass on saving, copying, and warning.
-10. **Bundle is ~700kB** in one chunk. Route-level code splitting is the
-    obvious win.
+Future work should be added here only after verifying it against the live UI at
+320, 768, 1024, and 1440px, rather than inferred from component code alone.
 
 ---
 
@@ -232,6 +212,8 @@ Why things are the way they are, so they don't get undone by accident.
 | --- | --- |
 | Table mark with a **filled** centre | The open ring read as a loading spinner at nav and favicon sizes. Two other logo directions were rejected for similar misreads: an outlined square with a tick read as a to-do checkbox, and a portrait card read as a phone. |
 | Landing page is a name field, not a pitch | Fastest path to a created event. Three rounds of conventional marketing-page layouts were tried and rejected first. |
+| Optional creation settings use progressive disclosure | Most hosts only need a name and date. Keeping photo, privacy, password and bring-list controls in one clearly labelled section preserves capability without making the default path feel like a form builder. |
+| Preset banners and uploads share one event-photo area | They are two ways to make the same choice. Presenting them together avoids competing visual sections and keeps the merged preset gallery intact. |
 | Headline serif, everything else sans | Existing brand pairing, retained deliberately. |
 | No dark-mode design work | Explicitly out of scope; semantic tokens keep it functional without it being designed. |
 | Placeholder stock photography rejected | A live product is not a comp. No image beats a `picsum.photos` filler. |

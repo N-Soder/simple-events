@@ -3,15 +3,14 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarDays, Clock, Plus, X, ListOrdered, ListPlus } from "lucide-react";
-import Logo from "@/components/Logo";
+import { CalendarDays, ChevronDown, Clock, Eye, Image, ListOrdered, ListPlus, LockKeyhole, Plus, Settings2, UtensilsCrossed, X } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { createEvent, uploadBanner } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
@@ -58,6 +57,7 @@ const Index = () => {
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [locationUrl, setLocationUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
 
   // The landing page hands the event name over in the query string, so a host
   // who typed it there doesn't have to type it again.
@@ -148,268 +148,202 @@ const Index = () => {
     }
   };
 
+  const handleInvalid = (formErrors: typeof errors) => {
+    const firstField = Object.keys(formErrors)[0];
+    if (!firstField) return;
+    if (["password", "guest_visibility"].includes(firstField)) setMoreOptionsOpen(true);
+    window.setTimeout(() => document.getElementById(firstField)?.focus(), 0);
+  };
+
   return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-2xl px-4 py-12 sm:py-20">
-        <div className="mb-10 text-center">
-          <Logo className="mx-auto mb-4 h-11 w-11" />
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Create an event</h1>
-          <p className="mt-3 text-lg text-muted-foreground">
-            Set up your gathering and share a private link with your guests.
+    <main id="main-content" className="page-texture min-h-[100dvh] bg-background">
+      <AppHeader backTo="/" backLabel="Home" showMyEvents />
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-16 lg:py-16">
+        <header className="lg:sticky lg:top-10 lg:self-start">
+          <p className="eyebrow">New event</p>
+          <h1 className="mt-4 text-4xl leading-tight tracking-[-0.025em] sm:text-5xl">Start with the plan.</h1>
+          <p className="mt-4 leading-7 text-muted-foreground">
+            Give guests the essentials now. Photos, privacy, and the bring list can stay out of the way until you need them.
           </p>
-        </div>
+          <div className="mt-8 hidden border-t border-border pt-5 text-sm text-muted-foreground lg:block">
+            <p className="font-medium text-foreground">What happens next</p>
+            <p className="mt-2 leading-6">You’ll get one guest link to share and one private link for managing replies.</p>
+          </div>
+        </header>
 
-        <Card className="border-0 shadow-lg">
-          <CardContent className="p-6 sm:p-8">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              {/* Banner Upload */}
-              <BannerField onChange={setBanner} />
-
-              {/* Event Name */}
+        <form onSubmit={handleSubmit(onSubmit, handleInvalid)} className="min-w-0 space-y-5" noValidate>
+          <section className="surface-panel p-5 sm:p-7" aria-labelledby="essentials-heading">
+            <div className="mb-7 flex items-start gap-3 border-b border-border pb-5">
+              <span className="font-serif text-2xl text-primary/70">01</span>
               <div>
-                <Label htmlFor="name">Event name *</Label>
-                <Input id="name" placeholder="Summer BBQ, Birthday Party..." {...register("name")} className="mt-1.5" />
-                {errors.name && <p className="mt-1 text-sm text-destructive">{errors.name.message}</p>}
+                <h2 id="essentials-heading" className="font-sans text-base font-semibold">The essentials</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Only the event name and date are required.</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <Label htmlFor="name">Event name <span aria-hidden="true">*</span></Label>
+                <Input id="name" placeholder="Midsummer supper" {...register("name")} className="mt-1.5 h-12 text-base sm:text-base" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-error" : undefined} />
+                {errors.name && <p id="name-error" className="field-error">{errors.name.message}</p>}
               </div>
 
-              {/* Description */}
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <MarkdownEditor
-                  value={watch("description") || ""}
-                  onChange={(v) => setValue("description", v)}
-                  placeholder="Tell your guests what to expect..."
-                  rows={6}
-                />
-              </div>
-
-              {/* Date & Time */}
-              <div>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <Label htmlFor="event_date">
-                      <CalendarDays className="mr-1.5 inline h-4 w-4" />
-                      Date *
-                    </Label>
-                    <Input id="event_date" type="date" {...register("event_date")} className="mt-1.5" />
-                    {errors.event_date && <p className="mt-1 text-sm text-destructive">{errors.event_date.message}</p>}
-                  </div>
-                  <div>
-                    <Label htmlFor="event_time">
-                      <Clock className="mr-1.5 inline h-4 w-4" />
-                      Start time
-                    </Label>
-                    <TimeField
-                      id="event_time"
-                      value={startTime || ""}
-                      onChange={(v) => {
-                        setValue("event_time", v);
-                        // An end time without a start is meaningless.
-                        if (!v) setValue("event_end_time", "");
-                      }}
-                      aria-label="Start time"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="event_end_time">
-                      <Clock className="mr-1.5 inline h-4 w-4" />
-                      End time
-                    </Label>
-                    <TimeField
-                      id="event_end_time"
-                      value={endTime || ""}
-                      onChange={(v) => setValue("event_end_time", v)}
-                      disabled={!startTime}
-                      relativeTo={startTime || undefined}
-                      defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60}
-                      placeholderExample="22:30"
-                      aria-label="End time"
-                    />
-                    {errors.event_end_time && <p className="mt-1 text-sm text-destructive">{errors.event_end_time.message}</p>}
-                  </div>
+              <div className="grid gap-4 sm:grid-cols-[1.15fr_1fr_1fr]">
+                <div>
+                  <Label htmlFor="event_date"><CalendarDays className="mr-1.5 inline h-4 w-4" />Date <span aria-hidden="true">*</span></Label>
+                  <Input id="event_date" type="date" {...register("event_date")} className="mt-1.5" aria-invalid={!!errors.event_date} aria-describedby={errors.event_date ? "date-error" : undefined} />
+                  {errors.event_date && <p id="date-error" className="field-error">{errors.event_date.message}</p>}
                 </div>
-                {startTime && (
-                  <TimeZoneNote value={timezone} onChange={setTimezone} showDurationHint={!endTime} />
-                )}
-              </div>
-
-              {/* Location */}
-              <LocationField
-                location={watch("location") || ""}
-                onLocationChange={(v) => setValue("location", v)}
-                url={locationUrl}
-                onUrlChange={setLocationUrl}
-              />
-
-              {/* Password */}
-              <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <Label>Require guest password</Label>
-                  <Switch checked={requirePassword} onCheckedChange={setRequirePassword} />
+                <div>
+                  <Label htmlFor="event_time"><Clock className="mr-1.5 inline h-4 w-4" />Starts</Label>
+                  <TimeField id="event_time" value={startTime || ""} onChange={(value) => { setValue("event_time", value); if (!value) setValue("event_end_time", ""); }} aria-label="Start time" />
                 </div>
-                {!requirePassword && (
-                  <p className="text-sm text-muted-foreground">Anyone with the link can view your event.</p>
-                )}
-                {requirePassword && (
-                  <div className="space-y-3">
-                    <div>
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="A simple password for your guests"
-                        {...register("password")}
-                        className="mt-1.5"
-                      />
-                      {errors.password && <p className="mt-1 text-sm text-destructive">{errors.password.message}</p>}
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
-                      <div>
-                        <p className="text-sm font-medium">Embed password in guest link</p>
-                        <p className="text-xs text-muted-foreground">Guests won't need to type it. It's in the URL</p>
+                <div>
+                  <Label htmlFor="event_end_time"><Clock className="mr-1.5 inline h-4 w-4" />Ends</Label>
+                  <TimeField id="event_end_time" value={endTime || ""} onChange={(value) => setValue("event_end_time", value)} disabled={!startTime} relativeTo={startTime || undefined} defaultOffsetMinutes={DEFAULT_DURATION_HOURS * 60} placeholderExample="22:30" aria-label="End time" />
+                  {errors.event_end_time && <p className="field-error">{errors.event_end_time.message}</p>}
+                </div>
+              </div>
+              {startTime && <TimeZoneNote value={timezone} onChange={setTimezone} showDurationHint={!endTime} />}
+
+              <LocationField location={watch("location") || ""} onLocationChange={(value) => setValue("location", value)} url={locationUrl} onUrlChange={setLocationUrl} />
+
+              <div>
+                <Label htmlFor="description">A note for guests <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <MarkdownEditor value={watch("description") || ""} onChange={(value) => setValue("description", value)} placeholder="What should people know?" rows={4} />
+              </div>
+            </div>
+          </section>
+
+          <Collapsible open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen} className="surface-panel overflow-hidden">
+            <CollapsibleTrigger asChild>
+              <button type="button" className="flex w-full items-center gap-3 px-5 py-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-7">
+                <span className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-muted-foreground"><Settings2 className="h-4 w-4" /></span>
+                <span className="flex-1">
+                  <span className="block font-medium">More options</span>
+                  <span className="mt-0.5 block text-sm text-muted-foreground">Photo, password, guest privacy, and bring list</span>
+                </span>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${moreOptionsOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-8 border-t border-border px-5 py-6 sm:px-7 sm:py-8">
+                <OptionSection icon={Image} title="Event photo" description="A wide banner at the top of the guest page.">
+                  <BannerField onChange={setBanner} />
+                </OptionSection>
+
+                <OptionSection icon={LockKeyhole} title="Guest password" description="The shared link is usually private enough. Add a password for another layer.">
+                  <div className="flex items-center justify-between rounded-md bg-muted/45 px-4 py-3">
+                    <Label htmlFor="require-password" className="cursor-pointer">Require a password</Label>
+                    <Switch id="require-password" checked={requirePassword} onCheckedChange={setRequirePassword} />
+                  </div>
+                  {requirePassword && (
+                    <div className="mt-3 space-y-3">
+                      <Input id="password" type="password" placeholder="A simple password for guests" {...register("password")} aria-invalid={!!errors.password} />
+                      {errors.password && <p className="field-error">{errors.password.message}</p>}
+                      <div className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-3">
+                        <div>
+                          <Label htmlFor="embed-password" className="cursor-pointer">Put it in the guest link</Label>
+                          <p className="mt-0.5 text-xs text-muted-foreground">Guests can open the page without typing it.</p>
+                        </div>
+                        <Switch id="embed-password" checked={embedPassword} onCheckedChange={setEmbedPassword} />
                       </div>
-                      <Switch checked={embedPassword} onCheckedChange={setEmbedPassword} />
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Guest Visibility */}
-              <div>
-                <Label className="mb-3 block">Guest list visibility</Label>
-                <RadioGroup
-                  value={visibility}
-                  onValueChange={(v) => setValue("guest_visibility", v as FormData["guest_visibility"])}
-                  className="space-y-2"
-                >
-                  <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${visibility === "full" ? "border-primary bg-primary/5" : "border-border"}`}>
-                    <RadioGroupItem value="full" className="mt-0.5" />
-                    <div>
-                      <p className="font-medium">Full guest list</p>
-                      <p className="text-sm text-muted-foreground">Names and attendance counts visible to all guests</p>
-                    </div>
-                  </label>
-                  <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${visibility === "count_only" ? "border-primary bg-primary/5" : "border-border"}`}>
-                    <RadioGroupItem value="count_only" className="mt-0.5" />
-                    <div>
-                      <p className="font-medium">Total count only</p>
-                      <p className="text-sm text-muted-foreground">Guests see "12 adults, 3 kids attending" but no names</p>
-                    </div>
-                  </label>
-                  <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${visibility === "hidden" ? "border-primary bg-primary/5" : "border-border"}`}>
-                    <RadioGroupItem value="hidden" className="mt-0.5" />
-                    <div>
-                      <p className="font-medium">Hidden</p>
-                      <p className="text-sm text-muted-foreground">No guest info shown. Only the bring list is visible</p>
-                    </div>
-                  </label>
-                </RadioGroup>
-              </div>
-
-              {/* Bring List */}
-              <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <Label>Bring list</Label>
-                  <Switch checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
-                </div>
-                {!bringListEnabled && (
-                  <p className="text-sm text-muted-foreground">Bring list is disabled. Guests won't see it.</p>
-                )}
-                {bringListEnabled && (
-                  <>
-                {/* Mode selector */}
-                <div className="mb-4 space-y-2">
-                  <Label>List type</Label>
-                  <RadioGroup
-                    value={bringListMode}
-                    onValueChange={(v) => {
-                      const newMode = v as "signup" | "open";
-                      setBringListMode(newMode);
-                      if (bringListMessage === OPEN_LIST_MESSAGE || bringListMessage === FIXED_SLOT_MESSAGE) {
-                        setBringListMessage(newMode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE);
-                      }
-                    }}
-                    className="space-y-2"
-                  >
-                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "open" ? "border-primary bg-primary/5" : "border-border"}`}>
-                      <RadioGroupItem value="open" className="mt-0.5" />
-                      <div>
-                        <p className="font-medium flex items-center gap-1.5"><ListPlus className="h-4 w-4" /> Open list</p>
-                        <p className="text-sm text-muted-foreground">No limits. Guests can choose from suggestions or add their own items.</p>
-                      </div>
-                    </label>
-                    <label className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${bringListMode === "signup" ? "border-primary bg-primary/5" : "border-border"}`}>
-                      <RadioGroupItem value="signup" className="mt-0.5" />
-                      <div>
-                        <p className="font-medium flex items-center gap-1.5"><ListOrdered className="h-4 w-4" /> Fixed slot list</p>
-                        <p className="text-sm text-muted-foreground">Each category has a limited number of slots. Once full, no more items can be added. Custom items are not allowed.</p>
-                      </div>
-                    </label>
-                  </RadioGroup>
-                </div>
-
-                <div className="mb-4">
-                  <Label>Message for guests</Label>
-                  <MarkdownEditor
-                    value={bringListMessage}
-                    onChange={setBringListMessage}
-                    placeholder="Message shown above the bring list..."
-                    rows={2}
-                  />
-                </div>
-                <p className="mb-3 text-sm text-muted-foreground">
-                  {bringListMode === "signup"
-                    ? "Add categories and how many slots are available for each."
-                    : "Add suggestions guests can volunteer to bring."}
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder={bringListMode === "signup" ? "e.g. Dessert, Drinks, Side Dish" : "e.g. Salad, Drinks, Dessert"}
-                    value={newItem}
-                    onChange={(e) => setNewItem(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
-                    className="flex-1"
-                  />
-                  {bringListMode === "signup" && (
-                    <Input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={newItemQty}
-                      onChange={(e) => setNewItemQty(parseInt(e.target.value) || 1)}
-                      className="w-20"
-                      title="Slots"
-                      placeholder="Slots"
-                    />
                   )}
-                  <Button type="button" variant="outline" size="icon" onClick={addItem}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                {bringItems.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {bringItems.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-sm">
-                        {item.name}{bringListMode === "signup" && item.quantity > 1 ? ` ×${item.quantity}` : ""}
-                        <button type="button" onClick={() => removeItem(i)} className="ml-1 text-muted-foreground hover:text-foreground">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                  </>
-                )}
-              </div>
+                </OptionSection>
 
-              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create event"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <OptionSection icon={Eye} title="Guest list privacy" description="Choose what guests can see about other replies.">
+                  <RadioGroup value={visibility} onValueChange={(value) => setValue("guest_visibility", value as FormData["guest_visibility"])} className="grid gap-2 sm:grid-cols-3">
+                    {[
+                      ["full", "Names and totals", "Guests see who is coming"],
+                      ["count_only", "Totals only", "No guest names"],
+                      ["hidden", "Hidden", "No attendance details"],
+                    ].map(([value, label, description]) => (
+                      <label key={value} className={`cursor-pointer rounded-md border p-3 transition-colors ${visibility === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
+                        <span className="flex items-center gap-2"><RadioGroupItem value={value} /><span className="text-sm font-medium">{label}</span></span>
+                        <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description}</span>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </OptionSection>
+
+                <OptionSection icon={UtensilsCrossed} title="Bring list" description="Coordinate food, drinks, or anything else guests can contribute.">
+                  <div className="flex items-center justify-between rounded-md bg-muted/45 px-4 py-3">
+                    <Label htmlFor="bring-list" className="cursor-pointer">Add a bring list</Label>
+                    <Switch id="bring-list" checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
+                  </div>
+                  {bringListEnabled && (
+                    <div className="mt-4 space-y-4">
+                      <RadioGroup value={bringListMode} onValueChange={(value) => { const mode = value as "signup" | "open"; setBringListMode(mode); if (bringListMessage === OPEN_LIST_MESSAGE || bringListMessage === FIXED_SLOT_MESSAGE) setBringListMessage(mode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE); }} className="grid gap-2 sm:grid-cols-2">
+                        {[
+                          ["open", ListPlus, "Open list", "Suggestions plus anything guests add"],
+                          ["signup", ListOrdered, "Fixed slots", "A limited number of each item"],
+                        ].map(([value, Icon, label, description]) => {
+                          const ModeIcon = Icon as typeof ListPlus;
+                          return (
+                            <label key={value as string} className={`cursor-pointer rounded-md border p-3 transition-colors ${bringListMode === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
+                              <span className="flex items-center gap-2"><RadioGroupItem value={value as string} /><ModeIcon className="h-4 w-4" /><span className="text-sm font-medium">{label as string}</span></span>
+                              <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description as string}</span>
+                            </label>
+                          );
+                        })}
+                      </RadioGroup>
+                      <div>
+                        <Label>Message for guests</Label>
+                        <MarkdownEditor value={bringListMessage} onChange={setBringListMessage} placeholder="Message shown above the bring list" rows={2} />
+                      </div>
+                      <div>
+                        <Label htmlFor="new-bring-item">Suggestions</Label>
+                        <div className="mt-1.5 flex gap-2">
+                          <Input id="new-bring-item" placeholder={bringListMode === "signup" ? "Dessert, drinks, side dish" : "Salad, drinks, dessert"} value={newItem} onChange={(event) => setNewItem(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addItem(); } }} className="flex-1" />
+                          {bringListMode === "signup" && <Input type="number" min={1} max={20} value={newItemQty} onChange={(event) => setNewItemQty(parseInt(event.target.value) || 1)} className="w-20" aria-label="Number of slots" />}
+                          <Button type="button" variant="outline" size="icon" onClick={addItem} aria-label="Add bring-list item"><Plus /></Button>
+                        </div>
+                        {bringItems.length > 0 && (
+                          <ul className="mt-3 divide-y divide-border rounded-md border border-border">
+                            {bringItems.map((item, index) => (
+                              <li key={`${item.name}-${index}`} className="flex items-center gap-3 px-3 py-2 text-sm">
+                                <span className="flex-1">{item.name}{bringListMode === "signup" && item.quantity > 1 ? ` ×${item.quantity}` : ""}</span>
+                                <button type="button" onClick={() => removeItem(index)} className="rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${item.name}`}><X className="h-4 w-4" /></button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </OptionSection>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <div className="sticky bottom-3 z-20 rounded-lg border border-border bg-background/90 p-3 shadow-lg backdrop-blur-md sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <p className="hidden text-sm text-muted-foreground sm:block">You can change every detail later.</p>
+            <Button type="submit" size="lg" disabled={isSubmitting} className="w-full px-8 sm:w-auto">
+              {isSubmitting ? "Creating your event…" : "Create event"}
+            </Button>
+          </div>
+        </form>
       </div>
     </main>
   );
 };
+
+interface OptionSectionProps {
+  icon: typeof Image;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}
+
+const OptionSection = ({ icon: Icon, title, description, children }: OptionSectionProps) => (
+  <section className="grid gap-4 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-7">
+    <div>
+      <div className="flex items-center gap-2 text-sm font-semibold"><Icon className="h-4 w-4 text-primary" />{title}</div>
+      <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{description}</p>
+    </div>
+    <div className="min-w-0">{children}</div>
+  </section>
+);
 
 export default Index;

@@ -4,7 +4,7 @@ import { CalendarDays, Clock, ExternalLink, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
@@ -16,6 +16,8 @@ import AddToCalendarButton from "@/components/AddToCalendarButton";
 import BringListSection, { BringItem } from "@/components/BringListSection";
 import RsvpSuccessScreen from "@/components/RsvpSuccessScreen";
 import RsvpSummaryCard from "@/components/RsvpSummaryCard";
+import AppHeader from "@/components/AppHeader";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface EventData {
   event: {
@@ -294,7 +296,7 @@ const EventPage = () => {
         custom_items: customItems,
       });
 
-      toast({ title: "RSVP updated!" });
+      toast({ title: "RSVP updated" });
       setEditMode(false);
       setSelectedCounts(new Map());
       setSelectedNotes(new Map());
@@ -389,22 +391,34 @@ const EventPage = () => {
 
   if (loading && !authenticated) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
-        <p className="text-muted-foreground">Loading...</p>
+      <main id="main-content" className="min-h-[100dvh] bg-background">
+        <AppHeader />
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6" aria-busy="true" aria-label="Loading event">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="mt-5 h-12 w-3/4" />
+          <Skeleton className="mt-4 h-5 w-1/2" />
+          <Skeleton className="mt-10 h-80 w-full rounded-lg" />
+        </div>
       </main>
     );
   }
 
   if (!authenticated && needsPassword) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle>Enter password</CardTitle>
+      <main id="main-content" className="page-texture min-h-[100dvh] bg-background">
+        <AppHeader />
+        <div className="flex min-h-[calc(100dvh-4rem)] items-center justify-center px-4 py-12">
+        <Card className="surface-panel w-full max-w-sm border-0 shadow-none">
+          <CardHeader>
+            <p className="eyebrow">Private event</p>
+            <h1 className="mt-2 text-3xl">Enter the event password</h1>
+            <p className="pt-2 text-sm leading-6 text-muted-foreground">The host protected this page. Ask them for the password if it wasn’t shared with you.</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <Label htmlFor="event-password">Password</Label>
               <Input
+                id="event-password"
                 type="password"
                 placeholder="Event password"
                 value={passwordInput}
@@ -412,18 +426,19 @@ const EventPage = () => {
                 autoFocus
               />
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Verifying..." : "Enter"}
+                {loading ? "Checking…" : "Open event"}
               </Button>
             </form>
           </CardContent>
         </Card>
+        </div>
       </main>
     );
   }
 
   if (showSuccessScreen && managedRsvp && data) {
     return (
-      <main className="min-h-screen bg-background">
+      <main id="main-content" className="min-h-[100dvh] bg-background">
         <RsvpSuccessScreen
           guestName={managedRsvp.guest_name}
           adults={managedRsvp.adults}
@@ -448,25 +463,28 @@ const EventPage = () => {
   const isEditing = !!managedRsvp && editMode;
 
   return (
-    <main className="min-h-screen bg-background">
+    <main id="main-content" className="page-texture min-h-[100dvh] bg-background">
+      <AppHeader />
       {event.banner_url && (
-        <div className="h-56 w-full overflow-hidden sm:h-72">
-          <img src={event.banner_url} alt="Event banner" className="h-full w-full object-cover" />
+        <div className="h-52 w-full overflow-hidden border-b border-border sm:h-72 lg:h-80">
+          <img src={event.banner_url} alt="" className="h-full w-full object-cover" />
         </div>
       )}
 
-      <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
-        <h1 className="text-3xl font-bold sm:text-4xl">{event.name}</h1>
+      <article className={`mx-auto max-w-3xl px-4 pb-14 sm:px-6 sm:pb-20 ${event.banner_url ? "relative -mt-10 sm:-mt-14" : "pt-10 sm:pt-16"}`}>
+        <header className={`${event.banner_url ? "surface-panel p-5 sm:p-8" : ""}`}>
+        <p className="eyebrow">You’re invited</p>
+        <h1 className="mt-3 text-4xl leading-tight tracking-[-0.03em] sm:text-6xl">{event.name}</h1>
 
-        <div className="mt-4 flex flex-wrap gap-4 text-muted-foreground">
-          <span className="flex items-center gap-1.5">
+        <div className="mt-6 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+          <span className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5">
             <CalendarDays className="h-4 w-4" />
             {format(new Date(event.event_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
           </span>
           {event.event_time && (
             <button
               type="button"
-              className="flex items-center gap-1.5 cursor-pointer select-none underline decoration-dotted underline-offset-2"
+              className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 text-left underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted"
               title={use12Hour ? "Switch to 24-hour" : "Switch to AM/PM"}
               aria-label={use12Hour ? "Switch to 24-hour time" : "Switch to AM/PM time"}
               onClick={() => setUse12Hour((v) => !v)}
@@ -483,14 +501,14 @@ const EventPage = () => {
                 href={event.location_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+                className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted hover:text-foreground"
               >
                 <MapPin className="h-4 w-4" />
                 {event.location}
                 <ExternalLink className="h-3 w-3" />
               </a>
             ) : (
-              <span className="flex items-center gap-1.5">
+              <span className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5">
                 <MapPin className="h-4 w-4" />
                 {event.location}
               </span>
@@ -501,7 +519,7 @@ const EventPage = () => {
               href={event.location_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+              className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted hover:text-foreground"
             >
               <MapPin className="h-4 w-4" />
               {displayHost(event.location_url)}
@@ -510,20 +528,23 @@ const EventPage = () => {
           )}
         </div>
 
-        <div className="mt-4">
+        <div className="mt-5">
           <AddToCalendarButton event={{ ...event, url: shareUrl }} />
         </div>
 
         {event.description && (
-          <div className="mt-4">
+          <div className="mt-6 max-w-2xl border-t border-border pt-5 leading-7">
             <MarkdownContent content={event.description} />
           </div>
         )}
+        </header>
 
         {!hasExistingRsvp && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-lg">{isEditing ? "Edit RSVP" : "RSVP"}</CardTitle>
+          <Card className="surface-panel mt-6 border-0 shadow-none sm:mt-8">
+            <CardHeader className="border-b border-border pb-5">
+              <p className="eyebrow">Your reply</p>
+              <h2 className="mt-1 font-serif text-3xl">{isEditing ? "Update your RSVP" : "Can you make it?"}</h2>
+              {!isEditing && <p className="pt-1 text-sm text-muted-foreground">Add everyone included in your reply.</p>}
             </CardHeader>
             <CardContent>
               <form onSubmit={isEditing ? handleEditRsvp : handleRsvp} className="space-y-6">
@@ -590,7 +611,7 @@ const EventPage = () => {
                     </Button>
                   )}
                   <Button type="submit" className="flex-1" disabled={submittingRsvp}>
-                    {submittingRsvp ? "Submitting..." : isEditing ? "Update RSVP" : "Submit RSVP"}
+                    {submittingRsvp ? "Saving…" : isEditing ? "Update RSVP" : "Send RSVP"}
                   </Button>
                 </div>
               </form>
@@ -599,18 +620,18 @@ const EventPage = () => {
         )}
 
         {event.guest_visibility !== "hidden" && totalAttending > 0 && (
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
+          <section className="mt-10 border-t border-border pt-7" aria-labelledby="guest-list-heading">
+            <div>
+              <h2 className="flex items-center gap-2 font-serif text-2xl">
                 <Users className="h-5 w-5" />
-                {event.guest_visibility === "full" ? "Guest List" : "Attending"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+                <span id="guest-list-heading">{event.guest_visibility === "full" ? "Who’s coming" : "Attending"}</span>
+              </h2>
+            </div>
+            <div className="mt-4">
               {event.guest_visibility === "full" ? (
                 <ul className="space-y-2">
                   {guestList.map((r) => (
-                    <li key={r.id} className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2">
+                    <li key={r.id} className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-0">
                       <span className="font-medium">{r.guest_name}</span>
                       <span className="text-sm text-muted-foreground">
                         {r.adults} adult{r.adults !== 1 ? "s" : ""}{r.kids > 0 ? `, ${r.kids} kid${r.kids !== 1 ? "s" : ""}` : ""}
@@ -623,8 +644,8 @@ const EventPage = () => {
                   {totalAdults} adult{totalAdults !== 1 ? "s" : ""}{totalKids > 0 ? ` and ${totalKids} kid${totalKids !== 1 ? "s" : ""}` : ""} attending
                 </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         )}
 
         {hasExistingRsvp && (
@@ -639,7 +660,7 @@ const EventPage = () => {
             onReRsvp={handleReRsvp}
           />
         )}
-      </div>
+      </article>
     </main>
   );
 };
