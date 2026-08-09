@@ -140,6 +140,37 @@
   }
 }
 
+@layer components {
+  .rich-text-editor__content {
+    @apply max-h-[32.5rem] min-h-[inherit] overflow-y-auto px-3 py-2.5 text-sm leading-6 outline-none;
+  }
+
+  .rich-text-editor__content p.is-editor-empty:first-child::before {
+    @apply pointer-events-none float-left h-0 text-muted-foreground;
+    content: attr(data-placeholder);
+  }
+
+  .rich-text-editor__content p {
+    @apply mb-2 last:mb-0;
+  }
+
+  .rich-text-editor__content ul {
+    @apply mb-2 list-disc pl-6 last:mb-0;
+  }
+
+  .rich-text-editor__content ol {
+    @apply mb-2 list-decimal pl-6 last:mb-0;
+  }
+
+  .rich-text-editor__content li > p {
+    @apply mb-0;
+  }
+
+  .rich-text-editor__content a {
+    @apply cursor-pointer text-primary underline decoration-primary/40 underline-offset-2;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
