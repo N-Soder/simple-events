@@ -21,7 +21,7 @@ export const BANNER_PRESET_DIR = "/banner-presets";
 
 export interface BannerPreset {
   id: string;
-  /** Shown under the tile, and used as the image's alt text. */
+  /** Used as the image's alt text and the tile's accessible name. */
   label: string;
   /** 1600 x 800 WebP, the file that becomes `banner_url`. */
   url: string;

@@ -64,7 +64,6 @@ const BannerPresetDialog = ({
                 loading="lazy"
                 className="aspect-[2/1] w-full rounded-lg object-cover"
               />
-              <span className="mt-1.5 block text-xs text-muted-foreground">{preset.label}</span>
             </button>
           );
         })}
