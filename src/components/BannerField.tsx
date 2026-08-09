@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Crop, Images, Info, Loader2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,8 @@ export type BannerChoice =
   | { kind: "preset"; url: string };
 
 interface BannerFieldProps {
+  /** Banner already stored for an existing event. */
+  initialUrl?: string | null;
   /** The chosen banner, or null once the host clears it. */
   onChange: (choice: BannerChoice | null) => void;
 }
@@ -73,14 +75,16 @@ function formatLabel(type: string): string {
  * always-open gallery above it: a host who has a photo of their own should not
  * have to scroll past eight of ours to reach the upload.
  */
-const BannerField = ({ onChange }: BannerFieldProps) => {
+const BannerField = ({ initialUrl = null, onChange }: BannerFieldProps) => {
   const { toast } = useToast();
   const [picked, setPicked] = useState<Picked | null>(null);
+  const [existingUrl, setExistingUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
 
   // Two object URLs with separate lifetimes: the preview shows the processed
   // image, while the crop dialog works from the original. Presets need neither,
@@ -102,8 +106,18 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
   // minting an equivalent URL each time.
   const urlSource = useRef<File | null>(null);
 
+  useEffect(() => {
+    setExistingUrl(initialUrl);
+    setPicked(null);
+    setPreviewUrl(null);
+    setOriginalUrl(null);
+    urlSource.current = null;
+    if (inputRef.current) inputRef.current.value = "";
+  }, [initialUrl]);
+
   const clear = () => {
     setPicked(null);
+    setExistingUrl(null);
     setPreviewUrl(null);
     setOriginalUrl(null);
     urlSource.current = null;
@@ -117,6 +131,7 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
     try {
       const prepared = await prepareBanner(original, crop ?? undefined);
       setPicked({ kind: "file", original, crop, prepared });
+      setExistingUrl(null);
       setPreviewUrl(URL.createObjectURL(prepared.file));
       // Only once the file is known to be usable, so a photo this browser can't
       // decode doesn't leave the crop dialog pointing at it.
@@ -158,6 +173,7 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
     if (inputRef.current) inputRef.current.value = "";
 
     setPicked({ kind: "preset", preset });
+    setExistingUrl(null);
     onChange({ kind: "preset", url: preset.url });
   };
 
@@ -199,7 +215,12 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
   const pickedFile = picked?.kind === "file" ? picked : null;
   const canCrop = !!pickedFile && !!originalUrl && pickedFile.original.type !== "image/gif";
   const info = pickedFile && details(pickedFile);
-  const src = picked?.kind === "preset" ? picked.preset.url : previewUrl;
+  const src = picked?.kind === "preset" ? picked.preset.url : previewUrl ?? existingUrl;
+  const alt = picked?.kind === "preset"
+    ? picked.preset.label
+    : picked?.kind === "file"
+      ? "Banner preview"
+      : "Current banner";
 
   return (
     <div>
@@ -220,13 +241,23 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
           </Popover>
         )}
       </div>
+      <input
+        ref={inputRef}
+        id={inputId}
+        type="file"
+        accept="image/*"
+        aria-label="Banner photo"
+        className="hidden"
+        disabled={busy}
+        onChange={(e) => pick(e.target.files?.[0])}
+      />
       <div className="mt-2">
-        {picked && src ? (
+        {src ? (
           <div>
             <div className="relative">
               <img
                 src={src}
-                alt={picked.kind === "preset" ? picked.preset.label : "Banner preview"}
+                alt={alt}
                 className="aspect-[2/1] w-full rounded-lg object-cover"
               />
               <div className="absolute right-2 top-2 flex gap-2">
@@ -235,24 +266,35 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
                     type="button"
                     variant="secondary"
                     className="gap-1.5"
+                    aria-label="Crop banner photo"
                     disabled={busy}
                     onClick={() => setCropOpen(true)}
                   >
                     <Crop className="h-4 w-4" />
-                    Crop
+                    <span className="hidden sm:inline">Crop</span>
                   </Button>
                 )}
-                {picked.kind === "preset" && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="gap-1.5"
-                    onClick={() => setPresetsOpen(true)}
-                  >
-                    <Images className="h-4 w-4" />
-                    Change
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="gap-1.5"
+                  aria-label="Replace banner photo"
+                  disabled={busy}
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">Replace</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="gap-1.5"
+                  aria-label="Choose banner from gallery"
+                  onClick={() => setPresetsOpen(true)}
+                >
+                  <Images className="h-4 w-4" />
+                  <span className="hidden sm:inline">Gallery</span>
+                </Button>
                 <Button
                   type="button"
                   variant="destructive"
@@ -275,6 +317,7 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
         ) : (
           <>
             <label
+              htmlFor={inputId}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragging(true);
@@ -300,15 +343,6 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
                   <span className="text-sm text-muted-foreground">Click to upload, or drop a photo here</span>
                 </>
               )}
-              <input
-                ref={inputRef}
-                type="file"
-                accept="image/*"
-                aria-label="Banner photo"
-                className="hidden"
-                disabled={busy}
-                onChange={(e) => pick(e.target.files?.[0])}
-              />
             </label>
             <button
               type="button"

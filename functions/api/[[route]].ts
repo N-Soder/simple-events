@@ -428,7 +428,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const { event_id, admin_token, ...updates } = await request.json() as Record<string, unknown>;
       if (!event_id || !admin_token) return err("event_id and admin_token required");
 
-      const event = await db.prepare("SELECT id, event_time FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first<{ id: string; event_time: string | null }>();
+      const event = await db.prepare("SELECT id, event_time, banner_url FROM events WHERE id = ? AND admin_token = ?").bind(event_id, admin_token).first<{ id: string; event_time: string | null; banner_url: string | null }>();
       if (!event) return err("Invalid admin token", 403);
 
       // Validate any supplied fields (parity with /create).
@@ -473,6 +473,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (fields.length > 0) {
         values.push(event_id);
         await db.prepare(`UPDATE events SET ${fields.join(", ")}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
+
+        // Replacing or removing an uploaded banner should not leave the old R2
+        // object behind. Presets are bundled static files, so they are never
+        // deleted from R2.
+        if (updates.banner_url !== undefined && event.banner_url && event.banner_url !== updates.banner_url && !isPresetBanner(event.banner_url)) {
+          const oldR2Key = event.banner_url.split("/").pop();
+          if (oldR2Key) {
+            try { await env.R2.delete(oldR2Key); } catch { /* R2 cleanup is best-effort */ }
+          }
+        }
       }
 
       return json({ success: true });

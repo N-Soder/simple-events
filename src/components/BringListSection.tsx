@@ -46,15 +46,15 @@ const BringListSection = ({
     <div className="space-y-4">
       <Separator />
       <div className="flex items-center gap-2.5">
-        <div className="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight">
+        <h3 className="flex items-center gap-2 text-lg leading-none tracking-tight">
           <UtensilsCrossed className="h-5 w-5" />
           Bring List
-        </div>
+        </h3>
         <span
           className={cn(
             "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
             mode === "signup"
-              ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+              ? "bg-accent text-accent-foreground"
               : "bg-secondary text-secondary-foreground"
           )}
         >
@@ -63,7 +63,7 @@ const BringListSection = ({
       </div>
 
       <MarkdownContent
-        content={message || "If you'd like to contribute, please select items from the list below or add your own!"}
+        content={message || "If you'd like to contribute, select an item below or add your own."}
       />
 
       <ul className="space-y-2">
@@ -82,59 +82,61 @@ const BringListSection = ({
           return (
             <li
               key={item.id}
-              onClick={() => {
-                if (isFull && !isSelected) return;
-                onUpdateCount(item.id, isSelected ? 0 : 1);
-              }}
               className={cn(
-                "rounded-md border px-3 py-2.5 transition-colors select-none",
-                isFull && !isSelected
-                  ? "opacity-50 cursor-not-allowed"
-                  : "cursor-pointer",
+                "rounded-md border px-3 py-2.5 transition-colors",
+                isFull && !isSelected && "opacity-55",
                 isSelected
                   ? "border-primary bg-primary/5"
                   : isFull
                     ? "border-border"
-                    : "hover:bg-muted/50"
+                    : "hover:border-foreground/20"
               )}
             >
               {/* Main row */}
               <div className="flex items-center gap-3">
-                <Check
-                  className={cn(
-                    "h-4 w-4 shrink-0 text-primary transition-opacity",
-                    isSelected ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <div className="flex-1 min-w-0">
+                <button
+                  type="button"
+                  disabled={isFull && !isSelected}
+                  aria-pressed={isSelected}
+                  onClick={() => onUpdateCount(item.id, isSelected ? 0 : 1)}
+                  className="flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+                >
+                  <Check
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-primary transition-opacity",
+                      isSelected ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                <span className="min-w-0 flex-1">
                   <span className="font-medium">{item.item_name}</span>
                   {item.commitments.length > 0 && (
-                    <div className="mt-0.5 space-y-0.5">
+                    <span className="mt-0.5 block space-y-0.5">
                       {item.commitments.map((c, i) =>
                         c.note ? (
-                          <p key={i} className="text-xs text-muted-foreground italic">
+                          <span key={i} className="block text-xs italic text-muted-foreground">
                             {c.guest_name}: &ldquo;{c.note}&rdquo;
-                          </p>
+                          </span>
                         ) : (
-                          <p key={i} className="text-xs text-muted-foreground">
+                          <span key={i} className="block text-xs text-muted-foreground">
                             {c.guest_name}
-                          </p>
+                          </span>
                         )
                       )}
-                    </div>
+                    </span>
                   )}
-                </div>
+                </span>
+                </button>
 
                 <div className="flex items-center gap-2 ml-auto shrink-0">
                   {/* Sign-up Sheet: Full badge, always for full+unselected */}
                   {mode === "signup" && isFull && !isSelected && (
-                    <span className="text-xs font-medium text-red-500">Full</span>
+                    <span className="text-xs font-medium text-destructive">Full</span>
                   )}
                   {/* Sign-up Sheet: slot counter, only for multi-slot items, hidden when full+unselected */}
                   {mode === "signup" && item.target_quantity > 1 && !(isFull && !isSelected) && (
                     <span className={cn(
                       "text-xs",
-                      covered ? "text-emerald-600 font-medium" : "text-muted-foreground"
+                      covered ? "font-medium text-primary" : "text-muted-foreground"
                     )}>
                       {previewCommitted}/{item.target_quantity}
                     </span>
@@ -142,10 +144,7 @@ const BringListSection = ({
 
                   {/* Sign-up Sheet: quantity controls, only for multi-slot items */}
                   {mode === "signup" && isSelected && item.target_quantity > 1 && (
-                    <div
-                      className="flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="flex items-center gap-1">
                       <Button
                         type="button"
                         variant="ghost"
@@ -153,6 +152,7 @@ const BringListSection = ({
                         className="h-6 w-6"
                         disabled={selected <= 1}
                         onClick={() => onUpdateCount(item.id, selected - 1)}
+                        aria-label={`Bring one fewer ${item.item_name}`}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
@@ -164,6 +164,7 @@ const BringListSection = ({
                         className="h-6 w-6"
                         disabled={selected >= maxAllowed}
                         onClick={() => onUpdateCount(item.id, selected + 1)}
+                        aria-label={`Bring one more ${item.item_name}`}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -174,16 +175,15 @@ const BringListSection = ({
 
               {/* Inline note input, shown when selected, both modes */}
               {isSelected && (
-                <div
-                  className="mt-2 pt-2 border-t border-border/50"
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <div className="mt-2 border-t border-border/50 pt-2">
+                  <label htmlFor={`bring-note-${item.id}`} className="sr-only">Note for {item.item_name}</label>
                   <Input
+                    id={`bring-note-${item.id}`}
                     placeholder="Add a note... (optional)"
                     value={selectedNotes.get(item.id) ?? ""}
                     onChange={(e) => onUpdateNote(item.id, e.target.value)}
                     maxLength={150}
-                    className="h-7 text-xs"
+                    className="h-9 text-xs"
                   />
                 </div>
               )}

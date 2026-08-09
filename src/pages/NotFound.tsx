@@ -1,42 +1,33 @@
 import { useLocation, Link } from "react-router-dom";
-import { useEffect } from "react";
-import { CalendarX } from "lucide-react";
+import { ArrowLeft, CalendarX } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
+import { Button } from "@/components/ui/button";
 
 const NotFound = () => {
   const location = useLocation();
   const isEventNotFound = (location.state as { type?: string } | null)?.type === "event";
 
-  useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname]);
-
-  if (isEventNotFound) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-muted px-4">
-        <div className="text-center max-w-md">
-          <CalendarX className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-          <h1 className="mb-2 text-4xl font-bold">Event not found</h1>
-          <p className="mb-6 text-muted-foreground">
-            This event no longer exists. Events are automatically deleted 90 days after they occur.
+  return (
+    <main id="main-content" className="page-texture min-h-[100dvh] bg-background">
+      <AppHeader />
+      <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center px-4 py-16 sm:px-6">
+        <div>
+          <CalendarX className="h-9 w-9 text-primary" aria-hidden="true" />
+          <p className="eyebrow mt-6">{isEventNotFound ? "Event unavailable" : "Page not found"}</p>
+          <h1 className="mt-3 text-4xl tracking-[-0.025em] sm:text-5xl">
+            {isEventNotFound ? "This event is no longer here." : "There’s nothing at this address."}
+          </h1>
+          <p className="mt-4 max-w-md text-lg leading-8 text-muted-foreground">
+            {isEventNotFound
+              ? "The link may be incomplete, or the event was deleted. Events are automatically removed 90 days after they happen."
+              : "Check the address, or return home to start a new event."}
           </p>
-          <Link to="/" className="text-primary underline hover:text-primary/90">
-            Return to Home
-          </Link>
+          <Button asChild className="mt-7">
+            <Link to="/"><ArrowLeft aria-hidden="true" />Return home</Link>
+          </Button>
         </div>
       </div>
-    );
-  }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-muted">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
-        <a href="/" className="text-primary underline hover:text-primary/90">
-          Return to Home
-        </a>
-      </div>
-    </div>
+    </main>
   );
 };
 

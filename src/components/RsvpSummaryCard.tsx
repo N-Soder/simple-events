@@ -1,6 +1,6 @@
 import { User, Pencil, XCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,12 +36,12 @@ const RsvpSummaryCard = ({
 }: RsvpSummaryCardProps) => {
   if (cancelled) {
     return (
-      <Card className="mt-6 opacity-70">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg text-muted-foreground">
+      <Card className="surface-panel mt-6 border-0 opacity-70 shadow-none">
+        <CardHeader className="flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="flex items-center gap-2 font-serif text-2xl text-muted-foreground">
             <User className="h-5 w-5" />
-            Your RSVP (Cancelled)
-          </CardTitle>
+            Your RSVP <span className="font-sans text-sm font-medium">Cancelled</span>
+          </h2>
           {onReRsvp && (
             <Button variant="outline" size="sm" onClick={onReRsvp}>
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
@@ -57,13 +57,13 @@ const RsvpSummaryCard = ({
   }
 
   return (
-    <Card className="mt-6">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-lg">
+    <Card className="surface-panel mt-6 border-0 shadow-none">
+      <CardHeader className="flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="flex items-center gap-2 font-serif text-2xl">
           <User className="h-5 w-5" />
           Your RSVP
-        </CardTitle>
-        <div className="flex gap-2">
+        </h2>
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil className="mr-1.5 h-3.5 w-3.5" />
             Edit
