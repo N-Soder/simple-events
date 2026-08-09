@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 
@@ -59,19 +59,22 @@ const eventData = {
   ],
 };
 
+const renderAdmin = () =>
+  render(
+    <MemoryRouter initialEntries={["/admin/garden-dinner?token=host-token"]}>
+      <Routes>
+        <Route path="/admin/:id" element={<AdminPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
 describe("AdminPage", () => {
   beforeEach(() => {
     getAdminEvent.mockResolvedValue(eventData);
   });
 
   it("leads with the event and gives hosts a clear dashboard overview", async () => {
-    render(
-      <MemoryRouter initialEntries={["/admin/garden-dinner?token=host-token"]}>
-        <Routes>
-          <Route path="/admin/:id" element={<AdminPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderAdmin();
 
     expect(await screen.findByRole("heading", { level: 1, name: "Midsummer garden dinner" })).toBeInTheDocument();
     expect(screen.getByText("Host dashboard")).toBeInTheDocument();
@@ -82,5 +85,43 @@ describe("AdminPage", () => {
       "/event/garden-dinner",
     );
     expect(screen.getByRole("navigation", { name: "Dashboard sections" })).toBeInTheDocument();
+  });
+
+  it("edits the event through the same sections, in the same order, as the create page", async () => {
+    renderAdmin();
+
+    await screen.findByRole("heading", { level: 1, name: "Midsummer garden dinner" });
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    expect(headings).toEqual([
+      "Share your event",
+      "Guest responses",
+      "Event details",
+      "Event banner",
+      "Bring list",
+      "Access & privacy",
+      "Delete event",
+    ]);
+  });
+
+  it("keeps the bring list collapsed while it is switched off", async () => {
+    renderAdmin();
+
+    const bringListSwitch = await screen.findByRole("switch", { name: "Enable bring list" });
+    expect(screen.getByText("List type")).toBeInTheDocument();
+
+    fireEvent.click(bringListSwitch);
+    expect(screen.queryByText("List type")).not.toBeInTheDocument();
+  });
+
+  it("opens the banner section only for an event that has one", async () => {
+    renderAdmin();
+
+    const bannerSwitch = await screen.findByRole("switch", { name: "Add an event banner" });
+    expect(bannerSwitch).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByLabelText("Banner photo")).not.toBeInTheDocument();
+
+    fireEvent.click(bannerSwitch);
+    expect(screen.getByLabelText("Banner photo")).toBeInTheDocument();
   });
 });

@@ -32,6 +32,8 @@ interface BannerFieldProps {
   initialUrl?: string | null;
   /** The chosen banner, or null once the host clears it. */
   onChange: (choice: BannerChoice | null) => void;
+  /** Field label, or null where the surrounding section already names it. */
+  label?: string | null;
 }
 
 /** A picked file, kept alongside what the resize made of it. */
@@ -75,7 +77,7 @@ function formatLabel(type: string): string {
  * always-open gallery above it: a host who has a photo of their own should not
  * have to scroll past eight of ours to reach the upload.
  */
-const BannerField = ({ initialUrl = null, onChange }: BannerFieldProps) => {
+const BannerField = ({ initialUrl = null, onChange, label = "Banner photo (optional)" }: BannerFieldProps) => {
   const { toast } = useToast();
   const [picked, setPicked] = useState<Picked | null>(null);
   const [existingUrl, setExistingUrl] = useState(initialUrl);
@@ -224,8 +226,8 @@ const BannerField = ({ initialUrl = null, onChange }: BannerFieldProps) => {
 
   return (
     <div>
-      <div className="flex items-center gap-1">
-        <Label>Banner photo (optional)</Label>
+      <div className="flex items-center gap-1 empty:hidden">
+        {label && <Label>{label}</Label>}
         {info && (
           <Popover>
             <PopoverTrigger

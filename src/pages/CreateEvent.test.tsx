@@ -28,9 +28,9 @@ describe("CreateEvent sections", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByText("Banner photo (optional)")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Event banner/i }));
-    expect(screen.getByText("Banner photo (optional)")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Banner photo")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: "Add an event banner" }));
+    expect(screen.getByLabelText("Banner photo")).toBeInTheDocument();
 
     expect(screen.queryByText("Message for guests")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "Enable bring list" }));
