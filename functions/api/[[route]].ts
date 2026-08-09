@@ -62,6 +62,18 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
 // filled in the whole form.
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// Banners picked from the bundled set (`src/lib/bannerPresets.ts`) are static
+// files served from our own origin, not R2 objects, so nothing about them is
+// ours to delete. Deleting the key a preset path ends in would be a harmless
+// no-op today, since upload keys are UUIDs and cannot collide, but relying on
+// that is one rename away from deleting a real object. Keep this prefix in step
+// with BANNER_PRESET_DIR on the client.
+const BANNER_PRESET_PREFIX = "/banner-presets/";
+
+function isPresetBanner(bannerUrl: string | null): boolean {
+  return !!bannerUrl && bannerUrl.startsWith(BANNER_PRESET_PREFIX);
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -543,7 +555,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         .first<{ id: string; banner_url: string | null }>();
       if (!event) return err("Invalid admin token", 403);
 
-      if (event.banner_url) {
+      if (event.banner_url && !isPresetBanner(event.banner_url)) {
         const r2Key = event.banner_url.split("/").pop();
         if (r2Key) {
           try { await env.R2.delete(r2Key); } catch { /* R2 cleanup is best-effort */ }

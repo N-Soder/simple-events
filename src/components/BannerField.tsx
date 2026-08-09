@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Crop, Info, Loader2, Upload, X } from "lucide-react";
+import { Crop, Images, Info, Loader2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import BannerCropDialog from "@/components/BannerCropDialog";
+import BannerPresetDialog from "@/components/BannerPresetDialog";
+import type { BannerPreset } from "@/lib/bannerPresets";
 import {
   bannerErrorMessage,
   formatFileSize,
@@ -13,17 +15,38 @@ import {
   type PreparedBanner,
 } from "@/lib/bannerImage";
 
+/**
+ * What the host ended up with.
+ *
+ * A file still has to be uploaded before the event can reference it. A preset is
+ * already served from `public/banner-presets/`, so its URL goes straight into
+ * `banner_url` with no upload at all. The host cannot tell the difference, but
+ * the submit path has to.
+ */
+export type BannerChoice =
+  | { kind: "file"; file: File }
+  | { kind: "preset"; url: string };
+
 interface BannerFieldProps {
-  /** The file to upload, or null once the host clears it. */
-  onChange: (file: File | null) => void;
+  /** The chosen banner, or null once the host clears it. */
+  onChange: (choice: BannerChoice | null) => void;
 }
 
-interface Picked {
+/** A picked file, kept alongside what the resize made of it. */
+interface PickedFile {
+  kind: "file";
   /** Kept so every crop re-encodes from the original, not from a previous crop. */
   original: File;
   crop: CropRect | null;
   prepared: PreparedBanner;
 }
+
+interface PickedPreset {
+  kind: "preset";
+  preset: BannerPreset;
+}
+
+type Picked = PickedFile | PickedPreset;
 
 /** "image/webp" as a reader would write it. */
 function formatLabel(type: string): string {
@@ -38,12 +61,17 @@ function formatLabel(type: string): string {
 }
 
 /**
- * Banner picker: choose a photo, see what will be stored, optionally crop it.
+ * Banner picker: choose a photo or a ready-made banner, see what will be stored,
+ * optionally crop it.
  *
  * The resize happens the moment a file is picked rather than at submit, so the
  * host sees the real result while they can still change their mind, and so the
  * slowest part of creating an event isn't hidden behind the Create button. See
  * `src/lib/bannerImage.ts` for why the browser does this work at all.
+ *
+ * The presets sit behind a button next to the drop zone rather than as an
+ * always-open gallery above it: a host who has a photo of their own should not
+ * have to scroll past eight of ours to reach the upload.
  */
 const BannerField = ({ onChange }: BannerFieldProps) => {
   const { toast } = useToast();
@@ -51,10 +79,12 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Two object URLs with separate lifetimes: the preview shows the processed
-  // image, while the crop dialog works from the original.
+  // image, while the crop dialog works from the original. Presets need neither,
+  // being real files at a real URL already.
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
 
@@ -86,7 +116,7 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
     setBusy(true);
     try {
       const prepared = await prepareBanner(original, crop ?? undefined);
-      setPicked({ original, crop, prepared });
+      setPicked({ kind: "file", original, crop, prepared });
       setPreviewUrl(URL.createObjectURL(prepared.file));
       // Only once the file is known to be usable, so a photo this browser can't
       // decode doesn't leave the crop dialog pointing at it.
@@ -94,7 +124,7 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
         urlSource.current = original;
         setOriginalUrl(URL.createObjectURL(original));
       }
-      onChange(prepared.file);
+      onChange({ kind: "file", file: prepared.file });
     } catch (error) {
       toast({
         title: "Couldn't use that image",
@@ -119,6 +149,18 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
     void process(file, null);
   };
 
+  const selectPreset = (preset: BannerPreset) => {
+    // Drop anything held for a previously picked file: the crop dialog and the
+    // details popover have nothing to say about a preset.
+    setPreviewUrl(null);
+    setOriginalUrl(null);
+    urlSource.current = null;
+    if (inputRef.current) inputRef.current.value = "";
+
+    setPicked({ kind: "preset", preset });
+    onChange({ kind: "preset", url: preset.url });
+  };
+
   /**
    * What was actually stored, for the details popover.
    *
@@ -126,8 +168,11 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
    * setting up a barbecue does not need a file size in their eyeline. It is kept
    * available, though: it is the only place the resize is visible, and someone
    * wondering why their photo looks softer than the original deserves an answer.
+   *
+   * Presets get none of this. The host did not choose the file, so its size is
+   * not theirs to account for.
    */
-  const details = ({ prepared, crop }: Picked): { measurements: string; note: string } => {
+  const details = ({ prepared, crop }: PickedFile): { measurements: string; note: string } => {
     const measurements = `${prepared.width} × ${prepared.height} · ${formatLabel(
       prepared.file.type,
     )} · ${formatFileSize(prepared.file.size)}`;
@@ -151,8 +196,10 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
     };
   };
 
-  const canCrop = !!picked && !!originalUrl && picked.original.type !== "image/gif";
-  const info = picked && details(picked);
+  const pickedFile = picked?.kind === "file" ? picked : null;
+  const canCrop = !!pickedFile && !!originalUrl && pickedFile.original.type !== "image/gif";
+  const info = pickedFile && details(pickedFile);
+  const src = picked?.kind === "preset" ? picked.preset.url : previewUrl;
 
   return (
     <div>
@@ -174,12 +221,12 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
         )}
       </div>
       <div className="mt-2">
-        {picked && previewUrl ? (
+        {picked && src ? (
           <div>
             <div className="relative">
               <img
-                src={previewUrl}
-                alt="Banner preview"
+                src={src}
+                alt={picked.kind === "preset" ? picked.preset.label : "Banner preview"}
                 className="aspect-[2/1] w-full rounded-lg object-cover"
               />
               <div className="absolute right-2 top-2 flex gap-2">
@@ -193,6 +240,17 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
                   >
                     <Crop className="h-4 w-4" />
                     Crop
+                  </Button>
+                )}
+                {picked.kind === "preset" && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="gap-1.5"
+                    onClick={() => setPresetsOpen(true)}
+                  >
+                    <Images className="h-4 w-4" />
+                    Change
                   </Button>
                 )}
                 <Button
@@ -215,55 +273,71 @@ const BannerField = ({ onChange }: BannerFieldProps) => {
             </div>
           </div>
         ) : (
-          <label
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              pick(e.dataTransfer.files?.[0]);
-            }}
-            className={`flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/50 px-4 text-center transition-colors hover:bg-muted ${
-              dragging ? "border-primary bg-muted" : "border-border"
-            }`}
-          >
-            {busy ? (
-              <>
-                <Loader2 className="mb-2 h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
-                <span className="text-sm text-muted-foreground">Preparing image...</span>
-              </>
-            ) : (
-              <>
-                <Upload className="mb-2 h-6 w-6 text-muted-foreground" aria-hidden="true" />
-                <span className="text-sm text-muted-foreground">Click to upload, or drop a photo here</span>
-              </>
-            )}
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
-              aria-label="Banner photo"
-              className="hidden"
-              disabled={busy}
-              onChange={(e) => pick(e.target.files?.[0])}
-            />
-          </label>
+          <>
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                pick(e.dataTransfer.files?.[0]);
+              }}
+              className={`flex h-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/50 px-4 text-center transition-colors hover:bg-muted ${
+                dragging ? "border-primary bg-muted" : "border-border"
+              }`}
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="mb-2 h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+                  <span className="text-sm text-muted-foreground">Preparing image...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="mb-2 h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                  <span className="text-sm text-muted-foreground">Click to upload, or drop a photo here</span>
+                </>
+              )}
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                aria-label="Banner photo"
+                className="hidden"
+                disabled={busy}
+                onChange={(e) => pick(e.target.files?.[0])}
+              />
+            </label>
+            <button
+              type="button"
+              className="mt-2 text-sm text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              onClick={() => setPresetsOpen(true)}
+            >
+              Or choose from the gallery
+            </button>
+          </>
         )}
       </div>
 
-      {picked && originalUrl && (
+      {pickedFile && originalUrl && (
         <BannerCropDialog
           open={cropOpen}
           onOpenChange={setCropOpen}
           imageUrl={originalUrl}
-          source={picked.prepared.source}
-          crop={picked.crop}
-          onApply={(crop) => void process(picked.original, crop)}
+          source={pickedFile.prepared.source}
+          crop={pickedFile.crop}
+          onApply={(crop) => void process(pickedFile.original, crop)}
         />
       )}
+
+      <BannerPresetDialog
+        open={presetsOpen}
+        onOpenChange={setPresetsOpen}
+        selectedId={picked?.kind === "preset" ? picked.preset.id : null}
+        onSelect={selectPreset}
+      />
     </div>
   );
 };

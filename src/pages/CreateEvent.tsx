@@ -19,7 +19,7 @@ import { detectTimeZone } from "@/lib/timezone";
 import TimeZoneNote from "@/components/TimeZoneNote";
 import TimeField from "@/components/TimeField";
 import LocationField from "@/components/LocationField";
-import BannerField from "@/components/BannerField";
+import BannerField, { type BannerChoice } from "@/components/BannerField";
 import { saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { normalizeUrl } from "@/lib/url";
@@ -53,7 +53,7 @@ const Index = () => {
   const [bringItems, setBringItems] = useState<{ name: string; quantity: number }[]>([]);
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [banner, setBanner] = useState<BannerChoice | null>(null);
   const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [locationUrl, setLocationUrl] = useState("");
@@ -89,9 +89,13 @@ const Index = () => {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
+      // A preset is already a file on our own origin, so it only needs its path
+      // writing through. Only a host's own photo has to be uploaded first.
       let banner_url: string | undefined;
-      if (bannerFile) {
-        banner_url = await uploadBanner(bannerFile);
+      if (banner?.kind === "file") {
+        banner_url = await uploadBanner(banner.file);
+      } else if (banner?.kind === "preset") {
+        banner_url = banner.url;
       }
 
       const password = requirePassword ? data.password : undefined;
@@ -159,7 +163,7 @@ const Index = () => {
           <CardContent className="p-6 sm:p-8">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               {/* Banner Upload */}
-              <BannerField onChange={setBannerFile} />
+              <BannerField onChange={setBanner} />
 
               {/* Event Name */}
               <div>

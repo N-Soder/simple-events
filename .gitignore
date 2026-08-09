@@ -30,3 +30,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Banner preset originals: only the built WebPs ship. See banner-sources/README.md
+# Kept out of public/ as well as out of git, because Vite copies public/
+# verbatim into dist and would publish 12 MB of unaltered stock photos.
+banner-sources/*
+!banner-sources/README.md
