@@ -37,7 +37,7 @@ const LandingPage = () => {
               <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="Midsummer supper"
+                placeholder="Midsommar Party"
                 aria-label="Event name"
                 maxLength={200}
                 className="h-14 flex-1 border-foreground/15 bg-card px-4 text-base shadow-sm sm:text-base"
@@ -72,7 +72,7 @@ const LandingPage = () => {
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
                 </span>
               </div>
-              <h2 className="mt-7 text-4xl leading-tight tracking-[-0.02em]">Midsummer supper</h2>
+              <h2 className="mt-7 text-4xl leading-tight tracking-[-0.02em]">Midsommar Party</h2>
               <p className="mt-3 leading-7 text-muted-foreground">Friday, 19 June · 6:30 pm<br />The garden, rain or shine</p>
 
               <div className="mt-8 space-y-3 border-y border-border py-5 text-sm">
@@ -88,7 +88,7 @@ const LandingPage = () => {
 
               <div className="mt-6 flex items-center gap-3 rounded-md bg-secondary px-4 py-3 text-sm">
                 <Link2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                <span className="min-w-0 truncate text-muted-foreground">simple.events/event/midsummer</span>
+                <span className="min-w-0 truncate text-muted-foreground">events.soderholm.app/event/midsommar</span>
               </div>
             </div>
           </div>

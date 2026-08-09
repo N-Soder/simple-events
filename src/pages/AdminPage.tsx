@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 const OPEN_LIST_MESSAGE = "Bringing something? Pick an item from the list or add what you're planning to bring, and feel free to leave a comment.";
 const FIXED_SLOT_MESSAGE = "Bringing something? Grab an item before it's gone from the selection, and feel free to leave a comment.";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { CalendarDays, Clock, MapPin, Users, UtensilsCrossed, Plus, Trash2, Save, Shield, AlertTriangle, ListOrdered, ListPlus } from "lucide-react";
+import { AlertTriangle, CalendarDays, Clock, Image, ListOrdered, ListPlus, MapPin, Plus, Save, Shield, Trash2, Users, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ import {
   adminDeleteBringItem,
   adminDeleteRsvp,
   adminDeleteEvent,
+  uploadBanner,
   ApiError,
 } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,6 +47,7 @@ import { getMyEvent, saveMyEvent } from "@/lib/myEvents";
 import { BringItem } from "@/components/BringListSection";
 import AppHeader from "@/components/AppHeader";
 import { Skeleton } from "@/components/ui/skeleton";
+import BannerField, { type BannerChoice } from "@/components/BannerField";
 
 interface EventData {
   event: {
@@ -93,6 +95,7 @@ const AdminPage = () => {
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [location, setLocation] = useState("");
   const [locationUrl, setLocationUrl] = useState("");
+  const [bannerChange, setBannerChange] = useState<BannerChoice | null>();
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
   const [bringListEnabled, setBringListEnabled] = useState(true);
   const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
@@ -117,6 +120,7 @@ const AdminPage = () => {
       setTimezone((result.event.timezone as string) || detectTimeZone());
       setLocation((result.event.location as string) || "");
       setLocationUrl((result.event.location_url as string) || "");
+      setBannerChange(undefined);
       setVisibility(result.event.guest_visibility as "full" | "count_only" | "hidden");
       setBringListEnabled(result.event.bring_list_enabled as boolean);
       const loadedMode = (result.event.bring_list_mode as "signup" | "open") ?? "open";
@@ -151,12 +155,22 @@ const AdminPage = () => {
     if (!id) return;
     setSaving(true);
     try {
+      let bannerUrl: string | null | undefined;
+      if (bannerChange?.kind === "file") {
+        bannerUrl = await uploadBanner(bannerChange.file);
+      } else if (bannerChange?.kind === "preset") {
+        bannerUrl = bannerChange.url;
+      } else if (bannerChange === null) {
+        bannerUrl = null;
+      }
+
       await updateEvent(id, token, {
         name, description, event_date: eventDate, event_time: eventTime || null,
         event_end_time: eventTime ? (eventEndTime || null) : null,
         timezone: eventTime ? timezone : null,
         location,
         location_url: normalizeUrl(locationUrl) || null,
+        ...(bannerUrl !== undefined ? { banner_url: bannerUrl } : {}),
         guest_visibility: visibility, bring_list_enabled: bringListEnabled,
         bring_list_message: bringListMessage, bring_list_mode: bringListMode,
       });
@@ -336,6 +350,17 @@ const AdminPage = () => {
         </Alert>
 
         {/* Edit Event Details */}
+        <Card className="surface-panel mb-5 border-0 shadow-none">
+          <CardHeader className="border-b border-border pb-5">
+            <p className="eyebrow flex items-center gap-2"><Image className="h-4 w-4" />Appearance</p>
+            <h2 className="mt-1 font-serif text-2xl">Event banner</h2>
+            <p className="pt-1 text-sm text-muted-foreground">Replace the photo, choose from the gallery, or remove it entirely.</p>
+          </CardHeader>
+          <CardContent>
+            <BannerField initialUrl={data.event.banner_url} onChange={setBannerChange} />
+          </CardContent>
+        </Card>
+
         <Card className="surface-panel mb-5 border-0 shadow-none">
           <CardHeader className="border-b border-border pb-5">
             <p className="eyebrow">The plan</p>

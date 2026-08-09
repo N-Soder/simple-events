@@ -184,7 +184,7 @@ const Index = () => {
             <div className="space-y-6">
               <div>
                 <Label htmlFor="name">Event name <span aria-hidden="true">*</span></Label>
-                <Input id="name" placeholder="Midsummer supper" {...register("name")} className="mt-1.5 h-12 text-base sm:text-base" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-error" : undefined} />
+                <Input id="name" placeholder="Midsommar Party" {...register("name")} className="mt-1.5 h-12 text-base sm:text-base" aria-invalid={!!errors.name} aria-describedby={errors.name ? "name-error" : undefined} />
                 {errors.name && <p id="name-error" className="field-error">{errors.name.message}</p>}
               </div>
 

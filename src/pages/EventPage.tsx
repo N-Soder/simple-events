@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { CalendarDays, Clock, ExternalLink, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +16,7 @@ import BringListSection, { BringItem } from "@/components/BringListSection";
 import RsvpSuccessScreen from "@/components/RsvpSuccessScreen";
 import RsvpSummaryCard from "@/components/RsvpSummaryCard";
 import AppHeader from "@/components/AppHeader";
+import GuestCountFields from "@/components/GuestCountFields";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface EventData {
@@ -471,32 +471,50 @@ const EventPage = () => {
         </div>
       )}
 
-      <article className={`mx-auto max-w-3xl px-4 pb-14 sm:px-6 sm:pb-20 ${event.banner_url ? "relative -mt-10 sm:-mt-14" : "pt-10 sm:pt-16"}`}>
-        <header className={`${event.banner_url ? "surface-panel p-5 sm:p-8" : ""}`}>
-        <p className="eyebrow">You’re invited</p>
-        <h1 className="mt-3 text-4xl leading-tight tracking-[-0.03em] sm:text-6xl">{event.name}</h1>
+      <article className="mx-auto max-w-3xl px-4 pb-14 pt-10 sm:px-6 sm:pb-20 sm:pt-14">
+        <header>
+          <p className="eyebrow">You’re invited</p>
+          <h1 className="mt-3 text-4xl leading-tight tracking-[-0.03em] sm:text-6xl">{event.name}</h1>
 
-        <div className="mt-6 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
-          <span className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5">
-            <CalendarDays className="h-4 w-4" />
-            {format(new Date(event.event_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
-          </span>
-          {event.event_time && (
-            <button
-              type="button"
-              className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 text-left underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted"
-              title={use12Hour ? "Switch to 24-hour" : "Switch to AM/PM"}
-              aria-label={use12Hour ? "Switch to 24-hour time" : "Switch to AM/PM time"}
-              onClick={() => setUse12Hour((v) => !v)}
-            >
-              <Clock className="h-4 w-4" />
-              {formatEventTime(event.event_time, use12Hour)}
-              {event.event_end_time && ` – ${formatEventTime(event.event_end_time, use12Hour)}`}
-            </button>
-          )}
-          {event.location && (
-            // Only ever linked when the stored URL is a plain http(s) address.
-            isSafeHttpUrl(event.location_url) ? (
+          <div className="mt-6 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+            <span className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5">
+              <CalendarDays className="h-4 w-4" />
+              {format(new Date(event.event_date + "T00:00:00"), "EEEE, MMMM d, yyyy")}
+            </span>
+            {event.event_time && (
+              <button
+                type="button"
+                className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 text-left underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted"
+                title={use12Hour ? "Switch to 24-hour" : "Switch to AM/PM"}
+                aria-label={use12Hour ? "Switch to 24-hour time" : "Switch to AM/PM time"}
+                onClick={() => setUse12Hour((v) => !v)}
+              >
+                <Clock className="h-4 w-4" />
+                {formatEventTime(event.event_time, use12Hour)}
+                {event.event_end_time && ` – ${formatEventTime(event.event_end_time, use12Hour)}`}
+              </button>
+            )}
+            {event.location && (
+              // Only ever linked when the stored URL is a plain http(s) address.
+              isSafeHttpUrl(event.location_url) ? (
+                <a
+                  href={event.location_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <MapPin className="h-4 w-4" />
+                  {event.location}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <span className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5">
+                  <MapPin className="h-4 w-4" />
+                  {event.location}
+                </span>
+              )
+            )}
+            {!event.location && isSafeHttpUrl(event.location_url) && (
               <a
                 href={event.location_url}
                 target="_blank"
@@ -504,39 +522,21 @@ const EventPage = () => {
                 className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted hover:text-foreground"
               >
                 <MapPin className="h-4 w-4" />
-                {event.location}
+                {displayHost(event.location_url)}
                 <ExternalLink className="h-3 w-3" />
               </a>
-            ) : (
-              <span className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5">
-                <MapPin className="h-4 w-4" />
-                {event.location}
-              </span>
-            )
-          )}
-          {!event.location && isSafeHttpUrl(event.location_url) && (
-            <a
-              href={event.location_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex min-h-11 items-center gap-2.5 rounded-md bg-muted/55 px-3.5 underline decoration-dotted underline-offset-2 transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <MapPin className="h-4 w-4" />
-              {displayHost(event.location_url)}
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-
-        <div className="mt-5">
-          <AddToCalendarButton event={{ ...event, url: shareUrl }} />
-        </div>
-
-        {event.description && (
-          <div className="mt-6 max-w-2xl border-t border-border pt-5 leading-7">
-            <MarkdownContent content={event.description} />
+            )}
           </div>
-        )}
+
+          <div className="mt-5">
+            <AddToCalendarButton event={{ ...event, url: shareUrl }} />
+          </div>
+
+          {event.description && (
+            <div className="mt-6 max-w-2xl border-t border-border pt-5 leading-7">
+              <MarkdownContent content={event.description} />
+            </div>
+          )}
         </header>
 
         {!hasExistingRsvp && (
@@ -558,34 +558,12 @@ const EventPage = () => {
                   <Label htmlFor="guest_name">Your name *</Label>
                   <Input id="guest_name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Your name" className="mt-1.5" required />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Adults</Label>
-                    <Select value={String(adults)} onValueChange={(val) => setAdults(parseInt(val))}>
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Kids</Label>
-                    <Select value={String(kids)} onValueChange={(val) => setKids(parseInt(val))}>
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 11 }, (_, i) => i).map((n) => (
-                          <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                <GuestCountFields
+                  adults={adults}
+                  kids={kids}
+                  onAdultsChange={setAdults}
+                  onKidsChange={setKids}
+                />
 
                 {showBringList && (
                   <BringListSection
