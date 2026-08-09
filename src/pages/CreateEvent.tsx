@@ -163,7 +163,7 @@ const Index = () => {
           <p className="eyebrow">New event</p>
           <h1 className="mt-4 text-4xl leading-tight tracking-[-0.025em] sm:text-5xl">Start with the plan.</h1>
           <p className="mt-4 leading-7 text-muted-foreground">
-            Give guests the essentials now. Photos, privacy, and the bring list can stay out of the way until you need them.
+            Enter the main details, then add a banner photo, privacy settings, and other useful extras.
           </p>
           <div className="mt-8 hidden border-t border-border pt-5 text-sm text-muted-foreground lg:block">
             <p className="font-medium text-foreground">What happens next</p>
