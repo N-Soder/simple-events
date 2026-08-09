@@ -211,7 +211,14 @@ const Index = () => {
 
               <div>
                 <Label htmlFor="description">A note for guests <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                <MarkdownEditor value={watch("description") || ""} onChange={(value) => setValue("description", value)} placeholder="What should people know?" rows={4} />
+                <MarkdownEditor
+                  id="description"
+                  ariaLabel="A note for guests"
+                  value={watch("description") || ""}
+                  onChange={(value) => setValue("description", value)}
+                  placeholder="What should people know?"
+                  rows={4}
+                />
               </div>
             </div>
           </section>
@@ -262,8 +269,15 @@ const Index = () => {
                   })}
                 </RadioGroup>
                 <div>
-                  <Label>Message for guests</Label>
-                  <MarkdownEditor value={bringListMessage} onChange={setBringListMessage} placeholder="Message shown above the bring list" rows={2} />
+                  <Label htmlFor="bring-list-message">Message for guests</Label>
+                  <MarkdownEditor
+                    id="bring-list-message"
+                    ariaLabel="Message for guests"
+                    value={bringListMessage}
+                    onChange={setBringListMessage}
+                    placeholder="Message shown above the bring list..."
+                    rows={2}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="new-bring-item">Suggestions</Label>
