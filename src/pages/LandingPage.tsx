@@ -21,7 +21,7 @@ const LandingPage = () => {
     <main id="main-content" className="page-texture flex min-h-[100dvh] flex-col overflow-x-clip bg-background">
       <AppHeader showMyEvents={savedCount > 0} />
 
-      <section className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-14 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:gap-20 lg:py-24">
+      <section className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-10 px-4 py-12 sm:gap-14 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:gap-20 lg:py-24">
         <div className="min-w-0 animate-rise">
           <p className="eyebrow">One link. Everyone invited.</p>
           <h1 className="mt-5 max-w-3xl text-5xl leading-[0.98] tracking-[-0.035em] sm:text-6xl lg:text-7xl">
@@ -62,20 +62,20 @@ const LandingPage = () => {
         </div>
 
         <aside className="relative mx-auto min-w-0 w-full max-w-md animate-rise [animation-delay:120ms]" aria-label="Example event page">
-          <div className="absolute -inset-2 -rotate-2 rounded-lg border border-border/70 bg-accent/60 sm:-inset-5" aria-hidden="true" />
+          <div className="absolute -inset-2 hidden -rotate-2 rounded-lg border border-border/70 bg-accent/60 sm:block sm:-inset-5" aria-hidden="true" />
           <div className="surface-panel relative overflow-hidden">
-            <div className="h-2 bg-primary" />
-            <div className="p-6 sm:p-8">
-              <div className="flex items-center justify-between border-b border-border pb-5">
+            <div className="h-1.5 bg-primary sm:h-2" />
+            <div className="p-5 sm:p-8">
+              <div className="flex items-center justify-between border-b border-border pb-4 sm:pb-5">
                 <p className="text-sm font-medium text-muted-foreground">You’re invited</p>
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary sm:h-9 sm:w-9">
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
                 </span>
               </div>
-              <h2 className="mt-7 text-4xl leading-tight tracking-[-0.02em]">Midsommar Party</h2>
-              <p className="mt-3 leading-7 text-muted-foreground">Friday, 19 June · 6:30 pm<br />The garden, rain or shine</p>
+              <h2 className="mt-4 text-3xl leading-tight tracking-[-0.02em] sm:mt-7 sm:text-4xl">Midsommar Party</h2>
+              <p className="mt-2 leading-6 text-muted-foreground sm:mt-3 sm:leading-7">Friday, 19 June · 6:30 pm<br />The garden, rain or shine</p>
 
-              <div className="mt-8 space-y-3 border-y border-border py-5 text-sm">
+              <div className="mt-5 space-y-2.5 border-y border-border py-4 text-sm sm:mt-8 sm:space-y-3 sm:py-5">
                 <div className="flex items-center justify-between gap-4">
                   <span className="flex items-center gap-2 text-muted-foreground"><Users className="h-4 w-4" />Coming</span>
                   <span className="font-medium tabular-nums">14 adults · 3 kids</span>
@@ -86,7 +86,7 @@ const LandingPage = () => {
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center gap-3 rounded-md bg-secondary px-4 py-3 text-sm">
+              <div className="mt-4 flex items-center gap-3 rounded-md bg-secondary px-3 py-2.5 text-sm sm:mt-6 sm:px-4 sm:py-3">
                 <Link2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 <span className="min-w-0 truncate text-muted-foreground">events.soderholm.app/event/midsommar</span>
               </div>
