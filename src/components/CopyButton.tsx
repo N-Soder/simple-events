@@ -99,7 +99,7 @@ interface CopyableLinkProps {
 /** A read-only link in a code box with a copy button beside it. */
 export const CopyableLink = ({ value, successMessage, label, className }: CopyableLinkProps) => (
   <div className={cn("flex gap-2", className)}>
-    <code className="flex-1 overflow-hidden truncate rounded-md bg-muted px-3 py-2 text-sm" title={value}>
+    <code className="min-w-0 flex-1 overflow-hidden truncate rounded-md bg-muted px-3 py-2 text-sm" title={value}>
       {value}
     </code>
     <CopyButton value={value} successMessage={successMessage} label={label} />
