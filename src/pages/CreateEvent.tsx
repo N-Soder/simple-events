@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarDays, ChevronDown, Clock, Eye, Image, ListOrdered, ListPlus, LockKeyhole, Plus, Settings2, UtensilsCrossed, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Clock, Eye, Image, ListOrdered, ListPlus, LockKeyhole, Plus, ShieldCheck, UtensilsCrossed, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +57,8 @@ const Index = () => {
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [locationUrl, setLocationUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [bannerOpen, setBannerOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
 
   // The landing page hands the event name over in the query string, so a host
   // who typed it there doesn't have to type it again.
@@ -151,7 +152,7 @@ const Index = () => {
   const handleInvalid = (formErrors: typeof errors) => {
     const firstField = Object.keys(formErrors)[0];
     if (!firstField) return;
-    if (["password", "guest_visibility"].includes(firstField)) setMoreOptionsOpen(true);
+    if (["password", "guest_visibility"].includes(firstField)) setAccessOpen(true);
     window.setTimeout(() => document.getElementById(firstField)?.focus(), 0);
   };
 
@@ -172,11 +173,11 @@ const Index = () => {
         </header>
 
         <form onSubmit={handleSubmit(onSubmit, handleInvalid)} className="min-w-0 space-y-5" noValidate>
-          <section className="surface-panel p-5 sm:p-7" aria-labelledby="essentials-heading">
+          <section className="surface-panel p-5 sm:p-7" aria-labelledby="details-heading">
             <div className="mb-7 flex items-start gap-3 border-b border-border pb-5">
               <span className="font-serif text-2xl text-primary/70">01</span>
               <div>
-                <h2 id="essentials-heading" className="font-sans text-base font-semibold">The essentials</h2>
+                <h2 id="details-heading" className="font-sans text-base font-semibold">Event details</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Only the event name and date are required.</p>
               </div>
             </div>
@@ -215,107 +216,123 @@ const Index = () => {
             </div>
           </section>
 
-          <Collapsible open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen} className="surface-panel overflow-hidden">
-            <CollapsibleTrigger asChild>
-              <button type="button" className="flex w-full items-center gap-3 px-5 py-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-7">
-                <span className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-muted-foreground"><Settings2 className="h-4 w-4" /></span>
-                <span className="flex-1">
-                  <span className="block font-medium">More options</span>
-                  <span className="mt-0.5 block text-sm text-muted-foreground">Photo, password, guest privacy, and bring list</span>
-                </span>
-                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${moreOptionsOpen ? "rotate-180" : ""}`} aria-hidden="true" />
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="space-y-8 border-t border-border px-5 py-6 sm:px-7 sm:py-8">
-                <OptionSection icon={Image} title="Event photo" description="A wide banner at the top of the guest page.">
-                  <BannerField onChange={setBanner} />
-                </OptionSection>
+          <DisclosureSection
+            id="banner-heading"
+            number="02"
+            icon={Image}
+            title="Event banner"
+            description="Add a wide photo to the top of the guest page."
+            open={bannerOpen}
+            onOpenChange={setBannerOpen}
+          >
+            <BannerField onChange={setBanner} />
+          </DisclosureSection>
 
-                <OptionSection icon={LockKeyhole} title="Guest password" description="The shared link is usually private enough. Add a password for another layer.">
-                  <div className="flex items-center justify-between rounded-md bg-muted/45 px-4 py-3">
-                    <Label htmlFor="require-password" className="cursor-pointer">Require a password</Label>
-                    <Switch id="require-password" checked={requirePassword} onCheckedChange={setRequirePassword} />
-                  </div>
-                  {requirePassword && (
-                    <div className="mt-3 space-y-3">
-                      <Input id="password" type="password" placeholder="A simple password for guests" {...register("password")} aria-invalid={!!errors.password} />
-                      {errors.password && <p className="field-error">{errors.password.message}</p>}
-                      <div className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-3">
-                        <div>
-                          <Label htmlFor="embed-password" className="cursor-pointer">Put it in the guest link</Label>
-                          <p className="mt-0.5 text-xs text-muted-foreground">Guests can open the page without typing it.</p>
-                        </div>
-                        <Switch id="embed-password" checked={embedPassword} onCheckedChange={setEmbedPassword} />
-                      </div>
-                    </div>
-                  )}
-                </OptionSection>
-
-                <OptionSection icon={Eye} title="Guest list privacy" description="Choose what guests can see about other replies.">
-                  <RadioGroup value={visibility} onValueChange={(value) => setValue("guest_visibility", value as FormData["guest_visibility"])} className="grid gap-2 sm:grid-cols-3">
-                    {[
-                      ["full", "Names and totals", "Guests see who is coming"],
-                      ["count_only", "Totals only", "No guest names"],
-                      ["hidden", "Hidden", "No attendance details"],
-                    ].map(([value, label, description]) => (
-                      <label key={value} className={`cursor-pointer rounded-md border p-3 transition-colors ${visibility === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
-                        <span className="flex items-center gap-2"><RadioGroupItem value={value} /><span className="text-sm font-medium">{label}</span></span>
-                        <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description}</span>
-                      </label>
-                    ))}
-                  </RadioGroup>
-                </OptionSection>
-
-                <OptionSection icon={UtensilsCrossed} title="Bring list" description="Coordinate food, drinks, or anything else guests can contribute.">
-                  <div className="flex items-center justify-between rounded-md bg-muted/45 px-4 py-3">
-                    <Label htmlFor="bring-list" className="cursor-pointer">Add a bring list</Label>
-                    <Switch id="bring-list" checked={bringListEnabled} onCheckedChange={setBringListEnabled} />
-                  </div>
-                  {bringListEnabled && (
-                    <div className="mt-4 space-y-4">
-                      <RadioGroup value={bringListMode} onValueChange={(value) => { const mode = value as "signup" | "open"; setBringListMode(mode); if (bringListMessage === OPEN_LIST_MESSAGE || bringListMessage === FIXED_SLOT_MESSAGE) setBringListMessage(mode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE); }} className="grid gap-2 sm:grid-cols-2">
-                        {[
-                          ["open", ListPlus, "Open list", "Suggestions plus anything guests add"],
-                          ["signup", ListOrdered, "Fixed slots", "A limited number of each item"],
-                        ].map(([value, Icon, label, description]) => {
-                          const ModeIcon = Icon as typeof ListPlus;
-                          return (
-                            <label key={value as string} className={`cursor-pointer rounded-md border p-3 transition-colors ${bringListMode === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
-                              <span className="flex items-center gap-2"><RadioGroupItem value={value as string} /><ModeIcon className="h-4 w-4" /><span className="text-sm font-medium">{label as string}</span></span>
-                              <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description as string}</span>
-                            </label>
-                          );
-                        })}
-                      </RadioGroup>
-                      <div>
-                        <Label>Message for guests</Label>
-                        <MarkdownEditor value={bringListMessage} onChange={setBringListMessage} placeholder="Message shown above the bring list" rows={2} />
-                      </div>
-                      <div>
-                        <Label htmlFor="new-bring-item">Suggestions</Label>
-                        <div className="mt-1.5 flex gap-2">
-                          <Input id="new-bring-item" placeholder={bringListMode === "signup" ? "Dessert, drinks, side dish" : "Salad, drinks, dessert"} value={newItem} onChange={(event) => setNewItem(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addItem(); } }} className="flex-1" />
-                          {bringListMode === "signup" && <Input type="number" min={1} max={20} value={newItemQty} onChange={(event) => setNewItemQty(parseInt(event.target.value) || 1)} className="w-20" aria-label="Number of slots" />}
-                          <Button type="button" variant="outline" size="icon" onClick={addItem} aria-label="Add bring-list item"><Plus /></Button>
-                        </div>
-                        {bringItems.length > 0 && (
-                          <ul className="mt-3 divide-y divide-border rounded-md border border-border">
-                            {bringItems.map((item, index) => (
-                              <li key={`${item.name}-${index}`} className="flex items-center gap-3 px-3 py-2 text-sm">
-                                <span className="flex-1">{item.name}{bringListMode === "signup" && item.quantity > 1 ? ` ×${item.quantity}` : ""}</span>
-                                <button type="button" onClick={() => removeItem(index)} className="rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${item.name}`}><X className="h-4 w-4" /></button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </OptionSection>
+          <section className="surface-panel overflow-hidden" aria-labelledby="bring-list-heading">
+            <div className="flex items-center gap-3 px-5 py-5 sm:px-7">
+              <span className="font-serif text-2xl text-primary/70">03</span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+                <UtensilsCrossed className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 id="bring-list-heading" className="font-sans text-base font-semibold">Bring list</h2>
+                <p className="mt-0.5 text-sm text-muted-foreground">Coordinate food, drinks, or anything else guests can contribute.</p>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+              <Switch
+                id="bring-list"
+                aria-label="Enable bring list"
+                checked={bringListEnabled}
+                onCheckedChange={setBringListEnabled}
+              />
+            </div>
+            {bringListEnabled && (
+              <div className="space-y-4 border-t border-border px-5 py-6 sm:px-7 sm:py-8">
+                <RadioGroup value={bringListMode} onValueChange={(value) => { const mode = value as "signup" | "open"; setBringListMode(mode); if (bringListMessage === OPEN_LIST_MESSAGE || bringListMessage === FIXED_SLOT_MESSAGE) setBringListMessage(mode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE); }} className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    ["open", ListPlus, "Open list", "Suggestions plus anything guests add"],
+                    ["signup", ListOrdered, "Fixed slots", "A limited number of each item"],
+                  ].map(([value, Icon, label, description]) => {
+                    const ModeIcon = Icon as typeof ListPlus;
+                    return (
+                      <label key={value as string} className={`cursor-pointer rounded-md border p-3 transition-colors ${bringListMode === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
+                        <span className="flex items-center gap-2"><RadioGroupItem value={value as string} /><ModeIcon className="h-4 w-4" /><span className="text-sm font-medium">{label as string}</span></span>
+                        <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description as string}</span>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
+                <div>
+                  <Label>Message for guests</Label>
+                  <MarkdownEditor value={bringListMessage} onChange={setBringListMessage} placeholder="Message shown above the bring list" rows={2} />
+                </div>
+                <div>
+                  <Label htmlFor="new-bring-item">Suggestions</Label>
+                  <div className="mt-1.5 flex gap-2">
+                    <Input id="new-bring-item" placeholder={bringListMode === "signup" ? "Dessert, drinks, side dish" : "Salad, drinks, dessert"} value={newItem} onChange={(event) => setNewItem(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addItem(); } }} className="flex-1" />
+                    {bringListMode === "signup" && <Input type="number" min={1} max={20} value={newItemQty} onChange={(event) => setNewItemQty(parseInt(event.target.value) || 1)} className="w-20" aria-label="Number of slots" />}
+                    <Button type="button" variant="outline" size="icon" onClick={addItem} aria-label="Add bring-list item"><Plus /></Button>
+                  </div>
+                  {bringItems.length > 0 && (
+                    <ul className="mt-3 divide-y divide-border rounded-md border border-border">
+                      {bringItems.map((item, index) => (
+                        <li key={`${item.name}-${index}`} className="flex items-center gap-3 px-3 py-2 text-sm">
+                          <span className="flex-1">{item.name}{bringListMode === "signup" && item.quantity > 1 ? ` ×${item.quantity}` : ""}</span>
+                          <button type="button" onClick={() => removeItem(index)} className="rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${item.name}`}><X className="h-4 w-4" /></button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <DisclosureSection
+            id="access-heading"
+            number="04"
+            icon={ShieldCheck}
+            title="Access & privacy"
+            description="Control passwords and what guests can see about other replies."
+            open={accessOpen}
+            onOpenChange={setAccessOpen}
+          >
+            <div className="space-y-8">
+              <OptionSection icon={LockKeyhole} title="Guest password" description="The shared link is usually private enough. Add a password for another layer.">
+                <div className="flex items-center justify-between rounded-md bg-muted/45 px-4 py-3">
+                  <Label htmlFor="require-password" className="cursor-pointer">Require a password</Label>
+                  <Switch id="require-password" checked={requirePassword} onCheckedChange={setRequirePassword} />
+                </div>
+                {requirePassword && (
+                  <div className="mt-3 space-y-3">
+                    <Input id="password" type="password" placeholder="A simple password for guests" {...register("password")} aria-invalid={!!errors.password} />
+                    {errors.password && <p className="field-error">{errors.password.message}</p>}
+                    <div className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-3">
+                      <div>
+                        <Label htmlFor="embed-password" className="cursor-pointer">Put it in the guest link</Label>
+                        <p className="mt-0.5 text-xs text-muted-foreground">Guests can open the page without typing it.</p>
+                      </div>
+                      <Switch id="embed-password" checked={embedPassword} onCheckedChange={setEmbedPassword} />
+                    </div>
+                  </div>
+                )}
+              </OptionSection>
+
+              <OptionSection icon={Eye} title="Guest list privacy" description="Choose what guests can see about other replies.">
+                <RadioGroup value={visibility} onValueChange={(value) => setValue("guest_visibility", value as FormData["guest_visibility"])} className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    ["full", "Names and totals", "Guests see who is coming"],
+                    ["count_only", "Totals only", "No guest names"],
+                    ["hidden", "Hidden", "No attendance details"],
+                  ].map(([value, label, description]) => (
+                    <label key={value} className={`cursor-pointer rounded-md border p-3 transition-colors ${visibility === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
+                      <span className="flex items-center gap-2"><RadioGroupItem value={value} /><span className="text-sm font-medium">{label}</span></span>
+                      <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description}</span>
+                    </label>
+                  ))}
+                </RadioGroup>
+              </OptionSection>
+            </div>
+          </DisclosureSection>
 
           <div className="sticky bottom-3 z-20 rounded-lg border border-border bg-background/90 p-3 shadow-lg backdrop-blur-md sm:flex sm:items-center sm:justify-between sm:gap-6">
             <p className="hidden text-sm text-muted-foreground sm:block">You can change every detail later.</p>
@@ -328,6 +345,57 @@ const Index = () => {
     </main>
   );
 };
+
+interface DisclosureSectionProps {
+  id: string;
+  number: string;
+  icon: typeof Image;
+  title: string;
+  description: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+}
+
+const DisclosureSection = ({
+  id,
+  number,
+  icon: Icon,
+  title,
+  description,
+  open,
+  onOpenChange,
+  children,
+}: DisclosureSectionProps) => (
+  <section className="surface-panel overflow-hidden" aria-labelledby={id}>
+    <h2 id={id} className="sr-only">{title}</h2>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          aria-labelledby={id}
+          aria-describedby={`${id}-description`}
+          className="flex w-full items-center gap-3 px-5 py-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-7"
+        >
+          <span className="font-serif text-2xl text-primary/70">{number}</span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">{title}</span>
+            <span id={`${id}-description`} className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
+          </span>
+          <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border-t border-border px-5 py-6 sm:px-7 sm:py-8">
+          {children}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  </section>
+);
 
 interface OptionSectionProps {
   icon: typeof Image;
