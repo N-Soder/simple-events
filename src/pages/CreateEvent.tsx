@@ -3,14 +3,12 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarDays, ChevronDown, Clock, Eye, Image, ListOrdered, ListPlus, LockKeyhole, Plus, ShieldCheck, UtensilsCrossed, X } from "lucide-react";
+import { CalendarDays, Clock, Eye, Image, LockKeyhole, Plus, ShieldCheck, UtensilsCrossed, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { createEvent, uploadBanner } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
@@ -19,9 +17,13 @@ import TimeZoneNote from "@/components/TimeZoneNote";
 import TimeField from "@/components/TimeField";
 import LocationField from "@/components/LocationField";
 import BannerField, { type BannerChoice } from "@/components/BannerField";
+import BringListModeField from "@/components/BringListModeField";
+import GuestVisibilityField from "@/components/GuestVisibilityField";
+import { DisclosureSection, FormSection, OptionSection, ToggleSection } from "@/components/FormSections";
 import { saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { normalizeUrl } from "@/lib/url";
+import { messageForMode, OPEN_LIST_MESSAGE, type BringListMode } from "@/lib/bringList";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Event name is required").max(200),
@@ -39,25 +41,22 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const OPEN_LIST_MESSAGE = "Bringing something? Pick an item from the list or add what you're planning to bring, and feel free to leave a comment.";
-const FIXED_SLOT_MESSAGE = "Bringing something? Grab an item before it's gone from the selection, and feel free to leave a comment.";
-
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [requirePassword, setRequirePassword] = useState(false);
   const [embedPassword, setEmbedPassword] = useState(true);
   const [bringListEnabled, setBringListEnabled] = useState(false);
-  const [bringListMode, setBringListMode] = useState<"signup" | "open">("open");
+  const [bringListMode, setBringListMode] = useState<BringListMode>("open");
   const [bringItems, setBringItems] = useState<{ name: string; quantity: number }[]>([]);
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
+  const [bannerEnabled, setBannerEnabled] = useState(false);
   const [banner, setBanner] = useState<BannerChoice | null>(null);
   const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [locationUrl, setLocationUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [bannerOpen, setBannerOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
 
   // The landing page hands the event name over in the query string, so a host
@@ -85,6 +84,18 @@ const Index = () => {
 
   const removeItem = (index: number) => {
     setBringItems(bringItems.filter((_, i) => i !== index));
+  };
+
+  // Switching the banner off is a decision, not a fold-away: drop whatever was
+  // picked so the event is created without one.
+  const handleBannerEnabledChange = (enabled: boolean) => {
+    setBannerEnabled(enabled);
+    if (!enabled) setBanner(null);
+  };
+
+  const handleModeChange = (mode: BringListMode) => {
+    setBringListMode(mode);
+    setBringListMessage((current) => messageForMode(current, mode));
   };
 
   const onSubmit = async (data: FormData) => {
@@ -173,15 +184,13 @@ const Index = () => {
         </header>
 
         <form onSubmit={handleSubmit(onSubmit, handleInvalid)} className="min-w-0 space-y-5 pb-24 sm:pb-0" noValidate>
-          <section className="surface-panel p-5 sm:p-7" aria-labelledby="details-heading">
-            <div className="mb-7 flex items-start gap-3 border-b border-border pb-5">
-              <span className="font-serif text-2xl text-primary/70">01</span>
-              <div>
-                <h2 id="details-heading" className="font-sans text-base font-semibold">Event details</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Only the event name and date are required.</p>
-              </div>
-            </div>
-
+          <FormSection
+            id="details-heading"
+            number="01"
+            icon={CalendarDays}
+            title="Event details"
+            description="Only the event name and date are required."
+          >
             <div className="space-y-6">
               <div>
                 <Label htmlFor="name">Event name <span aria-hidden="true">*</span></Label>
@@ -210,7 +219,7 @@ const Index = () => {
               <LocationField location={watch("location") || ""} onLocationChange={(value) => setValue("location", value)} url={locationUrl} onUrlChange={setLocationUrl} />
 
               <div>
-                <Label htmlFor="description">A note for guests <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <Label htmlFor="description">A note for guests</Label>
                 <MarkdownEditor
                   id="description"
                   ariaLabel="A note for guests"
@@ -221,85 +230,66 @@ const Index = () => {
                 />
               </div>
             </div>
-          </section>
+          </FormSection>
 
-          <DisclosureSection
+          <ToggleSection
             id="banner-heading"
             number="02"
             icon={Image}
             title="Event banner"
             description="Add a wide photo to the top of the guest page."
-            open={bannerOpen}
-            onOpenChange={setBannerOpen}
+            switchId="banner-enabled"
+            switchLabel="Add an event banner"
+            enabled={bannerEnabled}
+            onEnabledChange={handleBannerEnabledChange}
           >
-            <BannerField onChange={setBanner} />
-          </DisclosureSection>
+            <BannerField onChange={setBanner} label={null} />
+          </ToggleSection>
 
-          <section className="surface-panel overflow-hidden" aria-labelledby="bring-list-heading">
-            <div className="flex items-center gap-3 px-5 py-5 sm:px-7">
-              <span className="font-serif text-2xl text-primary/70">03</span>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
-                <UtensilsCrossed className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 id="bring-list-heading" className="font-sans text-base font-semibold">Bring list</h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">Coordinate food, drinks, or anything else guests can contribute.</p>
+          <ToggleSection
+            id="bring-list-heading"
+            number="03"
+            icon={UtensilsCrossed}
+            title="Bring list"
+            description="Coordinate food, drinks, or anything else guests can contribute."
+            switchId="bring-list"
+            switchLabel="Enable bring list"
+            enabled={bringListEnabled}
+            onEnabledChange={setBringListEnabled}
+          >
+            <div className="space-y-4">
+              <BringListModeField value={bringListMode} onChange={handleModeChange} />
+              <div>
+                <Label htmlFor="bring-list-message">Message for guests</Label>
+                <MarkdownEditor
+                  id="bring-list-message"
+                  ariaLabel="Message for guests"
+                  value={bringListMessage}
+                  onChange={setBringListMessage}
+                  placeholder="Message shown above the bring list..."
+                  rows={2}
+                />
               </div>
-              <Switch
-                id="bring-list"
-                aria-label="Enable bring list"
-                checked={bringListEnabled}
-                onCheckedChange={setBringListEnabled}
-              />
+              <div>
+                <Label htmlFor="new-bring-item">Suggestions</Label>
+                <div className="mt-1.5 flex gap-2">
+                  <Input id="new-bring-item" placeholder={bringListMode === "signup" ? "Dessert, drinks, side dish" : "Salad, drinks, dessert"} value={newItem} onChange={(event) => setNewItem(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addItem(); } }} className="flex-1" />
+                  {bringListMode === "signup" && <Input type="number" min={1} max={20} value={newItemQty} onChange={(event) => setNewItemQty(parseInt(event.target.value) || 1)} className="w-20" aria-label="Number of slots" />}
+                  <Button type="button" variant="outline" size="icon" onClick={addItem} aria-label="Add bring-list item"><Plus /></Button>
+                </div>
+                {bringItems.length > 0 && (
+                  <ul className="mt-3 divide-y divide-border rounded-md border border-border">
+                    {bringItems.map((item, index) => (
+                      <li key={`${item.name}-${index}`} className="flex items-center gap-3 px-3 py-2 text-sm">
+                        <span className="flex-1">{item.name}{bringListMode === "signup" && item.quantity > 1 ? ` ×${item.quantity}` : ""}</span>
+                        <button type="button" onClick={() => removeItem(index)} className="rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${item.name}`}><X className="h-4 w-4" /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
-            {bringListEnabled && (
-              <div className="space-y-4 border-t border-border px-5 py-6 sm:px-7 sm:py-8">
-                <RadioGroup value={bringListMode} onValueChange={(value) => { const mode = value as "signup" | "open"; setBringListMode(mode); if (bringListMessage === OPEN_LIST_MESSAGE || bringListMessage === FIXED_SLOT_MESSAGE) setBringListMessage(mode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE); }} className="grid gap-2 sm:grid-cols-2">
-                  {[
-                    ["open", ListPlus, "Open list", "Suggestions plus anything guests add"],
-                    ["signup", ListOrdered, "Fixed slots", "A limited number of each item"],
-                  ].map(([value, Icon, label, description]) => {
-                    const ModeIcon = Icon as typeof ListPlus;
-                    return (
-                      <label key={value as string} className={`cursor-pointer rounded-md border p-3 transition-colors ${bringListMode === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
-                        <span className="flex items-center gap-2"><RadioGroupItem value={value as string} /><ModeIcon className="h-4 w-4" /><span className="text-sm font-medium">{label as string}</span></span>
-                        <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description as string}</span>
-                      </label>
-                    );
-                  })}
-                </RadioGroup>
-                <div>
-                  <Label htmlFor="bring-list-message">Message for guests</Label>
-                  <MarkdownEditor
-                    id="bring-list-message"
-                    ariaLabel="Message for guests"
-                    value={bringListMessage}
-                    onChange={setBringListMessage}
-                    placeholder="Message shown above the bring list..."
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="new-bring-item">Suggestions</Label>
-                  <div className="mt-1.5 flex gap-2">
-                    <Input id="new-bring-item" placeholder={bringListMode === "signup" ? "Dessert, drinks, side dish" : "Salad, drinks, dessert"} value={newItem} onChange={(event) => setNewItem(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addItem(); } }} className="flex-1" />
-                    {bringListMode === "signup" && <Input type="number" min={1} max={20} value={newItemQty} onChange={(event) => setNewItemQty(parseInt(event.target.value) || 1)} className="w-20" aria-label="Number of slots" />}
-                    <Button type="button" variant="outline" size="icon" onClick={addItem} aria-label="Add bring-list item"><Plus /></Button>
-                  </div>
-                  {bringItems.length > 0 && (
-                    <ul className="mt-3 divide-y divide-border rounded-md border border-border">
-                      {bringItems.map((item, index) => (
-                        <li key={`${item.name}-${index}`} className="flex items-center gap-3 px-3 py-2 text-sm">
-                          <span className="flex-1">{item.name}{bringListMode === "signup" && item.quantity > 1 ? ` ×${item.quantity}` : ""}</span>
-                          <button type="button" onClick={() => removeItem(index)} className="rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Remove ${item.name}`}><X className="h-4 w-4" /></button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
+          </ToggleSection>
 
           <DisclosureSection
             id="access-heading"
@@ -332,18 +322,7 @@ const Index = () => {
               </OptionSection>
 
               <OptionSection icon={Eye} title="Guest list privacy" description="Choose what guests can see about other replies.">
-                <RadioGroup value={visibility} onValueChange={(value) => setValue("guest_visibility", value as FormData["guest_visibility"])} className="grid gap-2 sm:grid-cols-3">
-                  {[
-                    ["full", "Names and totals", "Guests see who is coming"],
-                    ["count_only", "Totals only", "No guest names"],
-                    ["hidden", "Hidden", "No attendance details"],
-                  ].map(([value, label, description]) => (
-                    <label key={value} className={`cursor-pointer rounded-md border p-3 transition-colors ${visibility === value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/35"}`}>
-                      <span className="flex items-center gap-2"><RadioGroupItem value={value} /><span className="text-sm font-medium">{label}</span></span>
-                      <span className="mt-1.5 block pl-6 text-xs leading-5 text-muted-foreground">{description}</span>
-                    </label>
-                  ))}
-                </RadioGroup>
+                <GuestVisibilityField value={visibility} onChange={(value) => setValue("guest_visibility", value)} />
               </OptionSection>
             </div>
           </DisclosureSection>
@@ -359,73 +338,5 @@ const Index = () => {
     </main>
   );
 };
-
-interface DisclosureSectionProps {
-  id: string;
-  number: string;
-  icon: typeof Image;
-  title: string;
-  description: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: React.ReactNode;
-}
-
-const DisclosureSection = ({
-  id,
-  number,
-  icon: Icon,
-  title,
-  description,
-  open,
-  onOpenChange,
-  children,
-}: DisclosureSectionProps) => (
-  <section className="surface-panel overflow-hidden" aria-labelledby={id}>
-    <h2 id={id} className="sr-only">{title}</h2>
-    <Collapsible open={open} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          aria-labelledby={id}
-          aria-describedby={`${id}-description`}
-          className="flex w-full items-center gap-3 px-5 py-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-7"
-        >
-          <span className="font-serif text-2xl text-primary/70">{number}</span>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
-            <Icon className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-medium">{title}</span>
-            <span id={`${id}-description`} className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
-          </span>
-          <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="border-t border-border px-5 py-6 sm:px-7 sm:py-8">
-          {children}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  </section>
-);
-
-interface OptionSectionProps {
-  icon: typeof Image;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}
-
-const OptionSection = ({ icon: Icon, title, description, children }: OptionSectionProps) => (
-  <section className="grid gap-4 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-7">
-    <div>
-      <div className="flex items-center gap-2 text-sm font-semibold"><Icon className="h-4 w-4 text-primary" />{title}</div>
-      <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{description}</p>
-    </div>
-    <div className="min-w-0">{children}</div>
-  </section>
-);
 
 export default Index;
