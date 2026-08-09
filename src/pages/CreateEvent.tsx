@@ -172,7 +172,7 @@ const Index = () => {
           </div>
         </header>
 
-        <form onSubmit={handleSubmit(onSubmit, handleInvalid)} className="min-w-0 space-y-5" noValidate>
+        <form onSubmit={handleSubmit(onSubmit, handleInvalid)} className="min-w-0 space-y-5 pb-24 sm:pb-0" noValidate>
           <section className="surface-panel p-5 sm:p-7" aria-labelledby="details-heading">
             <div className="mb-7 flex items-start gap-3 border-b border-border pb-5">
               <span className="font-serif text-2xl text-primary/70">01</span>
@@ -334,7 +334,7 @@ const Index = () => {
             </div>
           </DisclosureSection>
 
-          <div className="sticky bottom-3 z-20 rounded-lg border border-border bg-background/90 p-3 shadow-lg backdrop-blur-md sm:flex sm:items-center sm:justify-between sm:gap-6">
+          <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20 rounded-lg border border-border bg-background/90 p-3 shadow-lg backdrop-blur-md sm:static sm:z-auto sm:flex sm:items-center sm:justify-between sm:gap-6 sm:bg-background sm:shadow-sm sm:backdrop-blur-none">
             <p className="hidden text-sm text-muted-foreground sm:block">You can change every detail later.</p>
             <Button type="submit" size="lg" disabled={isSubmitting} className="w-full px-8 sm:w-auto">
               {isSubmitting ? "Creating your event…" : "Create event"}

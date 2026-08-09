@@ -40,4 +40,20 @@ describe("CreateEvent sections", () => {
     fireEvent.click(screen.getByRole("button", { name: /Access & privacy/i }));
     expect(screen.getByText("Guest list privacy")).toBeInTheDocument();
   });
+
+  it("keeps the create action in normal flow on desktop without losing its mobile sticky treatment", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <CreateEvent />
+      </MemoryRouter>,
+    );
+
+    const createButton = screen.getByRole("button", { name: "Create event" });
+    const actionBar = createButton.parentElement;
+    const form = createButton.closest("form");
+
+    expect(actionBar).toHaveClass("sticky", "sm:static");
+    expect(actionBar).toHaveClass("bottom-[calc(env(safe-area-inset-bottom)+0.75rem)]");
+    expect(form).toHaveClass("pb-24", "sm:pb-0");
+  });
 });
