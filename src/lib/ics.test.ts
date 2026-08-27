@@ -167,6 +167,35 @@ describe("buildIcs", () => {
     expect(ics).not.toContain("javascript:");
   });
 
+  it("names the platform when it puts a group chat link in the description", () => {
+    const ics = buildIcs(
+      {
+        id: "e1", name: "BBQ", event_date: "2026-08-01",
+        contact_url: "https://chat.whatsapp.com/Fx9abcDEF",
+      },
+      NOW,
+    );
+    expect(lineOf(ics, "DESCRIPTION")).toContain(
+      "Group chat (WhatsApp): https://chat.whatsapp.com/Fx9abcDEF"
+    );
+  });
+
+  it("falls back to the host for an unrecognised group chat link", () => {
+    const ics = buildIcs(
+      { id: "e1", name: "BBQ", event_date: "2026-08-01", contact_url: "https://chat.example.com/x" },
+      NOW,
+    );
+    expect(lineOf(ics, "DESCRIPTION")).toContain("Group chat (chat.example.com):");
+  });
+
+  it("ignores a group chat link that is not a plain web address", () => {
+    const ics = buildIcs(
+      { id: "e1", name: "BBQ", event_date: "2026-08-01", contact_url: "javascript:alert(1)" },
+      NOW,
+    );
+    expect(ics).not.toContain("javascript:");
+  });
+
   it("includes the event URL in both URL and DESCRIPTION", () => {
     const ics = buildIcs(
       { id: "e1", name: "BBQ", event_date: "2026-08-01", url: "https://example.com/event/e1" },
@@ -191,6 +220,14 @@ describe("googleCalendarUrl", () => {
     const url = new URL(googleCalendarUrl({ id: "e1", name: "Picnic", event_date: "2026-08-01" }));
     expect(url.searchParams.get("dates")).toBe("20260801/20260802");
     expect(url.searchParams.get("ctz")).toBeNull();
+  });
+
+  it("carries the group chat link into the details", () => {
+    const url = new URL(googleCalendarUrl({
+      id: "e1", name: "BBQ", event_date: "2026-08-01",
+      contact_url: "https://signal.group/#abc",
+    }));
+    expect(url.searchParams.get("details")).toContain("Group chat (Signal): https://signal.group/#abc");
   });
 });
 

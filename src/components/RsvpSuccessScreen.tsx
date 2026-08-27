@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import { CalendarEvent } from "@/lib/ics";
+import GroupChatLink from "@/components/GroupChatLink";
+import { detectGroupChatPlatform } from "@/lib/groupChat";
+import { isSafeHttpUrl } from "@/lib/url";
 
 interface RsvpSuccessScreenProps {
   guestName: string;
@@ -11,6 +14,8 @@ interface RsvpSuccessScreenProps {
   kids: number;
   claimedItems: string[];
   manageUrl: string;
+  /** The host's group chat, which this reply has just unlocked. */
+  groupChatUrl?: string | null;
   calendarEvent: CalendarEvent;
   onViewEvent: () => void;
 }
@@ -21,10 +26,13 @@ const RsvpSuccessScreen = ({
   kids,
   claimedItems,
   manageUrl,
+  groupChatUrl,
   calendarEvent,
   onViewEvent,
 }: RsvpSuccessScreenProps) => {
   const { toast } = useToast();
+  const groupChatPlatform = detectGroupChatPlatform(groupChatUrl);
+  const showGroupChat = isSafeHttpUrl(groupChatUrl);
 
   const copyLink = async () => {
     try {
@@ -44,7 +52,23 @@ const RsvpSuccessScreen = ({
         <p className="mt-3 text-lg text-muted-foreground">Thanks, {guestName}. Your host has your reply.</p>
       </div>
 
-      <Card className="surface-panel mt-9 border-0 shadow-none">
+      {showGroupChat && (
+        <Card className="surface-panel mt-9 border-0 shadow-none">
+          <CardHeader className="border-b border-border pb-5">
+            <h2 className="font-serif text-2xl">Join the group chat</h2>
+            <p className="pt-1 text-sm text-muted-foreground">
+              {groupChatPlatform
+                ? `The host is keeping everyone posted on ${groupChatPlatform.name}.`
+                : "The host is keeping everyone posted here."}
+            </p>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <GroupChatLink url={groupChatUrl} className="w-full sm:w-auto" />
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className={`surface-panel border-0 shadow-none ${showGroupChat ? "mt-4" : "mt-9"}`}>
         <CardHeader className="border-b border-border pb-5">
           <h2 className="font-serif text-2xl">Your RSVP</h2>
         </CardHeader>

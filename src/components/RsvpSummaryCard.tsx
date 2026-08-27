@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import GroupChatLink from "@/components/GroupChatLink";
 
 interface RsvpSummaryCardProps {
   guestName: string;
@@ -19,6 +20,8 @@ interface RsvpSummaryCardProps {
   kids: number;
   claimedItems: Array<{ id: string; item_id: string; item_name: string; quantity: number }>;
   cancelled?: boolean;
+  /** Shown to a guest who has replied, so a gated link survives the success screen. */
+  groupChatUrl?: string | null;
   onEdit: () => void;
   onCancel?: () => void;
   onReRsvp?: () => void;
@@ -30,6 +33,7 @@ const RsvpSummaryCard = ({
   kids,
   claimedItems,
   cancelled,
+  groupChatUrl,
   onEdit,
   onCancel,
   onReRsvp,
@@ -112,6 +116,11 @@ const RsvpSummaryCard = ({
             <span className="font-medium text-right">
               {claimedItems.map((i) => i.quantity > 1 ? `${i.item_name} ×${i.quantity}` : i.item_name).join(", ")}
             </span>
+          </div>
+        )}
+        {groupChatUrl && (
+          <div className="border-t border-border pt-3">
+            <GroupChatLink url={groupChatUrl} variant="inline" />
           </div>
         )}
       </CardContent>

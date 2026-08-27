@@ -14,6 +14,7 @@
  */
 
 import { isSafeHttpUrl } from "./url";
+import { groupChatDescription } from "./groupChat";
 
 export interface CalendarEvent {
   id: string;
@@ -25,6 +26,7 @@ export interface CalendarEvent {
   timezone?: string | null;           // IANA zone, e.g. "Europe/London"
   location?: string | null;
   location_url?: string | null;       // map pin / venue page, http(s) only
+  contact_url?: string | null;        // group chat invite, http(s) only
   url?: string;
 }
 
@@ -225,6 +227,11 @@ export function buildIcs(event: CalendarEvent, now = new Date()): string {
   // Calendar clients do not linkify LOCATION, so the map link goes in the body
   // where it is actually tappable.
   if (isSafeHttpUrl(event.location_url)) descriptionParts.push(`Location: ${event.location_url}`);
+  // Weeks later, "which chat was this in again?" is the question the calendar
+  // entry is best placed to answer.
+  if (isSafeHttpUrl(event.contact_url)) {
+    descriptionParts.push(`Group chat (${groupChatDescription(event.contact_url)}): ${event.contact_url}`);
+  }
   if (event.url) descriptionParts.push(event.url);
   if (descriptionParts.length > 0) {
     lines.push(`DESCRIPTION:${escapeText(descriptionParts.join("\n\n"))}`);
@@ -262,6 +269,9 @@ export function googleCalendarUrl(event: CalendarEvent): string {
   const details: string[] = [];
   if (event.description) details.push(markdownToPlainText(event.description));
   if (isSafeHttpUrl(event.location_url)) details.push(`Location: ${event.location_url}`);
+  if (isSafeHttpUrl(event.contact_url)) {
+    details.push(`Group chat (${groupChatDescription(event.contact_url)}): ${event.contact_url}`);
+  }
   if (event.url) details.push(event.url);
   if (details.length > 0) params.set("details", details.join("\n\n"));
   // Without a zone the dates are floating; tell Google to read them as the

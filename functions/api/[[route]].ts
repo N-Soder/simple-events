@@ -15,6 +15,11 @@ const securityHeaders = {
 };
 
 const VISIBILITIES = ["full", "count_only", "hidden"] as const;
+// Who may see the group chat link. "after_rsvp" is the default: a group invite
+// URL is a capability, so it should not ride along with every forward of the
+// event link. There are no accounts here, so this is a speed bump rather than
+// a guarantee, and the guest-facing copy says so.
+const CONTACT_VISIBILITIES = ["always", "after_rsvp"] as const;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
 
@@ -161,11 +166,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // POST /api/create - Create a new event
     if (request.method === "POST" && path === "create") {
       const body = await request.json() as Record<string, unknown>;
-      const { name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, password, guest_visibility, bring_items, bring_list_enabled, bring_list_message, bring_list_mode } = body as {
+      const { name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, password, guest_visibility, contact_url, contact_visibility, bring_items, bring_list_enabled, bring_list_message, bring_list_mode } = body as {
         name?: string; description?: string; event_date?: string; event_time?: string;
         event_end_time?: string; timezone?: string;
         location?: string; location_url?: string; banner_url?: string; password?: string;
-        guest_visibility?: string; bring_items?: Array<{ name: string; quantity: number } | string>;
+        guest_visibility?: string; contact_url?: string; contact_visibility?: string;
+        bring_items?: Array<{ name: string; quantity: number } | string>;
         bring_list_enabled?: boolean; bring_list_message?: string;
         bring_list_mode?: string;
       };
@@ -182,6 +188,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (location_url && !isSafeHttpUrl(location_url)) return err("location_url must be an http(s) URL");
       if (bring_list_message && bring_list_message.length > 5000) return err("bring_list_message must be 5000 characters or fewer");
       if (guest_visibility && !VISIBILITIES.includes(guest_visibility as typeof VISIBILITIES[number])) return err("invalid guest_visibility");
+      if (contact_url && !isSafeHttpUrl(contact_url)) return err("contact_url must be an http(s) URL");
+      if (contact_visibility && !CONTACT_VISIBILITIES.includes(contact_visibility as typeof CONTACT_VISIBILITIES[number])) return err("invalid contact_visibility");
 
       const id = crypto.randomUUID();
       const admin_token = crypto.randomUUID();
@@ -189,13 +197,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const mode = bring_list_mode === "signup" ? "signup" : "open";
 
       await db.prepare(
-        `INSERT INTO events (id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, password_hash, guest_visibility, admin_token, bring_list_enabled, bring_list_message, bring_list_mode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO events (id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, password_hash, guest_visibility, contact_url, contact_visibility, admin_token, bring_list_enabled, bring_list_message, bring_list_mode)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         id, name, description ?? null, event_date, event_time ?? null,
         event_time ? (event_end_time ?? null) : null, timezone ?? null,
         location ?? null, location_url || null, banner_url ?? null, password_hash,
-        guest_visibility ?? "full", admin_token,
+        guest_visibility ?? "full",
+        contact_url || null, contact_visibility ?? "after_rsvp",
+        admin_token,
         bring_list_enabled !== false ? 1 : 0,
         bring_list_message ?? null,
         mode
@@ -236,7 +246,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // Fetch first so a missing/deleted event returns 404 (not a password prompt).
       const eventRow = await db.prepare(
-        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at, password_hash FROM events WHERE id = ?"
+        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, guest_visibility, contact_url, contact_visibility, bring_list_enabled, bring_list_message, bring_list_mode, created_at, password_hash FROM events WHERE id = ?"
       ).bind(event_id).first<Record<string, unknown>>();
       if (!eventRow) return err("Event not found", 404);
 
@@ -251,6 +261,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // Never expose the hash to clients.
       const { password_hash: _omit, ...event } = eventRow;
       const visibility = (event.guest_visibility as string) ?? "full";
+
+      // The group chat link is withheld from this endpoint unless the host set
+      // it to "always". A guest who has replied gets it from POST /api/rsvp or
+      // GET /api/rsvp/manage instead, both of which require a manage code, so
+      // the gate holds even if someone calls this endpoint directly.
+      // `has_contact_url` still says one exists, which is what lets the RSVP
+      // form tell a guest there is a chat to join once they reply.
+      const contactUrl = (event.contact_url as string | null) ?? null;
+      event.has_contact_url = !!contactUrl;
+      if ((event.contact_visibility as string) !== "always") event.contact_url = null;
 
       const { results: allRsvps } = await db.prepare(
         "SELECT id, guest_name, adults, kids, cancelled, created_at FROM rsvps WHERE event_id = ? ORDER BY created_at ASC"
@@ -286,7 +306,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!event_id || !token) return err("id and token are required");
 
       const event = await db.prepare(
-        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, guest_visibility, bring_list_enabled, bring_list_message, bring_list_mode, admin_token, created_at FROM events WHERE id = ? AND admin_token = ?"
+        "SELECT id, name, description, event_date, event_time, event_end_time, timezone, location, location_url, banner_url, guest_visibility, contact_url, contact_visibility, bring_list_enabled, bring_list_message, bring_list_mode, admin_token, created_at FROM events WHERE id = ? AND admin_token = ?"
       ).bind(event_id, token).first();
       if (!event) return err("Invalid admin link", 403);
 
@@ -324,7 +344,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       ).bind(id, event_id, safeName, safeAdults, safeKids, manage_code).run();
 
       const row = await db.prepare("SELECT * FROM rsvps WHERE id = ?").bind(id).first();
-      return json(normalizeRsvp(row));
+
+      // Replying is what unlocks a gated group chat link, and the success
+      // screen renders immediately from this response, so send it back here
+      // rather than making the client re-fetch. `contact_url` is not a column
+      // on `rsvps`, so it cannot collide with a field of the RSVP itself.
+      const contactRow = await db.prepare(
+        "SELECT contact_url FROM events WHERE id = ?"
+      ).bind(event_id).first<{ contact_url: string | null }>();
+
+      return json({ ...normalizeRsvp(row), contact_url: contactRow?.contact_url ?? null });
     }
 
     // POST /api/claim-item - Commit to bringing an item
@@ -445,13 +474,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (updates.event_end_time !== undefined && updates.event_end_time !== null && !(typeof updates.event_end_time === "string" && TIME_RE.test(updates.event_end_time))) return err("event_end_time must be in HH:MM format");
       if (updates.timezone !== undefined && updates.timezone !== null && !isValidTimeZone(updates.timezone)) return err("invalid timezone");
       if (updates.guest_visibility !== undefined && !VISIBILITIES.includes(updates.guest_visibility as typeof VISIBILITIES[number])) return err("invalid guest_visibility");
+      if (updates.contact_url !== undefined && updates.contact_url !== null && updates.contact_url !== "" && !isSafeHttpUrl(updates.contact_url)) return err("contact_url must be an http(s) URL");
+      if (updates.contact_visibility !== undefined && !CONTACT_VISIBILITIES.includes(updates.contact_visibility as typeof CONTACT_VISIBILITIES[number])) return err("invalid contact_visibility");
 
       // An end time is meaningless without a start time. Compare against the
       // post-update start time, which may be unchanged and still in the DB.
       const effectiveStart = updates.event_time !== undefined ? updates.event_time : event.event_time;
       if (!effectiveStart) updates.event_end_time = null;
 
-      const allowed = ["name", "description", "event_date", "event_time", "event_end_time", "timezone", "location", "location_url", "banner_url", "guest_visibility", "bring_list_enabled", "bring_list_message", "bring_list_mode"];
+      const allowed = ["name", "description", "event_date", "event_time", "event_end_time", "timezone", "location", "location_url", "banner_url", "guest_visibility", "contact_url", "contact_visibility", "bring_list_enabled", "bring_list_message", "bring_list_mode"];
       const fields: string[] = [];
       const values: unknown[] = [];
       for (const key of allowed) {
@@ -459,7 +490,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           fields.push(`${key} = ?`);
           if (key === "bring_list_enabled") {
             values.push(updates[key] ? 1 : 0);
-          } else if (key === "location_url") {
+          } else if (key === "location_url" || key === "contact_url") {
             // An empty box means "no link", which is NULL rather than "".
             values.push(updates[key] || null);
           } else if (key === "bring_list_mode") {
@@ -594,6 +625,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       ).bind(rsvp_id, event_id, code).first();
       if (!rsvp) return err("RSVP not found or invalid code", 404);
 
+      // Holding a manage code means this guest has already replied, so a gated
+      // group chat link is theirs to see on every later visit, not just on the
+      // success screen they saw once.
+      const contactRow = await db.prepare(
+        "SELECT contact_url FROM events WHERE id = ?"
+      ).bind(event_id).first<{ contact_url: string | null }>();
+
       const normalizedRsvp = normalizeRsvp(rsvp);
 
       // Get commitments for this RSVP
@@ -604,7 +642,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
          WHERE bc.rsvp_id = ? AND bc.event_id = ?`
       ).bind(rsvp_id, event_id).all();
 
-      return json({ rsvp: normalizedRsvp, claimed_items: claimedItems });
+      return json({ rsvp: normalizedRsvp, claimed_items: claimedItems, contact_url: contactRow?.contact_url ?? null });
     }
 
     // PUT /api/rsvp/update
