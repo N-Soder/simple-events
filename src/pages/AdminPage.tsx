@@ -9,6 +9,7 @@ import {
   Image,
   Link2,
   MapPin,
+  MessagesSquare,
   Plus,
   Save,
   Shield,
@@ -26,6 +27,7 @@ import CopyButton, { CopyableLink } from "@/components/CopyButton";
 import { DisclosureSection, FormSection, OptionSection, ToggleSection } from "@/components/FormSections";
 import GuestVisibilityField from "@/components/GuestVisibilityField";
 import LocationField from "@/components/LocationField";
+import GroupChatField, { type ContactVisibility } from "@/components/GroupChatField";
 import Logo from "@/components/Logo";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import TimeField from "@/components/TimeField";
@@ -79,6 +81,8 @@ interface EventData {
     timezone: string | null;
     location: string | null;
     location_url: string | null;
+    contact_url: string | null;
+    contact_visibility: ContactVisibility;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
     bring_list_enabled: boolean;
@@ -136,6 +140,8 @@ const AdminPage = () => {
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [location, setLocation] = useState("");
   const [locationUrl, setLocationUrl] = useState("");
+  const [contactUrl, setContactUrl] = useState("");
+  const [contactVisibility, setContactVisibility] = useState<ContactVisibility>("after_rsvp");
   const [bannerEnabled, setBannerEnabled] = useState(false);
   const [bannerChange, setBannerChange] = useState<BannerChoice | null>();
   const [visibility, setVisibility] = useState<"full" | "count_only" | "hidden">("full");
@@ -166,6 +172,8 @@ const AdminPage = () => {
       setTimezone(result.event.timezone || detectTimeZone());
       setLocation(result.event.location || "");
       setLocationUrl(result.event.location_url || "");
+      setContactUrl(result.event.contact_url || "");
+      setContactVisibility(result.event.contact_visibility || "after_rsvp");
       setBannerEnabled(!!result.event.banner_url);
       setBannerChange(undefined);
       setVisibility(result.event.guest_visibility);
@@ -221,6 +229,8 @@ const AdminPage = () => {
         timezone: eventTime ? timezone : null,
         location,
         location_url: normalizeUrl(locationUrl) || null,
+        contact_url: normalizeUrl(contactUrl) || null,
+        contact_visibility: contactVisibility,
         ...(bannerUrl !== undefined ? { banner_url: bannerUrl } : {}),
         guest_visibility: visibility,
         bring_list_enabled: bringListEnabled,
@@ -867,10 +877,11 @@ const AdminPage = () => {
               number="04"
               icon={ShieldCheck}
               title="Access & privacy"
-              description="Control what guests can see about other replies."
+              description="Control the group chat and what guests can see about other replies."
               open={accessOpen}
               onOpenChange={setAccessOpen}
             >
+              <div className="space-y-8">
               <OptionSection
                 icon={Eye}
                 title="Guest list privacy"
@@ -878,6 +889,21 @@ const AdminPage = () => {
               >
                 <GuestVisibilityField value={visibility} onChange={setVisibility} />
               </OptionSection>
+
+              <OptionSection
+                icon={MessagesSquare}
+                title="Group chat"
+                description="Point guests at the chat where you'll sort out the details."
+              >
+                <GroupChatField
+                  url={contactUrl}
+                  onUrlChange={setContactUrl}
+                  visibility={contactVisibility}
+                  onVisibilityChange={setContactVisibility}
+                  idPrefix="admin-"
+                />
+              </OptionSection>
+              </div>
             </DisclosureSection>
 
             <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20 rounded-lg border border-border bg-background/90 p-3 shadow-lg backdrop-blur-md sm:static sm:z-auto sm:flex sm:items-center sm:justify-between sm:gap-6 sm:bg-background sm:shadow-sm sm:backdrop-blur-none">

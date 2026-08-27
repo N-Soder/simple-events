@@ -15,6 +15,8 @@ A lightweight web app for creating private event pages and coordinating RSVPs, n
 - Optional password protection
 - Control guest list visibility: full names, count only, or hidden
 - Optional bring list: define items with quantities so guests can claim what they'll bring
+- Optional group chat link: paste a WhatsApp, Signal, Telegram or other invite and choose
+  whether guests see it on the page or only once they have replied (the default)
 - Admin dashboard to view all RSVPs, manage bring list items, and delete entries
 - Created events are remembered in the browser, so the admin link can be recovered from
   **Your events** if the tab is closed without saving it
@@ -24,7 +26,32 @@ A lightweight web app for creating private event pages and coordinating RSVPs, n
 - RSVP with adult and kid counts
 - Claim items from the bring list or add your own
 - Edit or cancel your RSVP at any time via a personal manage link
-- Add the event to a calendar: an `.ics` download or a Google Calendar link
+- Add the event to a calendar: an `.ics` download or a Google Calendar link, with the
+  group chat link carried into the calendar entry
+- Join the host's group chat, labelled by the platform it points at ("Join the WhatsApp
+  group"), shown on the RSVP confirmation and on every later visit
+
+## Group chat link
+
+A host can attach one link where guests coordinate: a WhatsApp group invite, a Signal
+group, a Telegram chat, or anything else.
+
+- **The label is derived, not typed.** `src/lib/groupChat.ts` maps the link's host to
+  wording a guest can act on — `chat.whatsapp.com` becomes *Join the WhatsApp group*,
+  `wa.me` becomes *Chat on WhatsApp*, because one is a group and the other is a person.
+  Anything unrecognised falls back to *Open the group chat*. Hosts never keep a label in
+  step with a URL.
+- **It defaults to being shown after a reply.** A group invite is a capability: whoever
+  holds it can join. Showing it in the page header means it rides along with every
+  forward of the event link. `GET /api/event` therefore withholds the URL unless the host
+  chose "anyone with the link"; a guest gets it from `POST /api/rsvp` and from
+  `GET /api/rsvp/manage`, both of which need a manage code. The gate is enforced on the
+  server, not by hiding it in the UI.
+- **The copy does not oversell that.** There are no accounts, so anyone willing to type a
+  name can reply and see the link. The host-facing helper text says so in as many words,
+  and the guest-facing nudge only promises that replying reveals it.
+- **Only http(s) links are stored or rendered**, the same rule the location link follows,
+  checked on write in the Worker and again on read in `GroupChatLink`.
 
 ## Link previews
 

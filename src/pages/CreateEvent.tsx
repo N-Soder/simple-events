@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarDays, Clock, Eye, Image, LockKeyhole, Plus, ShieldCheck, UtensilsCrossed, X } from "lucide-react";
+import { CalendarDays, Clock, Eye, Image, LockKeyhole, MessagesSquare, Plus, ShieldCheck, UtensilsCrossed, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import LocationField from "@/components/LocationField";
 import BannerField, { type BannerChoice } from "@/components/BannerField";
 import BringListModeField from "@/components/BringListModeField";
 import GuestVisibilityField from "@/components/GuestVisibilityField";
+import GroupChatField, { type ContactVisibility } from "@/components/GroupChatField";
 import { DisclosureSection, FormSection, OptionSection, ToggleSection } from "@/components/FormSections";
 import { saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
@@ -56,6 +57,8 @@ const Index = () => {
   const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [timezone, setTimezone] = useState(detectTimeZone);
   const [locationUrl, setLocationUrl] = useState("");
+  const [contactUrl, setContactUrl] = useState("");
+  const [contactVisibility, setContactVisibility] = useState<ContactVisibility>("after_rsvp");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
 
@@ -121,6 +124,8 @@ const Index = () => {
         timezone: data.event_time ? timezone : undefined,
         location: data.location,
         location_url: normalizeUrl(locationUrl) || undefined,
+        contact_url: normalizeUrl(contactUrl) || undefined,
+        contact_visibility: contactVisibility,
         password,
         guest_visibility: data.guest_visibility,
         bring_list_enabled: bringListEnabled,
@@ -296,7 +301,7 @@ const Index = () => {
             number="04"
             icon={ShieldCheck}
             title="Access & privacy"
-            description="Control passwords and what guests can see about other replies."
+            description="Control passwords, the group chat, and what guests can see about other replies."
             open={accessOpen}
             onOpenChange={setAccessOpen}
           >
@@ -323,6 +328,15 @@ const Index = () => {
 
               <OptionSection icon={Eye} title="Guest list privacy" description="Choose what guests can see about other replies.">
                 <GuestVisibilityField value={visibility} onChange={(value) => setValue("guest_visibility", value)} />
+              </OptionSection>
+
+              <OptionSection icon={MessagesSquare} title="Group chat" description="Point guests at the chat where you'll sort out the details.">
+                <GroupChatField
+                  url={contactUrl}
+                  onUrlChange={setContactUrl}
+                  visibility={contactVisibility}
+                  onVisibilityChange={setContactVisibility}
+                />
               </OptionSection>
             </div>
           </DisclosureSection>

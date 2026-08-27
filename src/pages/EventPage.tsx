@@ -17,6 +17,7 @@ import RsvpSuccessScreen from "@/components/RsvpSuccessScreen";
 import RsvpSummaryCard from "@/components/RsvpSummaryCard";
 import AppHeader from "@/components/AppHeader";
 import GuestCountFields from "@/components/GuestCountFields";
+import GroupChatLink from "@/components/GroupChatLink";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface EventData {
@@ -32,6 +33,12 @@ interface EventData {
     location_url: string | null;
     banner_url: string | null;
     guest_visibility: "full" | "count_only" | "hidden";
+    // Present only when the host chose "always"; otherwise it arrives with the
+    // managed RSVP, once this guest has replied.
+    contact_url: string | null;
+    contact_visibility: "always" | "after_rsvp";
+    // True whenever the host set a link at all, gated or not.
+    has_contact_url?: boolean;
     bring_list_enabled: boolean;
     bring_list_mode: "signup" | "open";
     bring_list_message: string | null;
@@ -59,6 +66,8 @@ interface ManagedRsvp {
   kids: number;
   cancelled?: boolean;
   claimed_items: ClaimedItem[];
+  /** The group chat link, which holding a manage code unlocks. */
+  contact_url?: string | null;
 }
 
 const EventPage = () => {
@@ -117,6 +126,7 @@ const EventPage = () => {
           kids: result.rsvp.kids as number,
           cancelled: result.rsvp.cancelled as boolean,
           claimed_items: result.claimed_items as ClaimedItem[],
+          contact_url: (result.contact_url as string | null) ?? null,
         });
         localStorage.setItem(`rsvp_manage_${eventId}`, JSON.stringify({ rsvp_id: result.rsvp.id, manage_code: result.rsvp.manage_code }));
         return;
@@ -138,6 +148,7 @@ const EventPage = () => {
           kids: result.rsvp.kids as number,
           cancelled: result.rsvp.cancelled as boolean,
           claimed_items: result.claimed_items as ClaimedItem[],
+          contact_url: (result.contact_url as string | null) ?? null,
         });
       } catch {
         localStorage.removeItem(`rsvp_manage_${eventId}`);
@@ -256,6 +267,8 @@ const EventPage = () => {
           adults,
           kids,
           claimed_items: [],
+          // Sent back by POST /api/rsvp: replying is what unlocks a gated link.
+          contact_url: (rsvpResult.contact_url as string | null) ?? null,
         });
       }
 
@@ -445,7 +458,12 @@ const EventPage = () => {
           kids={managedRsvp.kids}
           claimedItems={successClaimedItems}
           manageUrl={manageUrl}
-          calendarEvent={{ ...data.event, url: shareUrl }}
+          groupChatUrl={managedRsvp.contact_url ?? data.event.contact_url}
+          calendarEvent={{
+            ...data.event,
+            contact_url: managedRsvp.contact_url ?? data.event.contact_url,
+            url: shareUrl,
+          }}
           onViewEvent={() => setShowSuccessScreen(false)}
         />
       </main>
@@ -459,6 +477,11 @@ const EventPage = () => {
   const totalAdults = data.rsvp_counts?.adults ?? 0;
   const totalKids = data.rsvp_counts?.kids ?? 0;
   const showBringList = event.bring_list_enabled && bring_items.length > 0;
+  // An "always" link arrives with the event; a gated one arrives with the
+  // managed RSVP, or from the reply that just unlocked it.
+  const groupChatUrl = event.contact_url ?? managedRsvp?.contact_url ?? null;
+  // The host set a link, but this guest has not earned it yet.
+  const groupChatLocked = !groupChatUrl && !!event.has_contact_url;
   const hasExistingRsvp = !!managedRsvp && !editMode;
   const isEditing = !!managedRsvp && editMode;
 
@@ -528,8 +551,14 @@ const EventPage = () => {
             )}
           </div>
 
+          {event.contact_url && (
+            <div className="mt-3">
+              <GroupChatLink url={event.contact_url} variant="inline" />
+            </div>
+          )}
+
           <div className="mt-5">
-            <AddToCalendarButton event={{ ...event, url: shareUrl }} />
+            <AddToCalendarButton event={{ ...event, contact_url: groupChatUrl, url: shareUrl }} />
           </div>
 
           {event.description && (
@@ -545,6 +574,11 @@ const EventPage = () => {
               <p className="eyebrow">Your reply</p>
               <h2 className="mt-1 font-serif text-3xl">{isEditing ? "Update your RSVP" : "Can you make it?"}</h2>
               {!isEditing && <p className="pt-1 text-sm text-muted-foreground">Add everyone included in your reply.</p>}
+              {!isEditing && groupChatLocked && (
+                <p className="pt-1 text-sm text-muted-foreground">
+                  The host has a group chat for this one. You&rsquo;ll get the link once you reply.
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               <form onSubmit={isEditing ? handleEditRsvp : handleRsvp} className="space-y-6">
@@ -633,6 +667,7 @@ const EventPage = () => {
             kids={managedRsvp.kids}
             claimedItems={managedRsvp.claimed_items}
             cancelled={managedRsvp.cancelled}
+            groupChatUrl={event.contact_url ? null : groupChatUrl}
             onEdit={enterEditMode}
             onCancel={handleCancelRsvp}
             onReRsvp={handleReRsvp}

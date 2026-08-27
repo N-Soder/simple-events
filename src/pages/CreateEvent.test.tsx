@@ -41,6 +41,28 @@ describe("CreateEvent sections", () => {
     expect(screen.getByText("Guest list privacy")).toBeInTheDocument();
   });
 
+  it("holds the group chat visibility choice back until there is a link to choose about", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <CreateEvent />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Access & privacy/i }));
+    const input = screen.getByLabelText("Group chat link");
+    expect(screen.queryByText("Who can see it")).not.toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "https://chat.whatsapp.com/Fx9abcDEF" } });
+
+    expect(screen.getByText("Who can see it")).toBeInTheDocument();
+    // Gated by default, and the button wording previews what guests will see.
+    expect(screen.getByRole("button", { name: /After they reply/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("Join the WhatsApp group")).toBeInTheDocument();
+  });
+
   it("keeps the create action in normal flow on desktop without losing its mobile sticky treatment", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

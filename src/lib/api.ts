@@ -40,6 +40,8 @@ export async function createEvent(params: {
   banner_url?: string;
   password?: string;
   guest_visibility: "full" | "count_only" | "hidden";
+  contact_url?: string;
+  contact_visibility?: "always" | "after_rsvp";
   bring_list_enabled?: boolean;
   bring_items: Array<{ name: string; quantity: number }>;
   bring_list_message?: string;
