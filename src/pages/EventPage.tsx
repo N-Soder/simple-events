@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { CalendarDays, Clock, ExternalLink, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getEvent, submitRsvp, claimItem, addCustomItem, getRsvpByManageCode, updateRsvp, ApiError } from "@/lib/api";
+import { getEvent, submitRsvp, getRsvpByManageCode, updateRsvp, verifyPassword, ApiError, ReservedItem } from "@/lib/api";
 import { format } from "date-fns";
 import { formatEventTime, prefers12Hour } from "@/lib/time";
+import { detectTimeZone, offsetLabel, zoneCity } from "@/lib/timezone";
 import { displayHost, isSafeHttpUrl } from "@/lib/url";
+import { safeStorage } from "@/lib/storage";
 import MarkdownContent from "@/components/MarkdownContent";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import BringListSection, { BringItem } from "@/components/BringListSection";
@@ -61,15 +63,42 @@ interface ManagedRsvp {
   claimed_items: ClaimedItem[];
 }
 
+// The access token from POST /api/verify, remembered per event so a returning
+// guest is not asked for the password again. It stops working if the host
+// changes the password.
+const accessKey = (eventId: string) => `event_access_${eventId}`;
+// Before access tokens, the password itself was remembered under this key.
+const legacyPasswordKey = (eventId: string) => `event_pw_${eventId}`;
+const manageKey = (eventId: string) => `rsvp_manage_${eventId}`;
+
+type PasswordSource = "link" | "typed" | "saved";
+
+const toManagedRsvp = (result: { rsvp: Record<string, unknown>; claimed_items: unknown }): ManagedRsvp => ({
+  rsvp_id: result.rsvp.id as string,
+  manage_code: result.rsvp.manage_code as string,
+  guest_name: result.rsvp.guest_name as string,
+  adults: result.rsvp.adults as number,
+  kids: result.rsvp.kids as number,
+  cancelled: result.rsvp.cancelled as boolean,
+  claimed_items: result.claimed_items as ClaimedItem[],
+});
+
+const itemNames = (reserved: ReservedItem[]) => reserved.flatMap((r) => Array<string>(r.quantity).fill(r.item_name));
+
 const EventPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [password, setPassword] = useState<string | undefined>(undefined);
+  const [accessToken, setAccessToken] = useState<string | undefined>(undefined);
+  // The password from the guest's link, once it has been checked. Only used to
+  // carry the same link into calendar entries.
+  const [linkPassword, setLinkPassword] = useState<string | undefined>(undefined);
   const [authenticated, setAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [data, setData] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [needsPassword, setNeedsPassword] = useState<boolean | null>(null);
 
   // RSVP form
@@ -78,6 +107,7 @@ const EventPage = () => {
   const [kids, setKids] = useState(0);
   const [honeypot, setHoneypot] = useState("");
   const [submittingRsvp, setSubmittingRsvp] = useState(false);
+  const [updatingRsvp, setUpdatingRsvp] = useState(false);
 
   // Bring list: keyed by item ID
   const [selectedCounts, setSelectedCounts] = useState<Map<string, number>>(new Map());
@@ -94,6 +124,19 @@ const EventPage = () => {
   // Time format: detect browser locale preference, allow toggle
   const [use12Hour, setUse12Hour] = useState<boolean>(prefers12Hour);
 
+  // The bring list as the RSVP form should see it. While editing, the guest's
+  // own claims are released and re-submitted in the same request, so they must
+  // not count against the room left on each item.
+  const formItems = useMemo(() => {
+    if (!data) return [];
+    if (!editMode || !managedRsvp) return data.bring_items;
+    const own = new Map<string, number>();
+    for (const c of managedRsvp.claimed_items) own.set(c.item_id, (own.get(c.item_id) ?? 0) + c.quantity);
+    return data.bring_items.map((item) =>
+      own.has(item.id) ? { ...item, committed_quantity: Math.max(0, item.committed_quantity - own.get(item.id)!) } : item,
+    );
+  }, [data, editMode, managedRsvp]);
+
   const parseHash = useCallback(() => {
     const hash = window.location.hash.slice(1);
     if (!hash) return { type: "none" as const };
@@ -109,60 +152,35 @@ const EventPage = () => {
     if (hashInfo.type === "manage") {
       try {
         const result = await getRsvpByManageCode(eventId, hashInfo.rsvp_id, hashInfo.manage_code);
-        setManagedRsvp({
-          rsvp_id: result.rsvp.id as string,
-          manage_code: result.rsvp.manage_code as string,
-          guest_name: result.rsvp.guest_name as string,
-          adults: result.rsvp.adults as number,
-          kids: result.rsvp.kids as number,
-          cancelled: result.rsvp.cancelled as boolean,
-          claimed_items: result.claimed_items as ClaimedItem[],
-        });
-        localStorage.setItem(`rsvp_manage_${eventId}`, JSON.stringify({ rsvp_id: result.rsvp.id, manage_code: result.rsvp.manage_code }));
+        setManagedRsvp(toManagedRsvp(result));
+        safeStorage.set(manageKey(eventId), JSON.stringify({ rsvp_id: result.rsvp.id, manage_code: result.rsvp.manage_code }));
         return;
       } catch {
         // Invalid manage link, continue
       }
     }
 
-    const saved = localStorage.getItem(`rsvp_manage_${eventId}`);
+    const saved = safeStorage.get(manageKey(eventId));
     if (saved) {
       try {
         const { rsvp_id, manage_code } = JSON.parse(saved);
-        const result = await getRsvpByManageCode(eventId, rsvp_id, manage_code);
-        setManagedRsvp({
-          rsvp_id: result.rsvp.id as string,
-          manage_code: result.rsvp.manage_code as string,
-          guest_name: result.rsvp.guest_name as string,
-          adults: result.rsvp.adults as number,
-          kids: result.rsvp.kids as number,
-          cancelled: result.rsvp.cancelled as boolean,
-          claimed_items: result.claimed_items as ClaimedItem[],
-        });
+        setManagedRsvp(toManagedRsvp(await getRsvpByManageCode(eventId, rsvp_id, manage_code)));
       } catch {
-        localStorage.removeItem(`rsvp_manage_${eventId}`);
+        safeStorage.remove(manageKey(eventId));
       }
     }
   }, [parseHash]);
 
-  useEffect(() => {
-    if (!id) return;
-    const hashInfo = parseHash();
-    const saved = localStorage.getItem(`event_pw_${id}`);
-    const pw = hashInfo.type === "password" ? hashInfo.value : saved || undefined;
-    loadEvent(pw);
-  }, [id]);
-
-  const loadEvent = async (pw: string | undefined) => {
+  const loadEvent = async (token: string | undefined) => {
     if (!id) return;
     setLoading(true);
+    setLoadError(false);
     try {
-      const result = await getEvent(id, pw);
+      const result = await getEvent(id, token);
       setData(result as EventData);
       setAuthenticated(true);
-      setPassword(pw);
+      setAccessToken(token);
       setNeedsPassword(false);
-      if (pw) localStorage.setItem(`event_pw_${id}`, pw);
       await tryLoadManagedRsvp(id);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
@@ -170,24 +188,76 @@ const EventPage = () => {
         return;
       }
       if (error instanceof ApiError && error.status === 403) {
-        if (pw) {
-          localStorage.removeItem(`event_pw_${id}`);
-          toast({ title: "Invalid password", variant: "destructive" });
-        }
+        // A remembered token stops working when the host changes the password.
+        if (token) safeStorage.remove(accessKey(id));
+        setAuthenticated(false);
         setNeedsPassword(true);
+      } else if (data) {
+        // A background refresh failed; keep showing what we have.
+        toast({ title: "Couldn't refresh the event", description: "Check your connection and reload.", variant: "destructive" });
       } else {
-        const message = error instanceof Error ? error.message : "Failed to load event";
-        toast({ title: "Error", description: message, variant: "destructive" });
+        setLoadError(true);
       }
-      setAuthenticated(false);
     } finally {
       setLoading(false);
     }
   };
 
+  /** Trade a password for an access token, then load the event with it. */
+  const unlock = async (pw: string, source: PasswordSource) => {
+    if (!id) return;
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const result = await verifyPassword(id, pw);
+      if (!result.valid) {
+        setPasswordError(
+          source === "typed" ? "That password didn't work. Check it with the host."
+            : source === "link" ? "The password in your link didn't work. Ask the host for the current one."
+            : null,
+        );
+        setNeedsPassword(true);
+        setLoading(false);
+        return;
+      }
+      const token = result.access_token ?? undefined;
+      if (token) safeStorage.set(accessKey(id), token);
+      if (source === "link") setLinkPassword(pw);
+      setPasswordError(null);
+      await loadEvent(token);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        navigate("/not-found", { state: { type: "event" }, replace: true });
+        return;
+      }
+      setLoadError(true);
+      setLoading(false);
+    }
+  };
+
+  const start = () => {
+    if (!id) return;
+    const hashInfo = parseHash();
+    const legacyPassword = safeStorage.get(legacyPasswordKey(id));
+    if (legacyPassword) safeStorage.remove(legacyPasswordKey(id));
+    if (hashInfo.type === "password") unlock(hashInfo.value, "link");
+    else if (legacyPassword) unlock(legacyPassword, "saved");
+    else loadEvent(safeStorage.get(accessKey(id)) ?? undefined);
+  };
+
+  useEffect(() => {
+    start();
+    // Runs once per event; start reads the URL and storage itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadEvent(passwordInput);
+    if (!passwordInput.trim()) {
+      setPasswordError("Enter the password the host gave you.");
+      return;
+    }
+    unlock(passwordInput, "typed");
   };
 
   const handleUpdateCount = (itemId: string, count: number) => {
@@ -195,7 +265,7 @@ const EventPage = () => {
       const next = new Map(prev);
       // Enforce slot cap client-side for signup mode
       if (data?.event.bring_list_mode === "signup") {
-        const item = data.bring_items.find((i) => i.id === itemId);
+        const item = formItems.find((i) => i.id === itemId);
         if (item) {
           const maxAllowed = item.target_quantity - item.committed_quantity;
           count = Math.min(count, maxAllowed);
@@ -216,42 +286,51 @@ const EventPage = () => {
     });
   };
 
+  // The current bring list selections, in the shape the API takes.
+  const selectedClaims = () => {
+    const claim_items: Array<{ item_id: string; quantity: number; note?: string }> = [];
+    selectedCounts.forEach((quantity, item_id) => {
+      if (data?.bring_items.some((i) => i.id === item_id)) claim_items.push({ item_id, quantity, note: selectedNotes.get(item_id) });
+    });
+    const requested = claim_items.reduce((s, c) => s + c.quantity, 0) + customItems.length;
+    return { claim_items, custom_items: customItems, requested };
+  };
+
+  // The server reserves what still has room when the request lands. If someone
+  // took the last slot in the meantime, say so rather than listing it as done.
+  const warnIfShort = (requested: number, reserved: ReservedItem[]) => {
+    const got = reserved.reduce((s, r) => s + r.quantity, 0);
+    if (got < requested) {
+      toast({
+        title: "Some items were just taken",
+        description: "Your RSVP is saved, but not everything you picked could be reserved. Edit your reply to choose something else.",
+      });
+    }
+  };
+
+  const showRequestError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : "Something went wrong";
+    toast({ title: "Error", description: message, variant: "destructive" });
+    // A full slot means our copy of the bring list is out of date.
+    if (error instanceof ApiError && error.status === 409) loadEvent(accessToken);
+  };
+
   const handleRsvp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id || !guestName.trim()) return;
+    if (!id || !guestName.trim() || submittingRsvp) return;
     setSubmittingRsvp(true);
     try {
-      const rsvpResult = await submitRsvp({ event_id: id, password, guest_name: guestName.trim(), adults, kids, honeypot });
-      const rsvpId = rsvpResult.id as string;
-      const manageCode = rsvpResult.manage_code as string;
-
-      const claimPromises: Promise<unknown>[] = [];
-      const claimedItemNames: string[] = [];
-
-      selectedCounts.forEach((quantity, itemId) => {
-        const item = data?.bring_items.find((i) => i.id === itemId);
-        if (!item) return;
-        const note = selectedNotes.get(itemId);
-        claimPromises.push(
-          claimItem({ event_id: id, password, item_id: itemId, rsvp_id: rsvpId, manage_code: manageCode, quantity, note }).catch(() => null)
-        );
-        for (let i = 0; i < quantity; i++) claimedItemNames.push(item.item_name);
+      const { claim_items, custom_items, requested } = selectedClaims();
+      const result = await submitRsvp({
+        event_id: id, access_token: accessToken, guest_name: guestName.trim(), adults, kids, honeypot,
+        claim_items, custom_items,
       });
 
-      for (const ci of customItems) {
-        claimPromises.push(
-          addCustomItem({ event_id: id, password, item_name: ci.item_name, rsvp_id: rsvpId, manage_code: manageCode, quantity: ci.quantity }).catch(() => null)
-        );
-        for (let i = 0; i < ci.quantity; i++) claimedItemNames.push(ci.item_name);
-      }
-
-      await Promise.all(claimPromises);
-
-      if (rsvpId && manageCode) {
-        localStorage.setItem(`rsvp_manage_${id}`, JSON.stringify({ rsvp_id: rsvpId, manage_code: manageCode }));
+      if (result.id && result.manage_code) {
+        safeStorage.set(manageKey(id), JSON.stringify({ rsvp_id: result.id, manage_code: result.manage_code }));
         setManagedRsvp({
-          rsvp_id: rsvpId,
-          manage_code: manageCode,
+          rsvp_id: result.id,
+          manage_code: result.manage_code,
           guest_name: guestName.trim(),
           adults,
           kids,
@@ -259,12 +338,16 @@ const EventPage = () => {
         });
       }
 
-      setSuccessClaimedItems(claimedItemNames);
+      const reserved = result.reserved ?? [];
+      warnIfShort(requested, reserved);
+      setSuccessClaimedItems(itemNames(reserved));
+      setSelectedCounts(new Map());
+      setSelectedNotes(new Map());
+      setCustomItems([]);
       setShowSuccessScreen(true);
-      loadEvent(password);
+      loadEvent(accessToken);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Something went wrong";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      showRequestError(error);
     } finally {
       setSubmittingRsvp(false);
     }
@@ -272,40 +355,33 @@ const EventPage = () => {
 
   const handleEditRsvp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id || !managedRsvp || !guestName.trim()) return;
+    if (!id || !managedRsvp || !guestName.trim() || submittingRsvp) return;
     setSubmittingRsvp(true);
     try {
-      // All existing commitment IDs to remove
-      const unclaim_item_ids = managedRsvp.claimed_items.map((i) => i.id);
-
-      // New selections
-      const claim_items: Array<{ item_id: string; quantity: number; note?: string }> = [];
-      selectedCounts.forEach((quantity, itemId) => {
-        claim_items.push({ item_id: itemId, quantity, note: selectedNotes.get(itemId) });
-      });
-
-      await updateRsvp({
+      const { claim_items, custom_items, requested } = selectedClaims();
+      const result = await updateRsvp({
         rsvp_id: managedRsvp.rsvp_id,
         manage_code: managedRsvp.manage_code,
         event_id: id,
         guest_name: guestName.trim(),
         adults,
         kids,
-        unclaim_item_ids,
+        // Every existing claim is released and the current selection re-sent.
+        unclaim_item_ids: managedRsvp.claimed_items.map((i) => i.id),
         claim_items,
-        custom_items: customItems,
+        custom_items,
       });
 
       toast({ title: "RSVP updated" });
+      warnIfShort(requested, result.reserved ?? []);
       setEditMode(false);
       setSelectedCounts(new Map());
       setSelectedNotes(new Map());
       setCustomItems([]);
       setCustomItemInput("");
-      await loadEvent(password);
+      await loadEvent(accessToken);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Something went wrong";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      showRequestError(error);
     } finally {
       setSubmittingRsvp(false);
     }
@@ -342,38 +418,23 @@ const EventPage = () => {
     setCustomItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleCancelRsvp = async () => {
-    if (!id || !managedRsvp) return;
+  const setRsvpCancelled = async (cancelled: boolean) => {
+    if (!id || !managedRsvp || updatingRsvp) return;
+    setUpdatingRsvp(true);
     try {
+      // The server releases every bring list claim when an RSVP is cancelled.
       await updateRsvp({
         rsvp_id: managedRsvp.rsvp_id,
         manage_code: managedRsvp.manage_code,
         event_id: id,
-        cancelled: true,
-        unclaim_item_ids: managedRsvp.claimed_items.map((i) => i.id),
+        cancelled,
       });
-      toast({ title: "RSVP cancelled" });
-      await loadEvent(password);
+      toast({ title: cancelled ? "RSVP cancelled" : "Welcome back! Your RSVP is active again." });
+      await loadEvent(accessToken);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Something went wrong";
-      toast({ title: "Error", description: message, variant: "destructive" });
-    }
-  };
-
-  const handleReRsvp = async () => {
-    if (!id || !managedRsvp) return;
-    try {
-      await updateRsvp({
-        rsvp_id: managedRsvp.rsvp_id,
-        manage_code: managedRsvp.manage_code,
-        event_id: id,
-        cancelled: false,
-      });
-      toast({ title: "Welcome back! Your RSVP is active again." });
-      await loadEvent(password);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Something went wrong";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      showRequestError(error);
+    } finally {
+      setUpdatingRsvp(false);
     }
   };
 
@@ -384,12 +445,25 @@ const EventPage = () => {
   // Link to put in calendar entries. The password fragment is carried over only
   // when the guest arrived with one already in the URL, so a calendar entry is
   // never a wider disclosure than the link they were sent.
-  const arrivedWithPassword = !!password && window.location.hash.slice(1) === password;
   const shareUrl = id
-    ? `${window.location.origin}/event/${id}${arrivedWithPassword ? `#${password}` : ""}`
+    ? `${window.location.origin}/event/${id}${linkPassword ? `#${linkPassword}` : ""}`
     : "";
 
-  if (loading && !authenticated) {
+  if (loadError && !data) {
+    return (
+      <main id="main-content" className="min-h-[100dvh] bg-background">
+        <AppHeader />
+        <div className="mx-auto max-w-sm px-4 py-16 text-center" role="alert">
+          <h1 className="text-3xl">We couldn’t load this event</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Check your connection and try again.</p>
+          <Button className="mt-6" onClick={start}>Try again</Button>
+        </div>
+      </main>
+    );
+  }
+
+  // The password form stays up while a password is checked ("Checking…").
+  if (loading && !authenticated && !needsPassword) {
     return (
       <main id="main-content" className="min-h-[100dvh] bg-background">
         <AppHeader />
@@ -422,9 +496,14 @@ const EventPage = () => {
                 type="password"
                 placeholder="Event password"
                 value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
+                onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(null); }}
+                aria-invalid={!!passwordError}
+                aria-describedby={passwordError ? "event-password-error" : undefined}
                 autoFocus
               />
+              {passwordError && (
+                <p id="event-password-error" className="text-sm text-destructive" role="alert">{passwordError}</p>
+              )}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Checking…" : "Open event"}
               </Button>
@@ -458,7 +537,13 @@ const EventPage = () => {
   const totalAttending = data.rsvp_counts?.count ?? 0;
   const totalAdults = data.rsvp_counts?.adults ?? 0;
   const totalKids = data.rsvp_counts?.kids ?? 0;
-  const showBringList = event.bring_list_enabled && bring_items.length > 0;
+  // An open list with no suggestions still shows, so guests can add their own.
+  const showBringList = event.bring_list_enabled && (bring_items.length > 0 || event.bring_list_mode === "open");
+  // Name the event's zone when it isn't the guest's, so "6:00 PM" is not read
+  // as their own local time.
+  const zoneNote = event.event_time && event.timezone && event.timezone !== detectTimeZone()
+    ? `${zoneCity(event.timezone)} time (${offsetLabel(event.timezone, new Date(`${event.event_date}T12:00:00Z`))})`
+    : null;
   const hasExistingRsvp = !!managedRsvp && !editMode;
   const isEditing = !!managedRsvp && editMode;
 
@@ -492,6 +577,7 @@ const EventPage = () => {
                 <Clock className="h-4 w-4" />
                 {formatEventTime(event.event_time, use12Hour)}
                 {event.event_end_time && ` – ${formatEventTime(event.event_end_time, use12Hour)}`}
+                {zoneNote && <span className="text-muted-foreground/80">· {zoneNote}</span>}
               </button>
             )}
             {event.location && (
@@ -556,7 +642,7 @@ const EventPage = () => {
 
                 <div>
                   <Label htmlFor="guest_name">Your name *</Label>
-                  <Input id="guest_name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Your name" className="mt-1.5" required />
+                  <Input id="guest_name" autoComplete="name" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Your name" className="mt-1.5" required />
                 </div>
                 <GuestCountFields
                   adults={adults}
@@ -567,7 +653,7 @@ const EventPage = () => {
 
                 {showBringList && (
                   <BringListSection
-                    items={bring_items}
+                    items={formItems}
                     message={event.bring_list_message}
                     mode={event.bring_list_mode ?? "open"}
                     selectedCounts={selectedCounts}
@@ -634,8 +720,8 @@ const EventPage = () => {
             claimedItems={managedRsvp.claimed_items}
             cancelled={managedRsvp.cancelled}
             onEdit={enterEditMode}
-            onCancel={handleCancelRsvp}
-            onReRsvp={handleReRsvp}
+            onCancel={() => setRsvpCancelled(true)}
+            onReRsvp={() => setRsvpCancelled(false)}
           />
         )}
       </article>

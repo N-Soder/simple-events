@@ -12,10 +12,11 @@ A lightweight web app for creating private event pages and coordinating RSVPs, n
 - Upload a banner image, with an optional crop. Any size photo can be picked: the
   browser resizes it to at most 1600 px wide and re-encodes it as WebP before it is
   uploaded, so a 12 MB phone photo is stored as roughly 100 KB
-- Optional password protection
+- Optional password protection, which can be added, changed or removed later
 - Control guest list visibility: full names, count only, or hidden
 - Optional bring list: define items with quantities so guests can claim what they'll bring
 - Admin dashboard to view all RSVPs, manage bring list items, and delete entries
+- Events are deleted 90 days after their date (see the retention worker below)
 - Created events are remembered in the browser, so the admin link can be recovered from
   **Your events** if the tab is closed without saving it
 
@@ -77,10 +78,14 @@ can be trusted from the client. `MAX_UPLOAD_BYTES` in `src/lib/bannerImage.ts` a
 |---|---|
 | Frontend | React 18 + TypeScript, Vite, Tailwind CSS, shadcn/ui |
 | Routing | React Router v6 |
-| Data fetching | TanStack React Query |
+| Data fetching | `fetch` wrappers in `src/lib/api.ts` |
 | Backend | Cloudflare Pages Functions |
 | Database | Cloudflare D1 (SQLite) |
 | File storage | Cloudflare R2 (banner images) |
+
+Server code lives in three places: `functions/` (the Pages Functions: API, link
+previews, banner serving), `cleanup-worker/` (the retention cron), and `server/`
+(modules both of those import, such as the banner URL rules and password hashing).
 
 ## Local development
 
@@ -100,8 +105,15 @@ Other scripts:
 ```bash
 npm run build      # production build
 npm run lint       # ESLint
-npm run test       # run tests with Vitest
+npm run typecheck  # front end, plus functions/, server/ and cleanup-worker/ in strict mode
+npm run test       # front-end tests, then the API tests
+npm run test:api   # API tests only
 ```
+
+The API tests (`test/api/`) run the real Pages Function inside workerd with a
+local D1 and R2 and the migrations applied, via
+`@cloudflare/vitest-pool-workers`. They cover access control, guest-visibility
+redaction, passwords, bring-list slot caps, and the banner ownership rules.
 
 ### Running the Pages Functions locally
 
@@ -153,14 +165,33 @@ npx wrangler d1 migrations apply simple-events-db --remote
 ```
 
 **Re-run this whenever a change adds a migration, before deploying that change**,
-including for preview deployments, which share the same D1 database. Deploying code
+including for preview deployments, which share the same D1 database unless you
+give them their own (see below). Deploying code
 that references a column the database does not have yet makes the affected endpoints
 fail with a generic `500 Internal error`; the real cause (`no such column`) only
 appears in the Worker logs (`npx wrangler pages deployment tail`).
 
-Migrations here only ever add columns, so applying them ahead of a deploy is safe:
-the currently running code selects and inserts explicit column lists and ignores
-anything new.
+Applying a migration ahead of its deploy is safe when it only adds columns: the
+running code selects and inserts explicit column lists and ignores anything new.
+A migration that drops or renames a column (as `0005` did) is not: deploy the
+code that stops using the column first, then apply the migration.
+
+**Give preview deployments their own database.** Out of the box, `wrangler.toml`
+binds one D1 database and one R2 bucket, so a preview branch reads and writes
+real events. Create a second pair and bind it for previews:
+
+```bash
+npx wrangler d1 create simple-events-db-preview
+npx wrangler r2 bucket create simple-events-banners-preview
+npx wrangler d1 migrations apply simple-events-db-preview --remote
+```
+
+```toml
+# wrangler.toml
+[env.preview]
+d1_databases = [{ binding = "DB", database_name = "simple-events-db-preview", database_id = "<id from the create command>", migrations_dir = "migrations/d1" }]
+r2_buckets = [{ binding = "R2", bucket_name = "simple-events-banners-preview" }]
+```
 
 **3. Create the R2 bucket** (optional, for banner images)
 
@@ -185,6 +216,17 @@ uploads. Deploy it once; it then runs on its own cron schedule.
 cd cleanup-worker && npx wrangler deploy
 ```
 
+Redeploy it whenever `server/` or `cleanup-worker/` changes; CI does not deploy it.
+Its `RETENTION_DAYS` must match the one in `src/lib/myEvents.ts`, which is what
+hosts are told.
+
+**6. Turn on logs and a cron alert**
+
+Errors are only written with `console.error`, so turn on Workers Logs for both the
+Pages project and `simple-events-cleanup` (Dashboard → Workers & Pages → the
+project → Settings → Observability), and add a notification for failed cron
+triggers on the cleanup worker. Without it, a broken cleanup fails silently.
+
 ## Security notes
 
 - Response hardening headers (CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`)
@@ -197,17 +239,42 @@ cd cleanup-worker && npx wrangler deploy
   rendered without raw HTML, so this does not open a new exfiltration path. It is a
   convenience, not a backup: clearing site data removes it, and Safari evicts local storage
   after roughly seven days without a visit.
-- **Rate limiting is not handled in code.** Password-protected events and the
-  upload/RSVP endpoints are otherwise open to automated abuse. Add a
-  [Cloudflare Rate Limiting rule](https://developers.cloudflare.com/waf/rate-limiting-rules/)
-  (or a WAF rule) for `/api/verify`, `/api/event`, `/api/rsvp`, and `/api/upload` in
-  the dashboard after deploying.
+- **Event passwords** are hashed with PBKDF2-SHA256 through WebCrypto
+  (`server/password.ts`). The password is only ever sent to `POST /api/verify`,
+  which returns an access token; every later request carries the token (in the
+  `X-Event-Access` header or an `access_token` field), which costs one HMAC to
+  check. That keeps protected events inside the Workers free plan's CPU budget,
+  where bcrypt was ten times over it. The token is keyed on the stored hash, so
+  changing or removing the password invalidates every token issued before.
+  Events created before this change hold bcrypt hashes; each is upgraded to
+  PBKDF2 the first time a guest enters the correct password.
+- **Banner URLs** are only accepted in the exact form `POST /api/upload`
+  returns, or as a bundled preset, and an upload is only deleted from R2 once no
+  other event references it (`server/banners.ts`). Upload URLs are public, so
+  without that check one host could delete another's banner by adopting its URL.
+- **Rate limiting is not handled in code**, so set up a
+  [rate limiting rule](https://developers.cloudflare.com/waf/rate-limiting-rules/)
+  after deploying. The free plan allows one rule, counted per IP, with a fixed
+  10-second period and a 10-second block. Point it at the endpoints worth
+  throttling (Security → WAF → Rate limiting rules):
+
+  ```
+  (http.request.method eq "POST" and http.request.uri.path in {"/api/verify" "/api/rsvp" "/api/upload" "/api/create"})
+  ```
+
+  with a limit of around 10 requests per 10 seconds, action Block. A family
+  RSVPing never gets near that; a script guessing an event password is slowed
+  to about one guess a second per IP. That is a speed bump rather than a wall,
+  so a password is still no substitute for keeping the link private.
+  Rules apply to hostnames in your Cloudflare zone, so they protect your custom
+  domain but not the `*.pages.dev` address. If you use a custom domain, treat
+  it as the only public address.
 
 ## Environment variables
 
 | Variable | Description |
 |---|---|
-| `VITE_R2_PUBLIC_URL` | Public base URL for the R2 bucket (e.g. `https://pub-xxx.r2.dev`). If omitted, banner uploads are served through a Pages Function route instead. |
+| `R2_PUBLIC_URL` | Optional. Public base URL for the R2 bucket (e.g. `https://pub-xxx.r2.dev`), set as a Pages environment variable (Settings → Variables), not a build variable: only the API reads it. If omitted, banners are served through the `/banners/[filename]` Pages Function. Uploaded banner URLs are validated against it, so changing it later means new uploads use the new base while existing events keep working until their banner is replaced. |
 
 ## License
 

@@ -10,8 +10,8 @@
 
 const STORAGE_KEY = "simple_events_created";
 const MAX_ENTRIES = 100;
-/** Matches the server-side retention window for events. */
-const RETENTION_DAYS = 90;
+/** Matches RETENTION_DAYS in cleanup-worker/src/index.ts, which deletes the events. */
+export const RETENTION_DAYS = 90;
 
 export interface StoredEvent {
   id: string;
@@ -102,6 +102,16 @@ export function saveMyEvent(event: Omit<StoredEvent, "saved_at">, now = new Date
   };
 
   write([merged, ...existing.filter((e) => e.id !== event.id)]);
+}
+
+/**
+ * Replace a stored event's guest link outright, for when the host changes or
+ * removes the password (saveMyEvent deliberately never drops a "#password").
+ */
+export function setMyEventGuestLink(id: string, guest_link: string, now = new Date()): void {
+  const existing = getMyEvents(now);
+  if (!existing.some((e) => e.id === id)) return;
+  write(existing.map((e) => (e.id === id ? { ...e, guest_link } : e)));
 }
 
 export function removeMyEvent(id: string, now = new Date()): void {

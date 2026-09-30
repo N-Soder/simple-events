@@ -48,53 +48,45 @@ export async function createEvent(params: {
   return apiFetch("create", { method: "POST", body: JSON.stringify(params) });
 }
 
-export async function verifyPassword(event_id: string, password: string) {
+/**
+ * Exchange an event password for an access token. The password is sent here and
+ * nowhere else; later requests carry the token. `access_token` is null for an
+ * event without a password.
+ */
+export async function verifyPassword(event_id: string, password: string): Promise<{ valid: boolean; access_token?: string | null }> {
   return apiFetch("verify", { method: "POST", body: JSON.stringify({ event_id, password }) });
 }
 
-export async function getEvent(id: string, password?: string) {
+export async function getEvent(id: string, accessToken?: string) {
   const params = new URLSearchParams({ id });
-  if (password) params.set("password", password);
-  return apiFetch(`event?${params.toString()}`);
+  return apiFetch(`event?${params.toString()}`, {
+    headers: accessToken ? { "X-Event-Access": accessToken } : {},
+  });
 }
 
 export async function getAdminEvent(id: string, token: string) {
-  return apiFetch(`admin?id=${id}&token=${token}`);
+  const params = new URLSearchParams({ id, token });
+  return apiFetch(`admin?${params.toString()}`);
 }
 
+/** What the server actually recorded against a guest's bring list claims. */
+export type ReservedItem = { item_name: string; quantity: number };
+
+export interface RsvpClaims {
+  claim_items?: Array<{ item_id: string; quantity: number; note?: string }>;
+  custom_items?: Array<{ item_name: string; quantity: number; note?: string }>;
+}
+
+/** Creates the RSVP and its bring list claims together: all of it or none. */
 export async function submitRsvp(params: {
   event_id: string;
-  password?: string;
+  access_token?: string;
   guest_name: string;
   adults: number;
   kids: number;
   honeypot?: string;
-}) {
+} & RsvpClaims): Promise<{ id: string; manage_code: string; reserved?: ReservedItem[] }> {
   return apiFetch("rsvp", { method: "POST", body: JSON.stringify(params) });
-}
-
-export async function claimItem(params: {
-  event_id: string;
-  password: string | undefined;
-  item_id: string;
-  rsvp_id: string;
-  manage_code: string;
-  quantity: number;
-  note?: string;
-}) {
-  return apiFetch("claim-item", { method: "POST", body: JSON.stringify(params) });
-}
-
-export async function addCustomItem(params: {
-  event_id: string;
-  password: string | undefined;
-  item_name: string;
-  rsvp_id: string;
-  manage_code: string;
-  quantity: number;
-  note?: string;
-}) {
-  return apiFetch("add-item", { method: "POST", body: JSON.stringify(params) });
 }
 
 export async function updateEvent(event_id: string, admin_token: string, updates: Record<string, unknown>) {
@@ -138,10 +130,8 @@ export async function updateRsvp(params: {
   adults?: number;
   kids?: number;
   unclaim_item_ids?: string[];
-  claim_items?: Array<{ item_id: string; quantity: number; note?: string }>;
-  custom_items?: Array<{ item_name: string; quantity: number; note?: string }>;
   cancelled?: boolean;
-}) {
+} & RsvpClaims): Promise<{ success: boolean; reserved?: ReservedItem[] }> {
   return apiFetch("rsvp/update", { method: "PUT", body: JSON.stringify(params) });
 }
 

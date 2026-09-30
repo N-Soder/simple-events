@@ -20,7 +20,7 @@ import BannerField, { type BannerChoice } from "@/components/BannerField";
 import BringListModeField from "@/components/BringListModeField";
 import GuestVisibilityField from "@/components/GuestVisibilityField";
 import { DisclosureSection, FormSection, OptionSection, ToggleSection } from "@/components/FormSections";
-import { saveMyEvent } from "@/lib/myEvents";
+import { RETENTION_DAYS, saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { normalizeUrl } from "@/lib/url";
 import { messageForMode, OPEN_LIST_MESSAGE, type BringListMode } from "@/lib/bringList";
@@ -64,7 +64,7 @@ const Index = () => {
   const [searchParams] = useSearchParams();
   const [presetName] = useState(() => (searchParams.get("name") ?? "").trim().slice(0, 200));
 
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, setValue, setError, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { guest_visibility: "full", name: presetName },
   });
@@ -99,6 +99,14 @@ const Index = () => {
   };
 
   const onSubmit = async (data: FormData) => {
+    // A switched-on password with nothing typed would otherwise create an open
+    // event without saying so.
+    if (requirePassword && !data.password?.trim()) {
+      setError("password", { message: "Enter a password, or turn the password off." });
+      setAccessOpen(true);
+      window.setTimeout(() => document.getElementById("password")?.focus(), 0);
+      return;
+    }
     setIsSubmitting(true);
     try {
       // A preset is already a file on our own origin, so it only needs its path
@@ -141,17 +149,15 @@ const Index = () => {
         guest_link: password && embedPassword ? `${guestLink}#${password}` : guestLink,
       });
 
-      // Build created page URL with password + embed info
+      // The password goes to the next page in router state rather than the
+      // URL, so it doesn't end up in browser history or server logs.
       const createdParams = new URLSearchParams({
         id: result.id,
         token: result.admin_token,
       });
-      if (password) {
-        createdParams.set("password", password);
-        if (embedPassword) createdParams.set("embed", "1");
-      }
-
-      navigate(`/created?${createdParams.toString()}`);
+      navigate(`/created?${createdParams.toString()}`, {
+        state: password ? { password, embed: embedPassword } : null,
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Error creating event", description: message, variant: "destructive" });
@@ -333,6 +339,9 @@ const Index = () => {
               {isSubmitting ? "Creating your event…" : "Create event"}
             </Button>
           </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Events, replies and banners are deleted {RETENTION_DAYS} days after the event date.
+          </p>
         </form>
       </div>
     </main>

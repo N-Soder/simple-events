@@ -46,8 +46,8 @@ function absoluteImageUrl(bannerUrl: string | null, pageUrl: string): string | n
   if (!bannerUrl) return null;
   try {
     const resolved = new URL(bannerUrl, pageUrl);
-    // banner_url is not validated when written, so only pass through schemes a
-    // crawler can actually fetch.
+    // banner_url is validated when written now, but older rows were not, so
+    // only pass through schemes a crawler can actually fetch.
     if (resolved.protocol !== "https:" && resolved.protocol !== "http:") return null;
     return resolved.href;
   } catch {

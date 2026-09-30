@@ -1,4 +1,4 @@
-import { useSearchParams, Link as RouterLink } from "react-router-dom";
+import { useLocation, useSearchParams, Link as RouterLink } from "react-router-dom";
 import { ArrowRight, Check, ExternalLink, Laptop, LockKeyhole, Send, ShieldCheck } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,8 @@ const EventCreated = () => {
   const [params] = useSearchParams();
   const eventId = params.get("id");
   const adminToken = params.get("token");
-  const password = params.get("password");
-  const embed = params.get("embed") === "1";
+  // Handed over in router state by CreateEvent, never in the URL.
+  const { password, embed } = (useLocation().state ?? {}) as { password?: string; embed?: boolean };
 
   if (!eventId || !adminToken) {
     return (

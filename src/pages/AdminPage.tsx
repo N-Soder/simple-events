@@ -8,6 +8,7 @@ import {
   Eye,
   Image,
   Link2,
+  LockKeyhole,
   MapPin,
   Plus,
   Save,
@@ -46,6 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   adminAddBringItem,
@@ -64,7 +66,7 @@ import {
   type BringListMode,
 } from "@/lib/bringList";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
-import { getMyEvent, saveMyEvent } from "@/lib/myEvents";
+import { getMyEvent, removeMyEvent, RETENTION_DAYS, saveMyEvent, setMyEventGuestLink } from "@/lib/myEvents";
 import { detectTimeZone } from "@/lib/timezone";
 import { normalizeUrl } from "@/lib/url";
 
@@ -85,6 +87,7 @@ interface EventData {
     bring_list_mode: "signup" | "open";
     bring_list_message?: string | null;
     admin_token: string;
+    has_password: boolean;
   };
   rsvps: Array<{
     id: string;
@@ -99,7 +102,7 @@ interface EventData {
 
 function getExpiryDate(eventDate: string): string {
   const date = new Date(`${eventDate}T00:00:00`);
-  date.setDate(date.getDate() + 90);
+  date.setDate(date.getDate() + RETENTION_DAYS);
   return date.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
@@ -126,6 +129,9 @@ const AdminPage = () => {
 
   const [data, setData] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Why the dashboard could not be shown: a bad link, or anything else (network,
+  // server), which gets a retry instead of "this link doesn't work".
+  const [loadFailure, setLoadFailure] = useState<"invalid" | "error" | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [name, setName] = useState("");
@@ -144,20 +150,33 @@ const AdminPage = () => {
   const [bringListMessage, setBringListMessage] = useState(OPEN_LIST_MESSAGE);
   const [newItem, setNewItem] = useState("");
   const [newItemQty, setNewItemQty] = useState(1);
+  const [addingItem, setAddingItem] = useState(false);
+  const [requirePassword, setRequirePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [embedPassword, setEmbedPassword] = useState(true);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [pendingModeSwitch, setPendingModeSwitch] = useState<BringListMode | null>(null);
   const [deletingRsvpId, setDeletingRsvpId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [accessOpen, setAccessOpen] = useState(false);
 
-  const loadData = async () => {
+  /**
+   * Fetch the dashboard. The first load fills the form from the server; later
+   * refreshes (after adding an item, deleting an RSVP, ...) only update the
+   * lists and totals, so edits the host has not saved yet are left alone.
+   */
+  const loadData = async ({ refresh = false }: { refresh?: boolean } = {}) => {
     if (!id || !token) {
+      setLoadFailure("invalid");
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!refresh) setLoading(true);
     try {
       const result = await getAdminEvent(id, token) as EventData;
       setData(result);
+      setLoadFailure(null);
+      if (refresh) return;
       setName(result.event.name);
       setDescription(result.event.description || "");
       setEventDate(result.event.event_date);
@@ -176,6 +195,9 @@ const AdminPage = () => {
         result.event.bring_list_message ||
         (loadedMode === "open" ? OPEN_LIST_MESSAGE : FIXED_SLOT_MESSAGE),
       );
+      setRequirePassword(result.event.has_password);
+      setNewPassword("");
+      setPasswordError(null);
       saveMyEvent({
         id: result.event.id,
         name: result.event.name,
@@ -184,10 +206,11 @@ const AdminPage = () => {
         guest_link: `${window.location.origin}/event/${id}`,
       });
     } catch (error) {
-      const message = error instanceof ApiError && error.status === 403
-        ? "Invalid admin link"
-        : error instanceof Error ? error.message : "Failed to load event";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      if (refresh) {
+        toast({ title: "Couldn't refresh the dashboard", description: "Reload the page to see the latest.", variant: "destructive" });
+      } else {
+        setLoadFailure(error instanceof ApiError && (error.status === 403 || error.status === 400) ? "invalid" : "error");
+      }
     } finally {
       setLoading(false);
     }
@@ -199,8 +222,25 @@ const AdminPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, token]);
 
+  // What the save should do to the password: a string sets or changes it, null
+  // removes it, undefined leaves it as it is.
+  const passwordUpdate = (): string | null | undefined => {
+    if (!data) return undefined;
+    if (!requirePassword) return data.event.has_password ? null : undefined;
+    return newPassword.trim() ? newPassword : undefined;
+  };
+
   const handleSave = async () => {
-    if (!id) return;
+    if (!id || !data || saving) return;
+    if (!name.trim() || !eventDate) {
+      toast({ title: "Missing details", description: "An event needs a name and a date.", variant: "destructive" });
+      return;
+    }
+    if (requirePassword && !data.event.has_password && !newPassword.trim()) {
+      setPasswordError("Enter a password, or turn the password off.");
+      setAccessOpen(true);
+      return;
+    }
     setSaving(true);
     try {
       let bannerUrl: string | null | undefined;
@@ -211,6 +251,7 @@ const AdminPage = () => {
       } else if (bannerChange === null) {
         bannerUrl = null;
       }
+      const password = passwordUpdate();
 
       await updateEvent(id, token, {
         name,
@@ -226,7 +267,16 @@ const AdminPage = () => {
         bring_list_enabled: bringListEnabled,
         bring_list_message: bringListMessage,
         bring_list_mode: bringListMode,
+        ...(password !== undefined ? { password } : {}),
       });
+
+      // Keep the guest link on this device in step with the password: guests
+      // opening an old link with the old password in it will be asked for the
+      // new one.
+      const bareLink = `${window.location.origin}/event/${id}`;
+      if (password === null) setMyEventGuestLink(id, bareLink);
+      else if (password) setMyEventGuestLink(id, embedPassword ? `${bareLink}#${password}` : bareLink);
+
       toast({ title: "Event updated!" });
       await loadData();
     } catch (error) {
@@ -260,19 +310,22 @@ const AdminPage = () => {
   };
 
   const handleAddItem = async () => {
-    if (!id || !newItem.trim()) return;
+    if (!id || !newItem.trim() || addingItem) return;
+    setAddingItem(true);
     try {
       const quantity = bringListMode === "signup" ? Math.min(Math.max(newItemQty, 1), 20) : 1;
       await adminAddBringItem(id, token, newItem.trim(), quantity);
       setNewItem("");
       setNewItemQty(1);
-      await loadData();
+      await loadData({ refresh: true });
     } catch (error) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
+    } finally {
+      setAddingItem(false);
     }
   };
 
@@ -281,7 +334,7 @@ const AdminPage = () => {
     setDeletingItemId(itemId);
     try {
       await adminDeleteBringItem(id, token, itemId);
-      await loadData();
+      await loadData({ refresh: true });
     } catch (error) {
       toast({
         title: "Error",
@@ -298,7 +351,7 @@ const AdminPage = () => {
     setDeletingRsvpId(rsvpId);
     try {
       await adminDeleteRsvp(id, token, rsvpId);
-      await loadData();
+      await loadData({ refresh: true });
     } catch (error) {
       toast({
         title: "Error",
@@ -315,6 +368,7 @@ const AdminPage = () => {
     setDeleting(true);
     try {
       await adminDeleteEvent(id, token);
+      removeMyEvent(id);
       navigate("/", { replace: true });
     } catch (error) {
       toast({
@@ -347,6 +401,19 @@ const AdminPage = () => {
     );
   }
 
+  if (!data && loadFailure === "error") {
+    return (
+      <main className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
+        <div className="max-w-md text-center" role="alert">
+          <Logo className="mx-auto h-11 w-11" />
+          <h1 className="mt-6 text-3xl">We couldn't load your dashboard</h1>
+          <p className="mt-3 text-muted-foreground">Check your connection and try again.</p>
+          <Button className="mt-6" onClick={() => loadData()}>Try again</Button>
+        </div>
+      </main>
+    );
+  }
+
   if (!data) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
@@ -364,7 +431,7 @@ const AdminPage = () => {
 
   const bareGuestLink = `${window.location.origin}/event/${id}`;
   const savedGuestLink = getMyEvent(id ?? "")?.guest_link;
-  const guestLink = savedGuestLink?.includes("#") ? savedGuestLink : bareGuestLink;
+  const guestLink = data.event.has_password && savedGuestLink?.includes("#") ? savedGuestLink : bareGuestLink;
   const guestLinkHasPassword = guestLink !== bareGuestLink;
   const adminLink = `${window.location.origin}/admin/${id}?token=${token}`;
   const activeRsvps = data.rsvps.filter((rsvp) => !rsvp.cancelled);
@@ -803,7 +870,7 @@ const AdminPage = () => {
                       variant="outline"
                       size="icon"
                       onClick={handleAddItem}
-                      disabled={!newItem.trim()}
+                      disabled={!newItem.trim() || addingItem}
                       aria-label="Add bring-list item"
                     >
                       <Plus />
@@ -867,10 +934,58 @@ const AdminPage = () => {
               number="04"
               icon={ShieldCheck}
               title="Access & privacy"
-              description="Control what guests can see about other replies."
+              description="Control passwords and what guests can see about other replies."
               open={accessOpen}
               onOpenChange={setAccessOpen}
             >
+              <OptionSection
+                icon={LockKeyhole}
+                title="Guest password"
+                description={data.event.has_password
+                  ? "Guests need the password to open the event. Changing it asks everyone for the new one."
+                  : "The shared link is usually private enough. Add a password for another layer."}
+              >
+                <div className="flex items-center justify-between rounded-md bg-muted/45 px-4 py-3">
+                  <Label htmlFor="admin-require-password" className="cursor-pointer">Require a password</Label>
+                  <Switch
+                    id="admin-require-password"
+                    checked={requirePassword}
+                    onCheckedChange={(checked) => { setRequirePassword(checked); setPasswordError(null); }}
+                  />
+                </div>
+                {requirePassword && (
+                  <div className="mt-3 space-y-3">
+                    <Label htmlFor="admin-password" className="sr-only">
+                      {data.event.has_password ? "New password" : "Password"}
+                    </Label>
+                    <Input
+                      id="admin-password"
+                      type="password"
+                      autoComplete="new-password"
+                      maxLength={100}
+                      placeholder={data.event.has_password ? "New password (leave blank to keep the current one)" : "A simple password for guests"}
+                      value={newPassword}
+                      onChange={(e) => { setNewPassword(e.target.value); setPasswordError(null); }}
+                      aria-invalid={!!passwordError}
+                      aria-describedby={passwordError ? "admin-password-error" : undefined}
+                    />
+                    {passwordError && <p id="admin-password-error" className="field-error">{passwordError}</p>}
+                    {newPassword.trim() && (
+                      <div className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-3">
+                        <div>
+                          <Label htmlFor="admin-embed-password" className="cursor-pointer">Put it in the guest link</Label>
+                          <p className="mt-0.5 text-xs text-muted-foreground">Guests can open the page without typing it.</p>
+                        </div>
+                        <Switch id="admin-embed-password" checked={embedPassword} onCheckedChange={setEmbedPassword} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!requirePassword && data.event.has_password && (
+                  <p className="mt-3 text-sm text-muted-foreground">Saving removes the password, so anyone with the link can open the event.</p>
+                )}
+              </OptionSection>
+
               <OptionSection
                 icon={Eye}
                 title="Guest list privacy"
@@ -893,7 +1008,7 @@ const AdminPage = () => {
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               This event and its guest data will be deleted on{" "}
-              <strong>{getExpiryDate(data.event.event_date)}</strong>, 90 days after the event.
+              <strong>{getExpiryDate(data.event.event_date)}</strong>, {RETENTION_DAYS} days after the event.
             </AlertDescription>
           </Alert>
 

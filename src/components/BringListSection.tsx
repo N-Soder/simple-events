@@ -206,6 +206,7 @@ const BringListSection = ({
               variant="ghost"
               size="icon"
               className="ml-auto h-6 w-6"
+              aria-label={`Remove ${ci.item_name}`}
               onClick={() => onRemoveCustomItem(i)}
             >
               <X className="h-3 w-3" />
