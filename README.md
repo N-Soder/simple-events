@@ -165,8 +165,7 @@ npx wrangler d1 migrations apply simple-events-db --remote
 ```
 
 **Re-run this whenever a change adds a migration, before deploying that change**,
-including for preview deployments, which share the same D1 database unless you
-give them their own (see below). Deploying code
+and to the preview database too (see below). Deploying code
 that references a column the database does not have yet makes the affected endpoints
 fail with a generic `500 Internal error`; the real cause (`no such column`) only
 appears in the Worker logs (`npx wrangler pages deployment tail`).
@@ -176,22 +175,18 @@ running code selects and inserts explicit column lists and ignores anything new.
 A migration that drops or renames a column (as `0005` did) is not: deploy the
 code that stops using the column first, then apply the migration.
 
-**Give preview deployments their own database.** Out of the box, `wrangler.toml`
-binds one D1 database and one R2 bucket, so a preview branch reads and writes
-real events. Create a second pair and bind it for previews:
+**Preview deployments have their own database and bucket.** `wrangler.toml`
+binds `simple-events-preview` (D1) and `simple-events-banners-preview` (R2) under
+`[env.preview]`, so a preview branch never reads or writes real events. Apply new
+migrations to both:
 
 ```bash
-npx wrangler d1 create simple-events-db-preview
-npx wrangler r2 bucket create simple-events-banners-preview
-npx wrangler d1 migrations apply simple-events-db-preview --remote
+npx wrangler d1 migrations apply simple-events-db --remote
+npx wrangler d1 migrations apply simple-events-preview --remote --env preview
 ```
 
-```toml
-# wrangler.toml
-[env.preview]
-d1_databases = [{ binding = "DB", database_name = "simple-events-db-preview", database_id = "<id from the create command>", migrations_dir = "migrations/d1" }]
-r2_buckets = [{ binding = "R2", bucket_name = "simple-events-banners-preview" }]
-```
+If you fork this project, create your own pair (`npx wrangler d1 create` and
+`npx wrangler r2 bucket create`) and put their names and ID in that section.
 
 **3. Create the R2 bucket** (optional, for banner images)
 
