@@ -11,3 +11,18 @@ migrations_dir = "migrations/d1"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "simple-events-banners"
+
+# Preview deployments get their own database and bucket, so a preview branch
+# never reads or writes real events. Bindings are not inherited, so both are
+# repeated here. Apply migrations to both databases:
+#   npx wrangler d1 migrations apply simple-events-db --remote
+#   npx wrangler d1 migrations apply simple-events-preview --remote --env preview
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "simple-events-preview"
+database_id = "ff9489ef-42d3-4f03-9c8e-2208791e6773"
+migrations_dir = "migrations/d1"
+
+[[env.preview.r2_buckets]]
+binding = "R2"
+bucket_name = "simple-events-banners-preview"

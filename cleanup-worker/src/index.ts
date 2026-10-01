@@ -1,16 +1,13 @@
+import { deleteUploadIfUnreferenced, uploadKeyOf } from "../../server/banners";
+
 interface Env {
   DB: D1Database;
   R2: R2Bucket;
 }
 
+// Keep in step with RETENTION_DAYS in src/lib/myEvents.ts, which tells hosts
+// when their event will be removed.
 const RETENTION_DAYS = 90;
-// Banners picked from the bundled set are static files on the Pages origin, not
-// R2 objects: there is nothing here to delete, and nothing to treat as orphaned
-// either. Keep in step with BANNER_PRESET_DIR in src/lib/bannerPresets.ts.
-const BANNER_PRESET_PREFIX = "/banner-presets/";
-
-const isPresetBanner = (bannerUrl: string | null): boolean =>
-  !!bannerUrl && bannerUrl.startsWith(BANNER_PRESET_PREFIX);
 
 // Grace period before an unreferenced R2 object is considered orphaned. This
 // protects banners uploaded moments before their event row is created.
@@ -37,19 +34,6 @@ async function deleteExpiredEvents(env: Env): Promise<void> {
     return;
   }
 
-  // Delete R2 banners (best-effort, don't block DB cleanup on failure)
-  await Promise.allSettled(
-    results
-      .filter((e) => e.banner_url && !isPresetBanner(e.banner_url))
-      .map((e) => {
-        const r2Key = e.banner_url!.split("/").pop();
-        if (!r2Key) return Promise.resolve();
-        return env.R2.delete(r2Key).catch((err) => {
-          console.error(`R2 delete failed for key ${r2Key}:`, err);
-        });
-      })
-  );
-
   // Batch deletes in groups of 100 to stay within D1 parameter limits. Children
   // are deleted explicitly (and atomically per batch) rather than relying on
   // ON DELETE CASCADE being enabled.
@@ -67,6 +51,12 @@ async function deleteExpiredEvents(env: Env): Promise<void> {
     ]);
   }
 
+  // Banners go after the rows, one event at a time, and only when no surviving
+  // event still points at the same upload (see deleteUploadIfUnreferenced).
+  for (const e of results) {
+    await deleteUploadIfUnreferenced(env.DB, env.R2, e.banner_url, []);
+  }
+
   console.log(`Cleanup complete: deleted ${ids.length} expired event(s).`);
 }
 
@@ -78,10 +68,7 @@ async function sweepOrphanedBanners(env: Env): Promise<void> {
   ).all<{ banner_url: string }>();
 
   const referenced = new Set(
-    (results ?? [])
-      .filter((e) => !isPresetBanner(e.banner_url))
-      .map((e) => e.banner_url.split("/").pop())
-      .filter((k): k is string => Boolean(k))
+    (results ?? []).map((e) => uploadKeyOf(e.banner_url)).filter((k): k is string => k !== null)
   );
 
   const cutoff = Date.now() - ORPHAN_GRACE_MS;

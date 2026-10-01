@@ -13,3 +13,8 @@ database_id = "ae276100-d4fe-48b4-8bbf-9c5a4895b43f"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "simple-events-banners"
+
+# Keep console output (deletions, R2 failures) in Workers Logs, so a failing
+# nightly run is visible in the dashboard rather than silent.
+[observability]
+enabled = true

@@ -1,10 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 
 import AdminPage from "./AdminPage";
 
-const { getAdminEvent } = vi.hoisted(() => ({ getAdminEvent: vi.fn() }));
+const { getAdminEvent, updateEvent, adminAddBringItem } = vi.hoisted(() => ({
+  getAdminEvent: vi.fn(),
+  updateEvent: vi.fn(),
+  adminAddBringItem: vi.fn(),
+}));
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -12,17 +16,20 @@ vi.mock("@/lib/api", async () => {
   return {
     ...actual,
     getAdminEvent,
-    updateEvent: vi.fn(),
-    adminAddBringItem: vi.fn(),
+    updateEvent,
+    adminAddBringItem,
     adminDeleteBringItem: vi.fn(),
     adminDeleteRsvp: vi.fn(),
     adminDeleteEvent: vi.fn(),
   };
 });
 
-vi.mock("@/lib/myEvents", () => ({
+vi.mock("@/lib/myEvents", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/myEvents")>("@/lib/myEvents")),
   getMyEvent: vi.fn(() => null),
   saveMyEvent: vi.fn(),
+  setMyEventGuestLink: vi.fn(),
+  removeMyEvent: vi.fn(),
 }));
 
 const eventData = {
@@ -42,6 +49,7 @@ const eventData = {
     bring_list_mode: "open" as const,
     bring_list_message: "Bring something you love to share.",
     admin_token: "host-token",
+    has_password: false,
   },
   rsvps: [
     { id: "r1", guest_name: "Aino Korhonen", adults: 1, kids: 1, manage_code: "a1" },
@@ -70,7 +78,10 @@ const renderAdmin = () =>
 
 describe("AdminPage", () => {
   beforeEach(() => {
+    getAdminEvent.mockReset();
     getAdminEvent.mockResolvedValue(eventData);
+    updateEvent.mockReset();
+    adminAddBringItem.mockReset();
   });
 
   it("leads with the event and gives hosts a clear dashboard overview", async () => {
@@ -123,5 +134,41 @@ describe("AdminPage", () => {
 
     fireEvent.click(bannerSwitch);
     expect(screen.getByLabelText("Banner photo")).toBeInTheDocument();
+  });
+
+  it("keeps unsaved edits when the host adds a bring list item", async () => {
+    renderAdmin();
+
+    const nameInput = await screen.findByLabelText("Event name");
+    fireEvent.change(nameInput, { target: { value: "Renamed dinner" } });
+
+    adminAddBringItem.mockResolvedValue({});
+    fireEvent.change(screen.getByPlaceholderText("Salad, drinks, dessert"), { target: { value: "Bread" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add bring-list item" }));
+
+    await waitFor(() => expect(getAdminEvent).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText("Event name")).toHaveValue("Renamed dinner");
+  });
+
+  it("offers a retry, not 'this link doesn't work', when loading fails for another reason", async () => {
+    getAdminEvent.mockRejectedValue(new TypeError("Failed to fetch"));
+    renderAdmin();
+
+    expect(await screen.findByRole("heading", { name: "We couldn't load your dashboard" })).toBeInTheDocument();
+    getAdminEvent.mockResolvedValue(eventData);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Midsummer garden dinner" })).toBeInTheDocument();
+  });
+
+  it("won't save a switched-on password that was left blank", async () => {
+    renderAdmin();
+
+    await screen.findByRole("heading", { level: 1, name: "Midsummer garden dinner" });
+    fireEvent.click(screen.getByRole("button", { name: /Access & privacy/ }));
+    fireEvent.click(screen.getByRole("switch", { name: "Require a password" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+
+    expect(await screen.findByText("Enter a password, or turn the password off.")).toBeInTheDocument();
+    expect(updateEvent).not.toHaveBeenCalled();
   });
 });

@@ -47,11 +47,14 @@ export function allZones(current: string): string[] {
   return [...set].sort();
 }
 
-/** "GMT+1" style label for the zone's offset right now. */
-export function offsetLabel(zone: string): string {
+/**
+ * "GMT+1" style label for the zone's offset at `at` (default now). Pass the
+ * event's date so a summer event isn't labelled with the winter offset.
+ */
+export function offsetLabel(zone: string, at: Date = new Date()): string {
   try {
     const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "shortOffset" })
-      .formatToParts(new Date());
+      .formatToParts(at);
     return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
   } catch {
     return "";
@@ -61,4 +64,9 @@ export function offsetLabel(zone: string): string {
 /** "Europe/London" → "Europe / London" */
 export function prettyZone(zone: string): string {
   return zone.replace(/_/g, " ").replace(/\//g, " / ");
+}
+
+/** "America/New_York" → "New York" */
+export function zoneCity(zone: string): string {
+  return (zone.split("/").pop() ?? zone).replace(/_/g, " ");
 }
