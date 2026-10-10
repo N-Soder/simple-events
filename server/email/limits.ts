@@ -8,7 +8,8 @@ const MAX_EMAIL_LENGTH = 254;
 const EMAIL_RE = /^[^\s@<>(),;:"[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
 export const PER_ADDRESS_CAP = 3;
-export const PER_EVENT_CAP = 100;
+// Below the overall cap, so one busy event cannot use the whole day's allowance.
+export const PER_EVENT_CAP = 50;
 export const DEFAULT_DAILY_CAP = 80;
 
 /** The address as it is sent and hashed, or null if it is not one plain address. */

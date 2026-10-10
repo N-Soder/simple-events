@@ -196,21 +196,26 @@ async function requireAdmin<T = { id: string }>(db: D1Database, body: Record<str
 
 // ---- Optional email.
 
+interface EmailRequest {
+  address: string;
+  /** Whether the bot check passed. Nothing is sent without it. */
+  verified: boolean;
+}
+
 /**
- * The address to email, if the request asked for one. Checked in full (the
- * feature is on, the address is plain, the bot check passes) before the caller
- * writes anything, so a rejected request leaves no half-made event or RSVP.
+ * The address to email, if the request asked for one. A request the person can
+ * correct (email is off here, or the address is malformed) is rejected before
+ * the caller writes anything. A failed bot check is not: the email is the
+ * optional part, so it costs them the email and never the event or RSVP.
  */
-async function readEmailRequest(env: Env, request: Request, body: Record<string, unknown>): Promise<string | undefined> {
+async function readEmailRequest(env: Env, request: Request, body: Record<string, unknown>): Promise<EmailRequest | undefined> {
   const raw = optString(body.email, "email", 320)?.trim();
   if (!raw) return undefined;
   if (!emailEnabled(env)) throw new HttpError("Email is not available");
-  const email = normalizeEmail(raw);
-  if (!email) throw new HttpError("Enter a valid email address");
-  if (!(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, body.turnstile_token, request.headers.get("CF-Connecting-IP")))) {
-    throw new HttpError("Verification failed. Please try again.", 403);
-  }
-  return email;
+  const address = normalizeEmail(raw);
+  if (!address) throw new HttpError("Enter a valid email address");
+  const verified = await verifyTurnstile(env.TURNSTILE_SECRET_KEY, body.turnstile_token, request.headers.get("CF-Connecting-IP"));
+  return { address, verified };
 }
 
 // ---- Bring list.
@@ -463,11 +468,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (!email) return json({ id, admin_token });
       // The event exists now, so email is best effort from here on.
-      const status = await deliverEmail(env, db, id, email, () => ({
-        email: renderHostLinksEmail({
-          origin: url.origin, event: { id, name, event_date }, adminToken: admin_token, hasPassword: password_hash !== null,
-        }),
-      }));
+      const status = email.verified
+        ? await deliverEmail(env, db, id, email.address, () => ({
+            email: renderHostLinksEmail({
+              origin: url.origin, event: { id, name, event_date }, adminToken: admin_token, hasPassword: password_hash !== null,
+            }),
+          }))
+        : "failed";
       return json({ id, admin_token, email: status });
     }
 
@@ -585,7 +592,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // Read what the email needs before writing anything. Once the RSVP is
       // saved, an email-only failure must not turn into an error response: the
       // guest would never see their edit link, and a retry would reply twice.
-      const emailEvent = email
+      const emailEvent = email?.verified
         ? await db.prepare(
             "SELECT id, name, event_date, event_time, event_end_time, timezone, location, location_url FROM events WHERE id = ?"
           ).bind(event.id).first<EmailEvent>()
@@ -604,7 +611,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!email) return json({ ...normalizeRsvp(row), reserved });
 
       const status = emailEvent
-        ? await deliverEmail(env, db, event.id, email, () => ({
+        ? await deliverEmail(env, db, event.id, email.address, () => ({
             email: renderRsvpEmail({
               origin: url.origin,
               event: emailEvent,

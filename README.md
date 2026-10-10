@@ -96,12 +96,13 @@ unless the deployment is configured to send (see `GET /api/config`).
 - **The event password is never emailed.** The host's email links to the plain
   guest link and says a password is needed.
 - **Abuse protection.** An open email field would let anyone make this domain
-  send mail to any address, so a request carrying an email must pass Cloudflare
-  Turnstile before anything is written, and then reserve a slot under three
-  24-hour caps: 3 per address, 100 per event, and `EMAIL_DAILY_CAP` overall
-  (default 80, which leaves headroom on Resend's free tier of 100 a day). Over a
-  cap, the event or RSVP is saved and only the email is skipped. The Turnstile
-  script is loaded only once someone types an address.
+  send mail to any address, so nothing is sent unless the request passes
+  Cloudflare Turnstile and then reserves a slot under three 24-hour caps: 3 per
+  address, 50 per event, and `EMAIL_DAILY_CAP` overall (default 80, which leaves
+  headroom on Resend's free tier of 100 a day). A failed check or a full cap
+  never blocks the event or RSVP: it is saved, only the email is skipped, and the
+  page shows the links to copy instead. The Turnstile script is loaded only once
+  someone types an address.
 
 ## Tech stack
 

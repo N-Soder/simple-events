@@ -97,8 +97,8 @@ describe("creating an event", () => {
     expect(headers.Authorization).toBe("Bearer re_test");
   });
 
-  it("rejects an email before creating anything when email is off, malformed, or the bot check fails", async () => {
-    const { sent } = stubOutbound({ turnstile: false });
+  it("rejects an email before creating anything when email is off or the address is malformed", async () => {
+    const { sent } = stubOutbound();
 
     const off = await call("POST", "create", newEvent(withEmail()), {});
     expect(off.status).toBe(400);
@@ -108,11 +108,20 @@ describe("creating an event", () => {
     expect(malformed.status).toBe(400);
     expect(malformed.body.error).toBe("Enter a valid email address");
 
-    const bot = await call("POST", "create", newEvent(withEmail()));
-    expect(bot.status).toBe(403);
-    expect(bot.body.error).toBe("Verification failed. Please try again.");
-
     expect(await rows("events")).toHaveLength(0);
+    expect(await rows("email_sends")).toHaveLength(0);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("creates the event but sends nothing when the bot check fails", async () => {
+    // The email is the optional part: a failed or unreachable check must cost
+    // the host their email, never their event.
+    const { sent } = stubOutbound({ turnstile: false });
+    const res = await call("POST", "create", newEvent(withEmail()));
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBe("failed");
+    expect(res.body.id).toEqual(expect.any(String));
+    expect(await rows("events")).toHaveLength(1);
     expect(await rows("email_sends")).toHaveLength(0);
     expect(sent).toHaveLength(0);
   });
@@ -174,12 +183,16 @@ describe("replying to an event", () => {
     expect(sent[0].payload.text).toContain("Bringing: Chairs ×2");
   });
 
-  it("writes no RSVP when the bot check fails", async () => {
-    stubOutbound({ turnstile: false });
+  it("saves the RSVP but sends nothing when the bot check fails", async () => {
+    const { sent } = stubOutbound({ turnstile: false });
     const event = (await call("POST", "create", newEvent())).body;
     const res = await call("POST", "rsvp", withEmail({ event_id: event.id, guest_name: "Ada" }));
-    expect(res.status).toBe(403);
-    expect(await rows("rsvps")).toHaveLength(0);
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBe("failed");
+    expect(res.body.manage_code).toEqual(expect.any(String));
+    expect(await rows("rsvps")).toHaveLength(1);
+    expect(await rows("email_sends")).toHaveLength(0);
+    expect(sent).toHaveLength(0);
   });
 
   it("still saves the RSVP when Resend fails", async () => {

@@ -60,9 +60,10 @@ Santa shares.
 2. When the field is non-empty, the Turnstile script is loaded and an invisible
    token is obtained before submit.
 3. `POST /api/create` accepts optional `email` and `turnstile_token`. With an
-   email present it validates the address and verifies the token **before**
-   creating anything, so a failed check leaves no half-made event. A failed
-   check is a 403 the form shows inline; the host can retry or clear the field.
+   email present it validates the address **before** creating anything, so a
+   malformed address leaves no half-made event. The token is verified too, but
+   a failed check does not block creation: the event is saved and the email is
+   reported as `failed`.
 4. The event is created as today. Then a send slot is reserved (see caps) and
    the email is sent. The response gains `email: "sent" | "failed" | "limited"`.
    Creation never fails because of email.
@@ -80,8 +81,8 @@ password in its fragment.
 1. The RSVP form gets an optional "Email me a confirmation" field with the
    hint "Used once to send your confirmation and calendar file. Not stored."
 2. Turnstile as above, only when the field is non-empty.
-3. `POST /api/rsvp` accepts optional `email` and `turnstile_token`, verified
-   before the RSVP is written.
+3. `POST /api/rsvp` accepts optional `email` and `turnstile_token`. As for
+   create, a failed bot check costs the email, not the RSVP.
 4. After the RSVP is saved the email is sent, and the response gains the same
    `email` status. The success screen shows the outcome.
 
@@ -111,11 +112,13 @@ An open email field lets anyone make the domain send mail to any address, with
 text they partly control (the event name). Three layers:
 
 1. **Turnstile** on every request that carries an email. It fails closed: a
-   missing secret, missing token or network error is a failed check.
+   missing secret, missing token or network error is a failed check, and no
+   email is sent without a pass. The event or RSVP is still saved, since a bot
+   could submit it without an email anyway.
 2. **Send caps**, reserved atomically before each send in one conditional
    `INSERT ... SELECT`:
    - 3 emails per recipient address per 24 hours
-   - 100 emails per event per 24 hours
+   - 50 emails per event per 24 hours
    - `EMAIL_DAILY_CAP` emails overall per 24 hours
 
    A request over a cap still succeeds; only the email is skipped
@@ -209,7 +212,7 @@ email. The retention figure comes from `RETENTION_DAYS`, not a literal.
 |---|---|
 | Malformed address | 400 before anything is written; shown under the field. |
 | Email sent while email is not configured | 400. |
-| Turnstile fails | 403 before anything is written; the form keeps its contents. |
+| Turnstile fails | Event or RSVP saved; nothing sent; `email: "failed"`. |
 | Over a cap | Event or RSVP saved; `email: "limited"`. |
 | Resend error or timeout | Event or RSVP saved; `email: "failed"`. |
 | Turnstile script blocked in the browser | The field shows that email isn't available right now; submitting without an email still works. |
@@ -220,7 +223,7 @@ email. The retention figure comes from `RETENTION_DAYS`, not a literal.
   `fetch`. Covers: config reflects the env; create and RSVP without email are
   unchanged and make no outbound call; with email the right payload goes to
   Resend, including the `.ics` attachment and no password; a failed Turnstile
-  writes nothing; each cap produces `limited`; a Resend failure still saves
+  saves the event or RSVP and sends nothing; each cap produces `limited`; a Resend failure still saves
   the event or RSVP; no readable address is in any table afterwards.
 - **Unit tests**: templates escape hostile event and guest names; the text
   part contains the links; address validation and hashing.
