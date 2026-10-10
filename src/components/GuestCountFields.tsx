@@ -21,35 +21,30 @@ const GuestCountFields = ({
   onAdultsChange,
   onKidsChange,
 }: GuestCountFieldsProps) => (
-  <div className="grid gap-4 sm:grid-cols-2">
-    <div>
-      <Label htmlFor="adult-count">Adults</Label>
-      <Input
-        id="adult-count"
-        type="number"
-        inputMode="numeric"
-        min={1}
-        max={50}
-        value={adults}
-        onChange={(event) => onAdultsChange(clampCount(event.target.value, 1))}
-        className="mt-1.5"
-      />
-    </div>
+  <div className="grid items-start gap-x-4 gap-y-1.5 sm:grid-cols-2">
+    <Label htmlFor="adult-count" className="sm:col-span-2">Adults</Label>
+    <Input
+      id="adult-count"
+      type="number"
+      inputMode="numeric"
+      min={1}
+      max={50}
+      value={adults}
+      onChange={(event) => onAdultsChange(clampCount(event.target.value, 1))}
+    />
 
-    <div className="rounded-md border border-border bg-muted/25 px-4 py-3">
-      <div className="flex min-h-6 items-center gap-3">
+    <div className="mt-2.5 min-w-0 sm:mt-0">
+      <Label htmlFor="bringing-children" className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-border bg-muted/25 px-3.5 py-2 transition-colors hover:bg-muted/50 has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5">
         <Checkbox
           id="bringing-children"
           checked={kids > 0}
           onCheckedChange={(checked) => onKidsChange(checked === true ? Math.max(kids, 1) : 0)}
         />
-        <Label htmlFor="bringing-children" className="cursor-pointer">
-          Bringing children?
-        </Label>
-      </div>
+        Bringing children?
+      </Label>
 
       {kids > 0 && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-3">
           <Label htmlFor="child-count">Number of children</Label>
           <Input
             id="child-count"
