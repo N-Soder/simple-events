@@ -49,7 +49,7 @@ const BringListSection = ({
       <div className="flex items-center gap-2.5">
         <h3 className="flex items-center gap-2 text-lg leading-none tracking-tight">
           <UtensilsCrossed className="h-5 w-5" />
-          Bring List
+          Bring list
         </h3>
         <span
           className={cn(
@@ -64,7 +64,9 @@ const BringListSection = ({
       </div>
 
       <MarkdownContent
-        content={message || "If you'd like to contribute, select an item below or add your own."}
+        content={message || (mode === "open"
+          ? "If you'd like to contribute, select an item below or add your own."
+          : "If you'd like to contribute, select an available item below.")}
       />
 
       <ul className="space-y-2">
@@ -94,7 +96,7 @@ const BringListSection = ({
               )}
             >
               {/* Main row */}
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <button
                   type="button"
                   disabled={isFull && !isSelected}
@@ -102,14 +104,17 @@ const BringListSection = ({
                   onClick={() => onUpdateCount(item.id, isSelected ? 0 : 1)}
                   className="flex min-h-9 min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
                 >
-                  <Check
+                  <span
+                    aria-hidden="true"
                     className={cn(
-                      "h-4 w-4 shrink-0 text-primary transition-opacity",
-                      isSelected ? "opacity-100" : "opacity-0"
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded-[0.25rem] border transition-colors",
+                      isSelected ? "border-primary bg-primary text-primary-foreground" : "border-input"
                     )}
-                  />
+                  >
+                    {isSelected && <Check className="h-3 w-3" />}
+                  </span>
                 <span className="min-w-0 flex-1">
-                  <span className="font-medium">{item.item_name}</span>
+                  <span className="break-words font-medium">{item.item_name}</span>
                   {item.commitments.length > 0 && (
                     <span className="mt-0.5 block space-y-0.5">
                       {item.commitments.map((c, i) =>
@@ -128,7 +133,10 @@ const BringListSection = ({
                 </span>
                 </button>
 
-                <div className="flex items-center gap-2 ml-auto shrink-0">
+                <div className={cn(
+                  "ml-auto flex max-w-full shrink-0 items-center gap-2",
+                  mode === "signup" && isSelected && item.target_quantity > 1 && "basis-full justify-end sm:basis-auto"
+                )}>
                   {/* Sign-up Sheet: Full badge, always for full+unselected */}
                   {mode === "signup" && isFull && !isSelected && (
                     <span className="text-xs font-medium text-destructive">Full</span>
@@ -150,7 +158,7 @@ const BringListSection = ({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6"
+                        className="h-11 w-11 sm:h-9 sm:w-9"
                         disabled={selected <= 1}
                         onClick={() => onUpdateCount(item.id, selected - 1)}
                         aria-label={`Bring one fewer ${item.item_name}`}
@@ -162,7 +170,7 @@ const BringListSection = ({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6"
+                        className="h-11 w-11 sm:h-9 sm:w-9"
                         disabled={selected >= maxAllowed}
                         onClick={() => onUpdateCount(item.id, selected + 1)}
                         aria-label={`Bring one more ${item.item_name}`}
@@ -184,7 +192,7 @@ const BringListSection = ({
                     value={selectedNotes.get(item.id) ?? ""}
                     onChange={(e) => onUpdateNote(item.id, e.target.value)}
                     maxLength={150}
-                    className="h-9 text-xs"
+                    className="h-11 text-base md:text-sm"
                   />
                 </div>
               )}
@@ -198,7 +206,7 @@ const BringListSection = ({
             className="flex items-center gap-3 rounded-md border border-primary bg-primary/5 px-3 py-2.5"
           >
             <Check className="h-4 w-4 shrink-0 text-primary" />
-            <span className="font-medium">{ci.item_name}</span>
+            <span className="min-w-0 break-words font-medium">{ci.item_name}</span>
             {ci.quantity > 1 && (
               <span className="text-xs text-muted-foreground">×{ci.quantity}</span>
             )}
@@ -206,7 +214,7 @@ const BringListSection = ({
               type="button"
               variant="ghost"
               size="icon"
-              className="ml-auto h-6 w-6"
+              className="ml-auto h-11 w-11 shrink-0 sm:h-9 sm:w-9"
               aria-label={`Remove ${ci.item_name}`}
               onClick={() => onRemoveCustomItem(i)}
             >

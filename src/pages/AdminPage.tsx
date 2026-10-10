@@ -446,10 +446,10 @@ const AdminPage = () => {
   return (
     <main className="min-h-[100dvh] bg-background">
       <header className="border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link
             to="/"
-            className="flex items-center gap-2.5 rounded-md font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex shrink-0 items-center gap-2.5 rounded-md font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Logo className="h-8 w-8" />
             <span>Simple Events</span>
@@ -458,8 +458,12 @@ const AdminPage = () => {
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
               <Link to="/my-events">My events</Link>
             </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link to={`/event/${id}`}>View guest page <ArrowUpRight className="h-4 w-4" /></Link>
+            <Button variant="outline" size="sm" asChild className="px-2 sm:px-3">
+              <Link to={`/event/${id}`} aria-label="View guest page">
+                <span className="sm:hidden">Guest page</span>
+                <span className="hidden sm:inline">View guest page</span>
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
             </Button>
           </div>
         </div>
