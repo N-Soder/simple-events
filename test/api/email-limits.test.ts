@@ -47,6 +47,15 @@ describe("reserveSend", () => {
     expect(await reserveSend(env.DB, SECRET, "grace@example.com", "event-x", 1000)).toEqual(expect.any(String));
   });
 
+  it("counts plus-tags and Gmail dots as the same inbox", async () => {
+    for (const variant of ["ada@gmail.com", "ada+one@gmail.com", "a.d.a@gmail.com"]) {
+      expect(await reserveSend(env.DB, SECRET, variant, "e1", 1000), variant).toEqual(expect.any(String));
+    }
+    expect(await reserveSend(env.DB, SECRET, "a.da+two@googlemail.com", "e1", 1000)).toBeNull();
+    // Dots only mean nothing at Gmail, so elsewhere they are a different person.
+    expect(await reserveSend(env.DB, SECRET, "a.da@example.com", "e1", 1000)).toEqual(expect.any(String));
+  });
+
   it("refuses once an event has reached PER_EVENT_CAP", async () => {
     const insert = env.DB.prepare("INSERT INTO email_sends (id, address_hash, event_id) VALUES (?, ?, 'busy')");
     await env.DB.batch(Array.from({ length: PER_EVENT_CAP }, (_, i) => insert.bind(`row-${i}`, `hash-${i}`)));

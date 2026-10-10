@@ -91,6 +91,19 @@ describe("EmailField", () => {
     await expect(waiting).resolves.toBe("late-token");
   });
 
+  it("stops waiting as soon as the field is cleared", async () => {
+    turnstile.loadTurnstile.mockResolvedValue({ render: vi.fn(() => "widget-1"), reset: vi.fn(), remove: vi.fn() });
+    const handle = createRef<EmailFieldHandle>();
+    render(<Harness handle={handle} />);
+
+    await act(async () => type("ada@example.com"));
+    const waiting = handle.current!.getToken();
+    const settled = vi.fn();
+    waiting.catch(settled);
+    await act(async () => type(""));
+    expect(settled).toHaveBeenCalled();
+  });
+
   it("says email isn't available when the bot check can't load, and removes the widget when cleared", async () => {
     turnstile.loadTurnstile.mockRejectedValue(new Error("blocked"));
     const handle = createRef<EmailFieldHandle>();

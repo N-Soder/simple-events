@@ -59,6 +59,12 @@ describe("GET /api/config", () => {
     const { TURNSTILE_SECRET_KEY: _omit, ...partial } = EMAIL_ENV;
     expect((await call("GET", "config", undefined, partial)).body).toEqual({ emailEnabled: false, turnstileSiteKey: null });
   });
+
+  it("lets the browser reuse the answer, since it only changes on a deploy", async () => {
+    const request = new Request("https://events.test/api/config");
+    const response = await onRequest({ request, env: { ...env, ...EMAIL_ENV } } as unknown as Parameters<typeof onRequest>[0]);
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+  });
 });
 
 describe("creating an event", () => {

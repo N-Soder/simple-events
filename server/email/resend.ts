@@ -15,7 +15,8 @@ export interface EmailPayload {
 }
 
 const ENDPOINT = "https://api.resend.com/emails";
-const TIMEOUT_MS = 10_000;
+// The event or RSVP is already saved and the person is waiting on this request.
+const TIMEOUT_MS = 5_000;
 // Longest rate-limit wait worth holding the person's request open for.
 const MAX_RETRY_AFTER_SECONDS = 3;
 

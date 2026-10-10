@@ -378,7 +378,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // GET /api/config - Which optional features this deployment has switched on
     if (request.method === "GET" && path === "config") {
       const enabled = emailEnabled(env);
-      return json({ emailEnabled: enabled, turnstileSiteKey: enabled ? env.TURNSTILE_SITE_KEY : null });
+      const response = json({ emailEnabled: enabled, turnstileSiteKey: enabled ? env.TURNSTILE_SITE_KEY : null });
+      // Every page asks, and the answer only changes on a deploy.
+      response.headers.set("Cache-Control", "public, max-age=300");
+      return response;
     }
 
     // POST /api/upload - Upload banner to R2

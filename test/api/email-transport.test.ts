@@ -81,6 +81,8 @@ describe("verifyTurnstile", () => {
     expect(form.get("secret")).toBe("secret");
     expect(form.get("response")).toBe("tok");
     expect(form.get("remoteip")).toBe("203.0.113.9");
+    // Bounded, so a stalled check fails closed quickly instead of hanging the request.
+    expect(init!.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("fails on a negative answer, an error status, or a network error", async () => {

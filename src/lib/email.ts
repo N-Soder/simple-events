@@ -1,8 +1,14 @@
 import type { EmailStatus } from "./api";
 
-/** A quick shape check before submitting. The server applies the real rule. */
+// The same rule as `normalizeEmail` in server/email/limits.ts. Keep the two in
+// step: an address that passes here but not there is only rejected after the
+// form has been submitted, as a toast rather than a message on the field.
+const MAX_EMAIL_LENGTH = 254;
+const EMAIL_RE = /^[^\s@<>(),;:"[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
 export function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const email = value.trim().toLowerCase();
+  return email.length <= MAX_EMAIL_LENGTH && EMAIL_RE.test(email);
 }
 
 /** What to tell someone about the email they asked for. */

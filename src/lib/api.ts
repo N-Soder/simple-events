@@ -42,7 +42,8 @@ let configPromise: Promise<AppConfig> | undefined;
 /**
  * Which optional features this deployment has switched on. Fetched once per
  * page load. Any failure means "email is off", never an error, because the
- * email fields are an extra and the forms work without them.
+ * email fields are an extra and the forms work without them. A failure is not
+ * remembered, so the next page to ask tries again.
  */
 export function getConfig(): Promise<AppConfig> {
   configPromise ??= apiFetch("config")
@@ -50,7 +51,10 @@ export function getConfig(): Promise<AppConfig> {
       config.emailEnabled === true && typeof config.turnstileSiteKey === "string"
         ? { emailEnabled: true, turnstileSiteKey: config.turnstileSiteKey }
         : NO_EMAIL)
-    .catch(() => NO_EMAIL);
+    .catch(() => {
+      configPromise = undefined;
+      return NO_EMAIL;
+    });
   return configPromise;
 }
 

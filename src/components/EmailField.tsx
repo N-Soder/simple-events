@@ -82,6 +82,9 @@ const EmailField = forwardRef<EmailFieldHandle, EmailFieldProps>(
       return () => {
         live = false;
         token.current = null;
+        // Nothing will answer a submit that is still waiting on this widget.
+        waiter.current?.reject(new Error(UNAVAILABLE));
+        waiter.current = null;
         setUnavailable(false);
         if (widget.current) {
           widget.current.api.remove(widget.current.id);
@@ -98,6 +101,8 @@ const EmailField = forwardRef<EmailFieldHandle, EmailFieldProps>(
           return Promise.resolve(issued);
         }
         if (unavailable) return Promise.reject(new Error(UNAVAILABLE));
+        // Only one submit can be waiting; a newer one replaces it.
+        waiter.current?.reject(new Error(UNAVAILABLE));
         return new Promise<string>((resolve, reject) => {
           const timer = window.setTimeout(() => {
             waiter.current = null;

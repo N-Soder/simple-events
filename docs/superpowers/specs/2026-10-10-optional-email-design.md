@@ -150,7 +150,7 @@ is the only trace of an address the app keeps, and the privacy notice says so.
 ## Delivery
 
 One `POST https://api.resend.com/emails` per email, awaited inside the
-request, with a 10 second timeout and an `Idempotency-Key` of
+request, with a 5 second timeout and an `Idempotency-Key` of
 `simple-events/{email_sends.id}`. One retry on 429 when `Retry-After` is 3
 seconds or less. Anything else is `failed`.
 
