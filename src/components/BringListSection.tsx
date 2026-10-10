@@ -10,7 +10,8 @@ export interface BringItem {
   item_name: string;
   target_quantity: number;
   committed_quantity: number;
-  commitments: Array<{ guest_name: string; quantity: number; note: string | null }>;
+  // The name is withheld by the server unless the host shows the guest list.
+  commitments: Array<{ guest_name: string | null; quantity: number; note: string | null }>;
 }
 
 interface BringListSectionProps {
@@ -114,11 +115,11 @@ const BringListSection = ({
                       {item.commitments.map((c, i) =>
                         c.note ? (
                           <span key={i} className="block text-xs italic text-muted-foreground">
-                            {c.guest_name}: &ldquo;{c.note}&rdquo;
+                            {c.guest_name ?? "Someone"}: &ldquo;{c.note}&rdquo;
                           </span>
                         ) : (
                           <span key={i} className="block text-xs text-muted-foreground">
-                            {c.guest_name}
+                            {c.guest_name ?? "Someone"}
                           </span>
                         )
                       )}

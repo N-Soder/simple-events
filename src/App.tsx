@@ -11,6 +11,7 @@ const EventPage = lazy(() => import("./pages/EventPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const MyEventsPage = lazy(() => import("./pages/MyEventsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 
 const PageFallback = () => (
   <main className="min-h-[100dvh] bg-background" aria-busy="true" aria-label="Loading page">
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/my-events" element={<MyEventsPage />} />
           <Route path="/event/:id" element={<EventPage />} />
           <Route path="/admin/:id" element={<AdminPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

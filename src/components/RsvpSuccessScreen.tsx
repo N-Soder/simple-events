@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import AddToCalendarButton from "@/components/AddToCalendarButton";
 import { CalendarEvent } from "@/lib/ics";
+import type { EmailNotice } from "@/lib/email";
 
 interface RsvpSuccessScreenProps {
   guestName: string;
@@ -13,6 +14,7 @@ interface RsvpSuccessScreenProps {
   manageUrl: string;
   calendarEvent: CalendarEvent;
   onViewEvent: () => void;
+  emailNotice?: EmailNotice | null;
 }
 
 const RsvpSuccessScreen = ({
@@ -23,6 +25,7 @@ const RsvpSuccessScreen = ({
   manageUrl,
   calendarEvent,
   onViewEvent,
+  emailNotice,
 }: RsvpSuccessScreenProps) => {
   const { toast } = useToast();
 
@@ -42,6 +45,13 @@ const RsvpSuccessScreen = ({
         <p className="eyebrow mt-6">Reply saved</p>
         <h1 className="mt-3 text-4xl tracking-[-0.025em] sm:text-5xl">You’re on the guest list.</h1>
         <p className="mt-3 text-lg text-muted-foreground">Thanks, {guestName}. Your host has your reply.</p>
+        {emailNotice && (
+          <p role="status" className="mt-5 rounded-md border border-border bg-muted/45 px-4 py-3 text-sm leading-6">
+            {emailNotice.status === "sent"
+              ? <>We’ve emailed your confirmation to <span className="font-medium">{emailNotice.address}</span>.</>
+              : "We couldn’t send the email. Save the link below instead."}
+          </p>
+        )}
       </div>
 
       <Card className="surface-panel mt-9 border-0 shadow-none">

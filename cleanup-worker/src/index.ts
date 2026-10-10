@@ -1,4 +1,5 @@
 import { deleteUploadIfUnreferenced, uploadKeyOf } from "../../server/banners";
+import { purgeOldSends } from "../../server/email/limits";
 
 interface Env {
   DB: D1Database;
@@ -22,6 +23,8 @@ export default {
 async function runCleanup(env: Env): Promise<void> {
   await deleteExpiredEvents(env);
   await sweepOrphanedBanners(env);
+  const purged = await purgeOldSends(env.DB);
+  if (purged > 0) console.log(`Cleanup complete: purged ${purged} email send record(s).`);
 }
 
 async function deleteExpiredEvents(env: Env): Promise<void> {

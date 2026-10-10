@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +24,9 @@ import { RETENTION_DAYS, saveMyEvent } from "@/lib/myEvents";
 import { DEFAULT_DURATION_HOURS } from "@/lib/ics";
 import { normalizeUrl } from "@/lib/url";
 import { messageForMode, OPEN_LIST_MESSAGE, type BringListMode } from "@/lib/bringList";
+import EmailField, { type EmailFieldHandle } from "@/components/EmailField";
+import { useEmailConfig } from "@/hooks/use-email-config";
+import { isValidEmail, rememberEmailNotice } from "@/lib/email";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Event name is required").max(200),
@@ -58,6 +61,10 @@ const Index = () => {
   const [locationUrl, setLocationUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string>();
+  const emailRef = useRef<EmailFieldHandle>(null);
+  const { emailEnabled, turnstileSiteKey } = useEmailConfig();
 
   // The landing page hands the event name over in the query string, so a host
   // who typed it there doesn't have to type it again.
@@ -107,8 +114,17 @@ const Index = () => {
       window.setTimeout(() => document.getElementById("password")?.focus(), 0);
       return;
     }
+    const hostEmail = emailEnabled ? email.trim() : "";
+    if (hostEmail && !isValidEmail(hostEmail)) {
+      setEmailError("Enter a valid email address, or leave it empty.");
+      window.setTimeout(() => document.getElementById("host-email")?.focus(), 0);
+      return;
+    }
     setIsSubmitting(true);
     try {
+      // First, so a failed bot check doesn't leave an uploaded banner behind.
+      const turnstile_token = hostEmail ? await emailRef.current?.getToken() : undefined;
+
       // A preset is already a file on our own origin, so it only needs its path
       // writing through. Only a host's own photo has to be uploaded first.
       let banner_url: string | undefined;
@@ -136,6 +152,8 @@ const Index = () => {
         bring_items: bringListEnabled ? bringItems : [],
         bring_list_message: bringListEnabled ? bringListMessage : undefined,
         bring_list_mode: bringListEnabled ? bringListMode : undefined,
+        email: hostEmail || undefined,
+        turnstile_token,
       });
 
       // Remember the event on this device so the admin link is recoverable if
@@ -155,10 +173,16 @@ const Index = () => {
         id: result.id,
         token: result.admin_token,
       });
+      // The email address is handed over in memory instead. Router state is
+      // saved in the browser's history entry, and the address is not to be
+      // stored anywhere.
+      rememberEmailNotice(result.id, hostEmail && result.email ? { address: hostEmail, status: result.email } : null);
       navigate(`/created?${createdParams.toString()}`, {
         state: password ? { password, embed: embedPassword } : null,
       });
     } catch (err: unknown) {
+      // A bot-check token only works once, so get a new one for the retry.
+      emailRef.current?.reset();
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Error creating event", description: message, variant: "destructive" });
     } finally {
@@ -235,6 +259,19 @@ const Index = () => {
                   rows={4}
                 />
               </div>
+
+              {emailEnabled && turnstileSiteKey && (
+                <EmailField
+                  ref={emailRef}
+                  id="host-email"
+                  label="Email me the links"
+                  hint="Used once to send your guest and admin links. Not stored."
+                  value={email}
+                  onChange={(value) => { setEmail(value); setEmailError(undefined); }}
+                  siteKey={turnstileSiteKey}
+                  error={emailError}
+                />
+              )}
             </div>
           </FormSection>
 

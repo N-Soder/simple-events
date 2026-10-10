@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { CalendarDays, Clock, ExternalLink, MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,9 @@ import RsvpSummaryCard from "@/components/RsvpSummaryCard";
 import AppHeader from "@/components/AppHeader";
 import GuestCountFields from "@/components/GuestCountFields";
 import { Skeleton } from "@/components/ui/skeleton";
+import EmailField, { type EmailFieldHandle } from "@/components/EmailField";
+import { useEmailConfig } from "@/hooks/use-email-config";
+import { isValidEmail, type EmailNotice } from "@/lib/email";
 
 interface EventData {
   event: {
@@ -108,6 +111,14 @@ const EventPage = () => {
   const [honeypot, setHoneypot] = useState("");
   const [submittingRsvp, setSubmittingRsvp] = useState(false);
   const [updatingRsvp, setUpdatingRsvp] = useState(false);
+
+  // Optional confirmation email. The address is sent with the RSVP and is not
+  // kept anywhere, on the server or in this browser.
+  const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string>();
+  const [emailNotice, setEmailNotice] = useState<EmailNotice | null>(null);
+  const emailRef = useRef<EmailFieldHandle>(null);
+  const { emailEnabled, turnstileSiteKey } = useEmailConfig();
 
   // Bring list: keyed by item ID
   const [selectedCounts, setSelectedCounts] = useState<Map<string, number>>(new Map());
@@ -318,12 +329,20 @@ const EventPage = () => {
   const handleRsvp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !guestName.trim() || submittingRsvp) return;
+    const guestEmail = emailEnabled ? email.trim() : "";
+    if (guestEmail && !isValidEmail(guestEmail)) {
+      setEmailError("Enter a valid email address, or leave it empty.");
+      return;
+    }
     setSubmittingRsvp(true);
     try {
+      const turnstile_token = guestEmail ? await emailRef.current?.getToken() : undefined;
+
       const { claim_items, custom_items, requested } = selectedClaims();
       const result = await submitRsvp({
         event_id: id, access_token: accessToken, guest_name: guestName.trim(), adults, kids, honeypot,
         claim_items, custom_items,
+        email: guestEmail || undefined, turnstile_token, hour12: use12Hour,
       });
 
       if (result.id && result.manage_code) {
@@ -344,9 +363,13 @@ const EventPage = () => {
       setSelectedCounts(new Map());
       setSelectedNotes(new Map());
       setCustomItems([]);
+      setEmailNotice(guestEmail && result.email ? { address: guestEmail, status: result.email } : null);
+      setEmail("");
       setShowSuccessScreen(true);
       loadEvent(accessToken);
     } catch (error: unknown) {
+      // A bot-check token only works once, so get a new one for the retry.
+      emailRef.current?.reset();
       showRequestError(error);
     } finally {
       setSubmittingRsvp(false);
@@ -523,6 +546,7 @@ const EventPage = () => {
           adults={managedRsvp.adults}
           kids={managedRsvp.kids}
           claimedItems={successClaimedItems}
+          emailNotice={emailNotice}
           manageUrl={manageUrl}
           calendarEvent={{ ...data.event, url: shareUrl }}
           onViewEvent={() => setShowSuccessScreen(false)}
@@ -665,6 +689,19 @@ const EventPage = () => {
                     onCustomItemInputChange={setCustomItemInput}
                     onAddCustomItem={handleAddCustom}
                     onRemoveCustomItem={removeCustomItem}
+                  />
+                )}
+
+                {!isEditing && emailEnabled && turnstileSiteKey && (
+                  <EmailField
+                    ref={emailRef}
+                    id="guest_email"
+                    label="Email me a confirmation"
+                    hint="Used once to send your confirmation and calendar file. Not stored."
+                    value={email}
+                    onChange={(value) => { setEmail(value); setEmailError(undefined); }}
+                    siteKey={turnstileSiteKey}
+                    error={emailError}
                   />
                 )}
 

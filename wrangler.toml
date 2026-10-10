@@ -2,6 +2,14 @@ name = "simple-events"
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "./dist"
 
+# Optional email (see "Optional email" in the README). Email stays off until
+# all four of EMAIL_FROM, TURNSTILE_SITE_KEY and the two secrets
+# (RESEND_API_KEY, TURNSTILE_SECRET_KEY, set in the dashboard) are present.
+[vars]
+EMAIL_FROM = "Simple Events <events@updates.soderholm.app>"
+TURNSTILE_SITE_KEY = "0x4AAAAAAFS1RczOFHnYulu5"
+# EMAIL_DAILY_CAP = "80"         # overall emails per 24 hours
+
 [[d1_databases]]
 binding = "DB"
 database_name = "simple-events-db"
@@ -26,3 +34,8 @@ migrations_dir = "migrations/d1"
 [[env.preview.r2_buckets]]
 binding = "R2"
 bucket_name = "simple-events-banners-preview"
+
+# Vars are not inherited by environments either.
+[env.preview.vars]
+EMAIL_FROM = "Simple Events <events@updates.soderholm.app>"
+TURNSTILE_SITE_KEY = "0x4AAAAAAFS1RczOFHnYulu5"

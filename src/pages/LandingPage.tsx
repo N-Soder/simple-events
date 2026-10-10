@@ -115,6 +115,7 @@ const LandingPage = () => {
 
       <footer className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-end sm:px-6">
         <div className="flex gap-5">
+          <Link className="hover:text-foreground" to="/privacy">Privacy</Link>
           <a className="hover:text-foreground" href="https://github.com/N-Soder/simple-events" target="_blank" rel="noopener noreferrer">GitHub</a>
           <a className="hover:text-foreground" href="https://soderholm.app/" target="_blank" rel="noopener noreferrer">More projects</a>
         </div>
