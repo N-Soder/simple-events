@@ -88,16 +88,21 @@ Two rules that follow from the single weight:
 
 ### Logo
 
-`src/components/Logo.tsx`: guests seated around a table, host in brand green.
-Standalone copy for the browser tab at `public/favicon.svg`.
+`src/components/Logo.tsx`: the name set in DM Serif Display, the heading face,
+with the dot of the i in brand green. That dot is the host, the same meaning
+green carries everywhere else. There is no separate symbol.
 
-- **The filled centre is structural, not decoration.** Without it the ring of
-  dots reads as a loading spinner. This was verified at 16–32px; do not lighten
-  or remove the centre disc.
-- Seats and centre inherit `foreground`, the host dot is `primary`, so the mark
-  adapts to theme automatically.
-- Below ~24px the mark is at its legibility floor. Don't render it smaller;
-  pair it with the wordmark instead.
+- **`Logo`** is the wordmark. Size it by height (`h-7 w-auto`); never set a
+  width, and never put the name beside it as text.
+- **`LogoMark`** is the square companion (a serif S with the host dot, on an
+  ink tile) for places with no room for the name. `public/favicon.svg` and
+  `public/favicon.ico` are standalone copies of it; change all three together.
+- Both are drawn as outlines, not live text, so the logo never waits on the
+  webfont and the dot cannot drift off the i.
+- Letters inherit `foreground`, the dot is `primary`, so both adapt to theme
+  automatically.
+- Below ~20px tall the dot of the wordmark starts to vanish. Use `LogoMark`
+  instead.
 
 ---
 
@@ -151,6 +156,17 @@ validation the host hasn't seen.
 
 Extend this idea rather than reverting to a marketing page: the fastest path to
 a created event beats any amount of persuasion.
+
+- **The question is the headline.** "What are you planning?" is the `h1` and the
+  name field sits directly under it, centred. Nothing else in the first screen
+  asks for input.
+- **Open source is a trust signal, not the call to action.** It appears as the
+  pill above the headline, the GitHub button in the header and one short
+  section at the foot. Keep hosting details (Cloudflare, commands) out of the
+  page; they belong in the README.
+- **Optional email gets one line, below the steps,** and only when
+  `useEmailConfig()` says this deployment can send. Never put an email field or
+  an email claim beside the name field: it reads as a requirement.
 
 ---
 
