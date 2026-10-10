@@ -1,0 +1,7 @@
+# Copy to .dev.vars for `npm run dev:edge`. Never commit .dev.vars.
+#
+# These are Cloudflare's public Turnstile test keys, which always pass.
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# Email stays off locally until you add a real key here.
+# RESEND_API_KEY=re_...

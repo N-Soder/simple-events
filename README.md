@@ -19,6 +19,8 @@ A lightweight web app for creating private event pages and coordinating RSVPs, n
 - Events are deleted 90 days after their date (see the retention worker below)
 - Created events are remembered in the browser, so the admin link can be recovered from
   **Your events** if the tab is closed without saving it
+- Optionally have the guest and admin links emailed to you. The address is used once
+  and not stored
 
 **For guests**
 - No account needed, just enter your name
@@ -26,6 +28,8 @@ A lightweight web app for creating private event pages and coordinating RSVPs, n
 - Claim items from the bring list or add your own
 - Edit or cancel your RSVP at any time via a personal manage link
 - Add the event to a calendar: an `.ics` download or a Google Calendar link
+- Optionally get a confirmation by email, with your edit link and a calendar file. The
+  address is used once and not stored
 
 ## Link previews
 
@@ -72,6 +76,33 @@ The server still validates type and size (`functions/api`), since none of the ab
 can be trusted from the client. `MAX_UPLOAD_BYTES` in `src/lib/bannerImage.ts` and
 `MAX_BANNER_BYTES` in `functions/api/[[route]].ts` are the same number on purpose.
 
+## Optional email
+
+Hosts and guests can each ask for one email: the host's links when an event is
+created, and the guest's confirmation (edit link, `.ics` attachment, Google
+Calendar link) when they reply. Both fields are optional, and both are hidden
+unless the deployment is configured to send (see `GET /api/config`).
+
+- **Addresses are not stored.** The address travels with the create or RSVP
+  request, is handed to Resend, and is never written to D1. The one trace kept is
+  a keyed hash in `email_sends`, used for the send caps and purged after 48 hours
+  by the cleanup worker. Resend keeps its own delivery log for up to 30 days. The
+  notice at `/privacy` says all of this in plain English; keep it in step with the
+  code.
+- **One attempt, reported honestly.** The email is sent inside the request
+  (`server/email/`). The response carries `email: "sent" | "failed" | "limited"`
+  and the page says which. There is no retry queue, because the links are always
+  on screen as well. An event or RSVP is never lost because an email failed.
+- **The event password is never emailed.** The host's email links to the plain
+  guest link and says a password is needed.
+- **Abuse protection.** An open email field would let anyone make this domain
+  send mail to any address, so a request carrying an email must pass Cloudflare
+  Turnstile before anything is written, and then reserve a slot under three
+  24-hour caps: 3 per address, 100 per event, and `EMAIL_DAILY_CAP` overall
+  (default 80, which leaves headroom on Resend's free tier of 100 a day). Over a
+  cap, the event or RSVP is saved and only the email is skipped. The Turnstile
+  script is loaded only once someone types an address.
+
 ## Tech stack
 
 | Layer | Tech |
@@ -82,6 +113,7 @@ can be trusted from the client. `MAX_UPLOAD_BYTES` in `src/lib/bannerImage.ts` a
 | Backend | Cloudflare Pages Functions |
 | Database | Cloudflare D1 (SQLite) |
 | File storage | Cloudflare R2 (banner images) |
+| Email (optional) | Resend, guarded by Cloudflare Turnstile |
 
 Server code lives in three places: `functions/` (the Pages Functions: API, link
 previews, banner serving), `cleanup-worker/` (the retention cron), and `server/`
@@ -113,7 +145,8 @@ npm run test:api   # API tests only
 The API tests (`test/api/`) run the real Pages Function inside workerd with a
 local D1 and R2 and the migrations applied, via
 `@cloudflare/vitest-pool-workers`. They cover access control, guest-visibility
-redaction, passwords, bring-list slot caps, and the banner ownership rules.
+redaction, passwords, bring-list slot caps, the banner ownership rules, and optional email
+(with Resend and Turnstile stubbed at `fetch`).
 
 ### Running the Pages Functions locally
 
@@ -131,6 +164,10 @@ that starts empty, so create an event through the UI to get something to test
 against. `dev:edge` builds first and serves the built output, so re-run it after
 changing anything in `src/`. Functions themselves are picked up without a
 rebuild.
+
+To try the email fields locally, copy `.dev.vars.example` to `.dev.vars` and add a
+`RESEND_API_KEY`, and uncomment `TURNSTILE_SITE_KEY` in `wrangler.toml` with the
+test key from that file. Without them the fields stay hidden.
 
 To check a link preview, read the served HTML rather than pasting the link into
 a chat app, which caches unfurls per URL:
@@ -215,7 +252,28 @@ Redeploy it whenever `server/` or `cleanup-worker/` changes; CI does not deploy 
 Its `RETENTION_DAYS` must match the one in `src/lib/myEvents.ts`, which is what
 hosts are told.
 
-**6. Turn on logs and a cron alert**
+**6. Turn on email** (optional)
+
+1. Verify a sending domain in [Resend](https://resend.com) and set `EMAIL_FROM` in
+   `wrangler.toml` (both `[vars]` and `[env.preview.vars]`).
+2. Create a Turnstile widget (Dashboard → Turnstile) for your hostnames and put its
+   site key in `TURNSTILE_SITE_KEY` in the same two places.
+3. Set the two secrets on the Pages project, for production and for preview:
+
+   ```bash
+   npx wrangler pages secret put RESEND_API_KEY
+   npx wrangler pages secret put TURNSTILE_SECRET_KEY
+   npx wrangler pages secret put RESEND_API_KEY --env preview
+   npx wrangler pages secret put TURNSTILE_SECRET_KEY --env preview
+   ```
+
+4. Apply migration `0008` (step 2) and redeploy the cleanup worker (step 5), which
+   purges the send-cap records.
+5. Change the contact address in `src/pages/PrivacyPage.tsx` to one you read.
+
+Leave any of the four unset and email stays off, with the fields hidden.
+
+**7. Turn on logs and a cron alert**
 
 Errors are only written with `console.error`, so turn on Workers Logs for both the
 Pages project and `simple-events-cleanup` (Dashboard → Workers & Pages → the
@@ -264,12 +322,26 @@ triggers on the cleanup worker. Without it, a broken cleanup fails silently.
   Rules apply to hostnames in your Cloudflare zone, so they protect your custom
   domain but not the `*.pages.dev` address. If you use a custom domain, treat
   it as the only public address.
+- **Optional email** never stores an address, never emails an event password, and
+  never logs addresses, tokens or Resend's response bodies. User-supplied text is
+  escaped in the HTML part and collapsed to one line in the subject. See
+  "Optional email" above for the bot check and send caps. The CSP in
+  `public/_headers` allows `challenges.cloudflare.com` for the Turnstile script
+  and frame, and nothing else third party runs script.
 
 ## Environment variables
 
 | Variable | Description |
 |---|---|
 | `R2_PUBLIC_URL` | Optional. Public base URL for the R2 bucket (e.g. `https://pub-xxx.r2.dev`), set as a Pages environment variable (Settings → Variables), not a build variable: only the API reads it. If omitted, banners are served through the `/banners/[filename]` Pages Function. Uploaded banner URLs are validated against it, so changing it later means new uploads use the new base while existing events keep working until their banner is replaced. |
+| `EMAIL_FROM` | Optional. The From header for emails, e.g. `Simple Events <events@updates.example.com>`, on a domain verified in Resend. Set in `wrangler.toml`. |
+| `RESEND_API_KEY` | Optional secret. Resend API key. Also keys the send-cap hashes, so rotating it resets the caps. |
+| `TURNSTILE_SITE_KEY` | Optional. Public Turnstile widget key. Set in `wrangler.toml`. |
+| `TURNSTILE_SECRET_KEY` | Optional secret. Turnstile secret for server-side verification. |
+| `EMAIL_DAILY_CAP` | Optional. Overall emails per 24 hours. Defaults to 80. |
+
+Email is on only when `EMAIL_FROM`, `RESEND_API_KEY`, `TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET_KEY` are all set.
 
 ## License
 
