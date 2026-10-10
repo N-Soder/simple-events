@@ -6,7 +6,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CalendarEvent, downloadIcs, googleCalendarUrl } from "@/lib/ics";
+import { CalendarEvent, buildIcs, googleCalendarUrl, icsFilename } from "@/lib/ics";
+
+/** Trigger a browser download of the event's .ics file. */
+function downloadIcs(event: CalendarEvent): void {
+  const blob = new Blob([buildIcs(event)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = icsFilename(event.name);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  // Revoke on the next tick so the download has started.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 
 interface AddToCalendarButtonProps {
   event: CalendarEvent;

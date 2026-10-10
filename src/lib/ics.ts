@@ -280,17 +280,3 @@ export function icsFilename(name: string): string {
     .slice(0, 60);
   return `${slug || "event"}.ics`;
 }
-
-/** Trigger a browser download of the event's .ics file. */
-export function downloadIcs(event: CalendarEvent): void {
-  const blob = new Blob([buildIcs(event)], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = icsFilename(event.name);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  // Revoke on the next tick so the download has started.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}

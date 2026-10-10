@@ -3,9 +3,13 @@ import {
   isAllowedBannerUrl,
   uploadUrlFor,
 } from "../../server/banners";
+import { deliverEmail, emailEnabled, type EmailEnv } from "../../server/email/deliver";
+import { normalizeEmail } from "../../server/email/limits";
 import { accessTokenFor, checkPassword, hashPassword, isValidAccessToken } from "../../server/password";
+import { renderHostLinksEmail, renderRsvpEmail, rsvpCalendarAttachment, type EmailEvent } from "../../server/email/templates";
+import { verifyTurnstile } from "../../server/turnstile";
 
-interface Env {
+interface Env extends EmailEnv {
   DB: D1Database;
   R2: R2Bucket;
   R2_PUBLIC_URL?: string;
@@ -190,6 +194,25 @@ async function requireAdmin<T = { id: string }>(db: D1Database, body: Record<str
   return event;
 }
 
+// ---- Optional email.
+
+/**
+ * The address to email, if the request asked for one. Checked in full (the
+ * feature is on, the address is plain, the bot check passes) before the caller
+ * writes anything, so a rejected request leaves no half-made event or RSVP.
+ */
+async function readEmailRequest(env: Env, request: Request, body: Record<string, unknown>): Promise<string | undefined> {
+  const raw = optString(body.email, "email", 320)?.trim();
+  if (!raw) return undefined;
+  if (!emailEnabled(env)) throw new HttpError("Email is not available");
+  const email = normalizeEmail(raw);
+  if (!email) throw new HttpError("Enter a valid email address");
+  if (!(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, body.turnstile_token, request.headers.get("CF-Connecting-IP")))) {
+    throw new HttpError("Verification failed. Please try again.", 403);
+  }
+  return email;
+}
+
 // ---- Bring list.
 
 // Fetch bring items with aggregated commitments for a given event
@@ -352,6 +375,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const db = env.DB;
 
   try {
+    // GET /api/config - Which optional features this deployment has switched on
+    if (request.method === "GET" && path === "config") {
+      const enabled = emailEnabled(env);
+      return json({ emailEnabled: enabled, turnstileSiteKey: enabled ? env.TURNSTILE_SITE_KEY : null });
+    }
+
     // POST /api/upload - Upload banner to R2
     if (request.method === "POST" && path === "upload") {
       let formData: FormData;
@@ -398,6 +427,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (!VISIBILITIES.includes(guest_visibility as typeof VISIBILITIES[number])) return err("invalid guest_visibility");
       const password = optPassword(body.password);
       const bringItems = optList(body.bring_items, "bring_items", MAX_BRING_ITEMS);
+      const email = await readEmailRequest(env, request, body);
 
       const id = crypto.randomUUID();
       const admin_token = crypto.randomUUID();
@@ -428,7 +458,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
       await db.batch(statements);
 
-      return json({ id, admin_token });
+      if (!email) return json({ id, admin_token });
+      // The event exists now, so email is best effort from here on.
+      const status = await deliverEmail(env, db, id, email, renderHostLinksEmail({
+        origin: url.origin, event: { id, name, event_date }, adminToken: admin_token, hasPassword: password_hash !== null,
+      }));
+      return json({ id, admin_token, email: status });
     }
 
     // POST /api/verify - Exchange an event password for an access token
@@ -541,6 +576,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const listOpen = event.bring_list_enabled === 1;
       const claims = listOpen ? await checkClaims(db, event, parseClaims(body.claim_items, event.bring_list_mode)) : [];
       const customItems = listOpen ? parseCustomItems(body.custom_items, event.bring_list_mode) : [];
+      const email = await readEmailRequest(env, request, body);
 
       const id = crypto.randomUUID();
       const manage_code = crypto.randomUUID();
@@ -551,7 +587,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       const results = await db.batch(statements);
       const row = await db.prepare("SELECT * FROM rsvps WHERE id = ?").bind(id).first();
-      return json({ ...normalizeRsvp(row), reserved: readReserved(results) });
+      const reserved = readReserved(results);
+      if (!email) return json({ ...normalizeRsvp(row), reserved });
+
+      const details = await db.prepare(
+        "SELECT id, name, event_date, event_time, event_end_time, timezone, location, location_url FROM events WHERE id = ?"
+      ).bind(event.id).first<EmailEvent>();
+      const status = details
+        ? await deliverEmail(env, db, event.id, email, renderRsvpEmail({
+            origin: url.origin,
+            event: details,
+            rsvp: { id, manage_code, guest_name: guestName, adults, kids },
+            bringing: reserved.map((r) => (r.quantity > 1 ? `${r.item_name} ×${r.quantity}` : r.item_name)),
+            // The guest's own clock preference, sent by the page they replied from.
+            hour12: body.hour12 === true,
+          }), [rsvpCalendarAttachment(url.origin, details)])
+        : "failed";
+      return json({ ...normalizeRsvp(row), reserved, email: status });
     }
 
     // PUT /api/admin/update - Update event (admin)
