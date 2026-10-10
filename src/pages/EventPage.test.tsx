@@ -127,6 +127,23 @@ describe("EventPage", () => {
     expect(screen.getByRole("button", { name: "Bring one more Chairs" })).toBeEnabled();
   });
 
+  it("shows that an item is taken without a name when the host hides the guest list", async () => {
+    api.getEvent.mockResolvedValue({
+      ...eventData,
+      event: { ...eventData.event, guest_visibility: "hidden" },
+      rsvps: undefined,
+      rsvp_counts: undefined,
+      bring_items: [{ ...eventData.bring_items[0], commitments: [
+        { guest_name: null, quantity: 1, note: null },
+        { guest_name: null, quantity: 1, note: "folding ones" },
+      ] }],
+    });
+    renderEvent();
+
+    expect(await screen.findByText("Someone")).toBeInTheDocument();
+    expect(screen.getByText(/Someone: “folding ones”/)).toBeInTheDocument();
+  });
+
   it("has no email field when the deployment can't send email", async () => {
     api.getEvent.mockResolvedValue(eventData);
     renderEvent();

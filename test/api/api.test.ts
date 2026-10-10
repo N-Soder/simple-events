@@ -45,6 +45,28 @@ describe("guest visibility", () => {
   });
 });
 
+describe("guest visibility on the bring list", () => {
+  it("only names who is bringing what when the guest list itself is shown", async () => {
+    for (const [visibility, hasNames] of [["full", true], ["count_only", false], ["hidden", false]] as const) {
+      const { id, admin_token } = await createEvent({
+        guest_visibility: visibility, bring_list_mode: "signup", bring_items: [{ name: "Chairs", quantity: 4 }],
+      });
+      const itemId = (await call("GET", `event?id=${id}`)).body.bring_items[0].id;
+      await call("POST", "rsvp", { event_id: id, guest_name: "Ada Lovelace", claim_items: [{ item_id: itemId, quantity: 2, note: "folding ones" }] });
+
+      const { body } = await call("GET", `event?id=${id}`);
+      expect(JSON.stringify(body).includes("Ada Lovelace"), visibility).toBe(hasNames);
+      // What is taken, and any note about it, still shows: guests need it to choose.
+      expect(body.bring_items[0].committed_quantity).toBe(2);
+      expect(body.bring_items[0].commitments).toEqual([{ guest_name: hasNames ? "Ada Lovelace" : null, quantity: 2, note: "folding ones" }]);
+
+      // The host always sees names.
+      const admin = (await call("GET", `admin?id=${id}&token=${admin_token}`)).body;
+      expect(admin.bring_items[0].commitments[0].guest_name).toBe("Ada Lovelace");
+    }
+  });
+});
+
 describe("event passwords", () => {
   it("gates the event behind an access token from /verify", async () => {
     const { id } = await createEvent({ password: "hunter2" });

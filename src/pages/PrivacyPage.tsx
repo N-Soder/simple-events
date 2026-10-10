@@ -66,7 +66,7 @@ const PrivacyPage = () => (
       <Section title="Who can see what">
         <List>
           <li>The host sees every reply: names, head counts and what people are bringing.</li>
-          <li>Guests see what the host allows: the full guest list, only the totals, or nothing. Names on the bring list are visible to anyone who can open the event.</li>
+          <li>Guests see what the host allows: the full guest list, only the totals, or nothing. Names on the bring list follow the same setting; what has been taken, and any note left with it, is always shown.</li>
           <li>Apart from our email provider (see above), nobody sees an email address you enter. Hosts are never shown their guests’ addresses.</li>
         </List>
         <p>Anyone who has a link can open it (a guest link still needs the event password, if the host set one), so treat links like a key and only share them with the right people.</p>

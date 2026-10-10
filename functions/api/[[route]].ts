@@ -531,11 +531,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       const bringItems = await getBringItems(db, event_id);
 
-      // Enforce guest_visibility server-side: names only leave the server in "full" mode,
-      // aggregate counts only in "full"/"count_only", nothing in "hidden".
+      // Enforce guest_visibility server-side: names only leave the server in "full" mode
+      // (on the guest list and on the bring list alike), aggregate counts only in
+      // "full"/"count_only", nothing in "hidden".
       const payload: Record<string, unknown> = {
         event: normalizeEvent(event),
-        bring_items: bringItems,
+        // Who is bringing what is the guest list by another route, so names
+        // follow the same rule. What is taken, and any note, still shows.
+        bring_items: visibility === "full"
+          ? bringItems
+          : bringItems.map((item) => ({
+              ...item,
+              commitments: item.commitments.map((c) => ({ ...c, guest_name: null })),
+            })),
       };
       if (visibility !== "hidden") {
         payload.rsvp_counts = {
