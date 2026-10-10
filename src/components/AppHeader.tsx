@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Github } from "lucide-react";
 import Logo from "@/components/Logo";
 import { Button } from "@/components/ui/button";
+import { REPO_URL } from "@/lib/links";
 import { getMyEvents } from "@/lib/myEvents";
 
 interface AppHeaderProps {
@@ -10,6 +11,7 @@ interface AppHeaderProps {
   backLabel?: string;
   showCreate?: boolean;
   showMyEvents?: boolean;
+  showGitHub?: boolean;
 }
 
 const AppHeader = ({
@@ -17,6 +19,7 @@ const AppHeader = ({
   backLabel = "Back",
   showCreate = false,
   showMyEvents = false,
+  showGitHub = false,
 }: AppHeaderProps) => {
   const [hasMyEvents] = useState(() => showMyEvents && getMyEvents().length > 0);
 
@@ -31,17 +34,24 @@ const AppHeader = ({
             </Link>
           </Button>
         ) : (
-          <Link to="/" className="flex items-center gap-2.5 rounded-md font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4">
-            <Logo className="h-7 w-7" />
-            <span>Simple Events</span>
+          <Link to="/" className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4">
+            <Logo className="h-7 w-auto" />
           </Link>
         )}
 
-        {(showCreate || hasMyEvents) && (
+        {(showCreate || hasMyEvents || showGitHub) && (
           <nav aria-label="Primary" className="flex items-center gap-1 sm:gap-2">
             {hasMyEvents && (
               <Button asChild variant="ghost" size="sm">
                 <Link to="/my-events">Your events</Link>
+              </Button>
+            )}
+            {showGitHub && (
+              <Button asChild variant="outline" size="sm" className="bg-card">
+                <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+                  <Github aria-hidden="true" />
+                  GitHub
+                </a>
               </Button>
             )}
             {showCreate && (

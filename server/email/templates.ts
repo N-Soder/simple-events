@@ -28,6 +28,14 @@ const C = { bg: "#FCFAF8", card: "#FFFFFF", ink: "#1D212B", muted: "#6A7181", li
 const SANS = "'DM Sans',Helvetica,Arial,sans-serif";
 const SERIF = "'DM Serif Display',Georgia,'Times New Roman',serif";
 
+// The wordmark from src/components/Logo.tsx, rebuilt from text so the email
+// carries no image: nothing to block, and nothing fetched when it is opened.
+// A dotless i sits under a green dot; the short line-height pulls the two
+// together without the negative margins Gmail strips. Outlook's Word engine
+// can't stack them, so it gets the plain name.
+const WORDMARK_STYLE = `font-family:${SERIF};font-size:24px;line-height:1;color:${C.ink};white-space:nowrap;`;
+const WORDMARK = `<!--[if mso]><span style="${WORDMARK_STYLE}">Simple Events</span><![endif]--><!--[if !mso]><!--><span role="img" aria-label="Simple Events" style="${WORDMARK_STYLE}">S<span style="display:inline-block;text-align:center;"><span style="display:block;width:5px;height:5px;margin:0 auto;border-radius:50%;background:${C.primary};line-height:0;font-size:0;"></span><span style="display:block;line-height:.38em;">&#305;</span></span>mple Events</span><!--<![endif]-->`;
+
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -103,7 +111,7 @@ function render(layout: Layout): RenderedEmail {
 <div style="display:none;max-height:0;overflow:hidden;">${e(layout.intro)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg};"><tr><td align="center" style="padding:32px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${C.card};border:1px solid ${C.line};border-radius:12px;">
-<tr><td style="padding:28px 28px 0;font-family:${SANS};font-size:15px;font-weight:500;color:${C.ink};">Simple Events</td></tr>
+<tr><td style="padding:28px 28px 0;">${WORDMARK}</td></tr>
 <tr><td style="padding:24px 28px 0;font-family:${SANS};">
 <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:${C.primary};">${e(layout.eyebrow)}</p>
 <h1 style="margin:0 0 14px;font-family:${SERIF};font-weight:400;font-size:28px;line-height:1.2;color:${C.ink};">${e(layout.heading)}</h1>

@@ -27,7 +27,7 @@ import CopyButton, { CopyableLink } from "@/components/CopyButton";
 import { DisclosureSection, FormSection, OptionSection, ToggleSection } from "@/components/FormSections";
 import GuestVisibilityField from "@/components/GuestVisibilityField";
 import LocationField from "@/components/LocationField";
-import Logo from "@/components/Logo";
+import Logo, { LogoMark } from "@/components/Logo";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import TimeField from "@/components/TimeField";
 import TimeZoneNote from "@/components/TimeZoneNote";
@@ -384,9 +384,8 @@ const AdminPage = () => {
     return (
       <main className="min-h-[100dvh] bg-background" aria-busy="true" aria-label="Loading dashboard">
         <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-          <div className="mb-12 flex items-center gap-3">
-            <Logo className="h-9 w-9" />
-            <div className="h-5 w-28 animate-pulse rounded bg-muted" />
+          <div className="mb-12">
+            <Logo className="h-7 w-auto" />
           </div>
           <div className="max-w-2xl space-y-4">
             <div className="h-4 w-28 animate-pulse rounded bg-muted" />
@@ -405,7 +404,7 @@ const AdminPage = () => {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
         <div className="max-w-md text-center" role="alert">
-          <Logo className="mx-auto h-11 w-11" />
+          <LogoMark className="mx-auto h-11 w-11" />
           <h1 className="mt-6 text-3xl">We couldn't load your dashboard</h1>
           <p className="mt-3 text-muted-foreground">Check your connection and try again.</p>
           <Button className="mt-6" onClick={() => loadData()}>Try again</Button>
@@ -418,7 +417,7 @@ const AdminPage = () => {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
         <div className="max-w-md text-center">
-          <Logo className="mx-auto h-11 w-11" />
+          <LogoMark className="mx-auto h-11 w-11" />
           <h1 className="mt-6 text-3xl">This admin link doesn't work</h1>
           <p className="mt-3 text-muted-foreground">
             Check that you copied the whole link, including the private token at the end.
@@ -449,10 +448,9 @@ const AdminPage = () => {
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link
             to="/"
-            className="flex shrink-0 items-center gap-2.5 rounded-md font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <Logo className="h-8 w-8" />
-            <span>Simple Events</span>
+            <Logo className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">

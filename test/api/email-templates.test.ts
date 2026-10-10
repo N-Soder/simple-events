@@ -22,6 +22,14 @@ describe("renderHostLinksEmail", () => {
     }
   });
 
+  it("carries the wordmark as text, with the plain name for Outlook and no image", () => {
+    const email = renderHostLinksEmail({ origin, event, adminToken: "tok123", hasPassword: false });
+    expect(email.html).toContain('aria-label="Simple Events"');
+    expect(email.html).toContain("<!--[if mso]>");
+    expect(email.html).toMatch(/<!--\[if mso\]><span[^>]*>Simple Events<\/span><!\[endif\]-->/);
+    expect(email.html).not.toContain("<img");
+  });
+
   it("mentions the password without including it when the event has one", () => {
     const email = renderHostLinksEmail({ origin, event, adminToken: "tok123", hasPassword: true });
     expect(email.html).toContain("Guests will need the password you set");
