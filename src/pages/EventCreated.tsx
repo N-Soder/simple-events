@@ -3,13 +3,14 @@ import { ArrowRight, Check, ExternalLink, Laptop, LockKeyhole, Send, ShieldCheck
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { CopyableLink } from "@/components/CopyButton";
+import type { EmailNotice } from "@/lib/email";
 
 const EventCreated = () => {
   const [params] = useSearchParams();
   const eventId = params.get("id");
   const adminToken = params.get("token");
   // Handed over in router state by CreateEvent, never in the URL.
-  const { password, embed } = (useLocation().state ?? {}) as { password?: string; embed?: boolean };
+  const { password, embed, email } = (useLocation().state ?? {}) as { password?: string; embed?: boolean; email?: EmailNotice };
 
   if (!eventId || !adminToken) {
     return (
@@ -46,6 +47,13 @@ const EventCreated = () => {
           <p className="mt-4 max-w-xl text-lg leading-8 text-muted-foreground">
             Send the guest link now. Save the private admin link somewhere you trust before leaving this page.
           </p>
+          {email && (
+            <p role="status" className="mt-5 max-w-xl rounded-md border border-border bg-muted/45 px-4 py-3 text-sm leading-6">
+              {email.status === "sent"
+                ? <>We’ve emailed these links to <span className="font-medium">{email.address}</span>.</>
+                : "We couldn’t send the email. Copy the links below instead."}
+            </p>
+          )}
         </header>
 
         <div className="mt-10 space-y-5">

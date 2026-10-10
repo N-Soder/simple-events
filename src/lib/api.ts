@@ -28,6 +28,32 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   return data;
 }
 
+export type EmailStatus = "sent" | "failed" | "limited";
+
+export interface AppConfig {
+  emailEnabled: boolean;
+  turnstileSiteKey: string | null;
+}
+
+export const NO_EMAIL: AppConfig = { emailEnabled: false, turnstileSiteKey: null };
+
+let configPromise: Promise<AppConfig> | undefined;
+
+/**
+ * Which optional features this deployment has switched on. Fetched once per
+ * page load. Any failure means "email is off", never an error, because the
+ * email fields are an extra and the forms work without them.
+ */
+export function getConfig(): Promise<AppConfig> {
+  configPromise ??= apiFetch("config")
+    .then((config): AppConfig =>
+      config.emailEnabled === true && typeof config.turnstileSiteKey === "string"
+        ? { emailEnabled: true, turnstileSiteKey: config.turnstileSiteKey }
+        : NO_EMAIL)
+    .catch(() => NO_EMAIL);
+  return configPromise;
+}
+
 export async function createEvent(params: {
   name: string;
   description?: string;
@@ -44,6 +70,9 @@ export async function createEvent(params: {
   bring_items: Array<{ name: string; quantity: number }>;
   bring_list_message?: string;
   bring_list_mode?: "signup" | "open";
+  /** Optional: where to send the links. Used once by the server, never stored. */
+  email?: string;
+  turnstile_token?: string;
 }) {
   return apiFetch("create", { method: "POST", body: JSON.stringify(params) });
 }
@@ -85,7 +114,12 @@ export async function submitRsvp(params: {
   adults: number;
   kids: number;
   honeypot?: string;
-} & RsvpClaims): Promise<{ id: string; manage_code: string; reserved?: ReservedItem[] }> {
+  /** Optional: where to send the confirmation. Used once by the server, never stored. */
+  email?: string;
+  turnstile_token?: string;
+  /** The guest's clock preference, so the email shows times the way the page did. */
+  hour12?: boolean;
+} & RsvpClaims): Promise<{ id: string; manage_code: string; reserved?: ReservedItem[]; email?: EmailStatus }> {
   return apiFetch("rsvp", { method: "POST", body: JSON.stringify(params) });
 }
 

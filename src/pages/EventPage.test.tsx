@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 
@@ -11,12 +11,16 @@ const api = vi.hoisted(() => ({
   getRsvpByManageCode: vi.fn(),
   submitRsvp: vi.fn(),
   updateRsvp: vi.fn(),
+  getConfig: vi.fn(),
 }));
 
 vi.mock("@/lib/api", async () => ({
   ...(await vi.importActual<typeof import("@/lib/api")>("@/lib/api")),
   ...api,
 }));
+
+const turnstile = vi.hoisted(() => ({ loadTurnstile: vi.fn() }));
+vi.mock("@/lib/turnstile", () => turnstile);
 
 const eventData = {
   event: {
@@ -62,6 +66,19 @@ describe("EventPage", () => {
     Object.values(api).forEach((fn) => fn.mockReset());
     localStorage.clear();
     window.location.hash = "";
+    api.getConfig.mockResolvedValue({ emailEnabled: false, turnstileSiteKey: null });
+    // Like Turnstile, a reset issues a fresh token through the same callback.
+    let issued = 0;
+    let callback: (token: string) => void = () => {};
+    turnstile.loadTurnstile.mockReset().mockResolvedValue({
+      render: (_el: HTMLElement, options: { callback(token: string): void }) => {
+        callback = options.callback;
+        callback(`tok-${++issued}`);
+        return "widget-1";
+      },
+      reset: vi.fn(() => callback(`tok-${++issued}`)),
+      remove: vi.fn(),
+    });
   });
 
   it("asks for the password, then opens the event with the access token it gets back", async () => {
@@ -108,5 +125,66 @@ describe("EventPage", () => {
     expect(screen.getByRole("button", { name: "Bring one more Chairs" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Bring one fewer Chairs" }));
     expect(screen.getByRole("button", { name: "Bring one more Chairs" })).toBeEnabled();
+  });
+
+  it("has no email field when the deployment can't send email", async () => {
+    api.getEvent.mockResolvedValue(eventData);
+    renderEvent();
+    await screen.findByLabelText(/Your name/);
+    expect(screen.queryByLabelText(/Email me a confirmation/)).not.toBeInTheDocument();
+  });
+
+  it("sends the guest's address with a bot-check token and confirms where it went", async () => {
+    api.getConfig.mockResolvedValue({ emailEnabled: true, turnstileSiteKey: "site-key" });
+    api.getEvent.mockResolvedValue(eventData);
+    api.submitRsvp.mockResolvedValue({ id: "r1", manage_code: "c1", reserved: [], email: "sent" });
+    renderEvent();
+
+    fireEvent.change(await screen.findByLabelText(/Your name/), { target: { value: "Ada" } });
+    fireEvent.change(await screen.findByLabelText(/Email me a confirmation/), { target: { value: "ada@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send RSVP" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("We’ve emailed your confirmation to ada@example.com.");
+    expect(api.submitRsvp.mock.calls[0][0]).toMatchObject({
+      guest_name: "Ada", email: "ada@example.com", turnstile_token: "tok-1", hour12: expect.any(Boolean),
+    });
+  });
+
+  it("tells the guest when the confirmation could not be sent", async () => {
+    api.getConfig.mockResolvedValue({ emailEnabled: true, turnstileSiteKey: "site-key" });
+    api.getEvent.mockResolvedValue(eventData);
+    api.submitRsvp.mockResolvedValue({ id: "r1", manage_code: "c1", reserved: [], email: "limited" });
+    renderEvent();
+
+    fireEvent.change(await screen.findByLabelText(/Your name/), { target: { value: "Ada" } });
+    fireEvent.change(await screen.findByLabelText(/Email me a confirmation/), { target: { value: "ada@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send RSVP" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("We couldn’t send the email. Save the link below instead.");
+  });
+
+  it("stops a malformed address, and lets the guest retry after a failed request", async () => {
+    api.getConfig.mockResolvedValue({ emailEnabled: true, turnstileSiteKey: "site-key" });
+    api.getEvent.mockResolvedValue(eventData);
+    api.submitRsvp
+      .mockRejectedValueOnce(new ApiError("Verification failed. Please try again.", 403))
+      .mockResolvedValue({ id: "r1", manage_code: "c1", reserved: [], email: "sent" });
+    renderEvent();
+
+    fireEvent.change(await screen.findByLabelText(/Your name/), { target: { value: "Ada" } });
+    const email = await screen.findByLabelText(/Email me a confirmation/);
+    fireEvent.change(email, { target: { value: "not-an-address" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send RSVP" }));
+    expect(await screen.findByText(/Enter a valid email address/)).toBeInTheDocument();
+    expect(api.submitRsvp).not.toHaveBeenCalled();
+
+    fireEvent.change(email, { target: { value: "ada@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send RSVP" }));
+    await waitFor(() => expect(api.submitRsvp).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send RSVP" })).toBeEnabled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Send RSVP" }));
+    expect(await screen.findByText(/We’ve emailed your confirmation to/)).toBeInTheDocument();
+    expect(api.submitRsvp).toHaveBeenCalledTimes(2);
   });
 });
