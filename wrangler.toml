@@ -7,7 +7,7 @@ pages_build_output_dir = "./dist"
 # (RESEND_API_KEY, TURNSTILE_SECRET_KEY, set in the dashboard) are present.
 [vars]
 EMAIL_FROM = "Simple Events <events@updates.soderholm.app>"
-# TURNSTILE_SITE_KEY = "0x..."   # from the Turnstile widget for this site
+TURNSTILE_SITE_KEY = "0x4AAAAAAFS1RczOFHnYulu5"
 # EMAIL_DAILY_CAP = "80"         # overall emails per 24 hours
 
 [[d1_databases]]
@@ -38,4 +38,4 @@ bucket_name = "simple-events-banners-preview"
 # Vars are not inherited by environments either.
 [env.preview.vars]
 EMAIL_FROM = "Simple Events <events@updates.soderholm.app>"
-# TURNSTILE_SITE_KEY = "0x..."
+TURNSTILE_SITE_KEY = "0x4AAAAAAFS1RczOFHnYulu5"
