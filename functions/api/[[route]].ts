@@ -460,8 +460,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (!email) return json({ id, admin_token });
       // The event exists now, so email is best effort from here on.
-      const status = await deliverEmail(env, db, id, email, renderHostLinksEmail({
-        origin: url.origin, event: { id, name, event_date }, adminToken: admin_token, hasPassword: password_hash !== null,
+      const status = await deliverEmail(env, db, id, email, () => ({
+        email: renderHostLinksEmail({
+          origin: url.origin, event: { id, name, event_date }, adminToken: admin_token, hasPassword: password_hash !== null,
+        }),
       }));
       return json({ id, admin_token, email: status });
     }
@@ -577,6 +579,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const claims = listOpen ? await checkClaims(db, event, parseClaims(body.claim_items, event.bring_list_mode)) : [];
       const customItems = listOpen ? parseCustomItems(body.custom_items, event.bring_list_mode) : [];
       const email = await readEmailRequest(env, request, body);
+      // Read what the email needs before writing anything. Once the RSVP is
+      // saved, an email-only failure must not turn into an error response: the
+      // guest would never see their edit link, and a retry would reply twice.
+      const emailEvent = email
+        ? await db.prepare(
+            "SELECT id, name, event_date, event_time, event_end_time, timezone, location, location_url FROM events WHERE id = ?"
+          ).bind(event.id).first<EmailEvent>()
+        : null;
 
       const id = crypto.randomUUID();
       const manage_code = crypto.randomUUID();
@@ -590,18 +600,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const reserved = readReserved(results);
       if (!email) return json({ ...normalizeRsvp(row), reserved });
 
-      const details = await db.prepare(
-        "SELECT id, name, event_date, event_time, event_end_time, timezone, location, location_url FROM events WHERE id = ?"
-      ).bind(event.id).first<EmailEvent>();
-      const status = details
-        ? await deliverEmail(env, db, event.id, email, renderRsvpEmail({
-            origin: url.origin,
-            event: details,
-            rsvp: { id, manage_code, guest_name: guestName, adults, kids },
-            bringing: reserved.map((r) => (r.quantity > 1 ? `${r.item_name} ×${r.quantity}` : r.item_name)),
-            // The guest's own clock preference, sent by the page they replied from.
-            hour12: body.hour12 === true,
-          }), [rsvpCalendarAttachment(url.origin, details)])
+      const status = emailEvent
+        ? await deliverEmail(env, db, event.id, email, () => ({
+            email: renderRsvpEmail({
+              origin: url.origin,
+              event: emailEvent,
+              rsvp: { id, manage_code, guest_name: guestName, adults, kids },
+              bringing: reserved.map((r) => (r.quantity > 1 ? `${r.item_name} ×${r.quantity}` : r.item_name)),
+              // The guest's own clock preference, sent by the page they replied from.
+              hour12: body.hour12 === true,
+            }),
+            attachments: [rsvpCalendarAttachment(url.origin, emailEvent)],
+          }))
         : "failed";
       return json({ ...normalizeRsvp(row), reserved, email: status });
     }

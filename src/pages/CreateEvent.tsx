@@ -26,7 +26,7 @@ import { normalizeUrl } from "@/lib/url";
 import { messageForMode, OPEN_LIST_MESSAGE, type BringListMode } from "@/lib/bringList";
 import EmailField, { type EmailFieldHandle } from "@/components/EmailField";
 import { useEmailConfig } from "@/hooks/use-email-config";
-import { isValidEmail } from "@/lib/email";
+import { isValidEmail, rememberEmailNotice } from "@/lib/email";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Event name is required").max(200),
@@ -173,11 +173,12 @@ const Index = () => {
         id: result.id,
         token: result.admin_token,
       });
+      // The email address is handed over in memory instead. Router state is
+      // saved in the browser's history entry, and the address is not to be
+      // stored anywhere.
+      rememberEmailNotice(result.id, hostEmail && result.email ? { address: hostEmail, status: result.email } : null);
       navigate(`/created?${createdParams.toString()}`, {
-        state: {
-          ...(password ? { password, embed: embedPassword } : {}),
-          ...(hostEmail && result.email ? { email: { address: hostEmail, status: result.email } } : {}),
-        },
+        state: password ? { password, embed: embedPassword } : null,
       });
     } catch (err: unknown) {
       // A bot-check token only works once, so get a new one for the retry.

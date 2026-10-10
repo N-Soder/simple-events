@@ -50,8 +50,12 @@ export async function reserveSend(
   return result.meta.changes > 0 ? id : null;
 }
 
-/** Drop rows the caps no longer look at. Run nightly by the cleanup worker. */
+/**
+ * Drop rows the 24-hour caps no longer look at. Run nightly by the cleanup
+ * worker, so a row written just after one run goes at the run after next: the
+ * longest a fingerprint lives is 48 hours, which is what the privacy notice says.
+ */
 export async function purgeOldSends(db: D1Database): Promise<number> {
-  const result = await db.prepare("DELETE FROM email_sends WHERE sent_at < datetime('now', '-2 days')").run();
+  const result = await db.prepare("DELETE FROM email_sends WHERE sent_at < datetime('now', '-1 day')").run();
   return result.meta.changes;
 }

@@ -1,4 +1,4 @@
--- One row per email the app has tried to send, kept for 48 hours so the daily
+-- One row per email the app has tried to send, kept for at most 48 hours so the daily
 -- send caps can be enforced. The address itself is never stored: address_hash
 -- is a keyed HMAC of it (see server/email/limits.ts). Deliberately no foreign
 -- key to events, so deleting an event does not reset the caps.

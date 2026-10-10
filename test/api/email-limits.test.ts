@@ -81,10 +81,10 @@ describe("reserveSend", () => {
 });
 
 describe("purgeOldSends", () => {
-  it("deletes rows older than 48 hours and keeps recent ones", async () => {
+  it("deletes rows the 24-hour caps no longer look at and keeps the rest", async () => {
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO email_sends (id, address_hash, event_id, sent_at) VALUES ('old', 'h', 'e', datetime('now', '-49 hours'))"),
-      env.DB.prepare("INSERT INTO email_sends (id, address_hash, event_id, sent_at) VALUES ('recent', 'h', 'e', datetime('now', '-47 hours'))"),
+      env.DB.prepare("INSERT INTO email_sends (id, address_hash, event_id, sent_at) VALUES ('old', 'h', 'e', datetime('now', '-25 hours'))"),
+      env.DB.prepare("INSERT INTO email_sends (id, address_hash, event_id, sent_at) VALUES ('recent', 'h', 'e', datetime('now', '-23 hours'))"),
     ]);
     expect(await purgeOldSends(env.DB)).toBe(1);
     const { results } = await env.DB.prepare("SELECT id FROM email_sends").all<{ id: string }>();

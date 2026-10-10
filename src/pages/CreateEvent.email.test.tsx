@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { vi } from "vitest";
 
 import CreateEvent from "./CreateEvent";
+import { emailNoticeFor } from "@/lib/email";
 
 const api = vi.hoisted(() => ({ getConfig: vi.fn(), createEvent: vi.fn() }));
 vi.mock("@/lib/api", async () => ({
@@ -67,7 +68,10 @@ describe("CreateEvent email", () => {
 
     const state = await screen.findByTestId("created-state");
     expect(api.createEvent.mock.calls[0][0]).toMatchObject({ email: "ada@example.com", turnstile_token: "tok-1" });
-    expect(JSON.parse(state.textContent!)).toEqual({ email: { address: "ada@example.com", status: "sent" } });
+    // The address must not go into router state: that is written to the
+    // browser's history entry and outlives the page.
+    expect(state.textContent).not.toContain("ada@example.com");
+    expect(emailNoticeFor("e1")).toEqual({ address: "ada@example.com", status: "sent" });
   });
 
   it("stops a malformed address before anything is sent", async () => {

@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { onRequest } from "../../functions/api/[[route]]";
+import { deliverEmail } from "../../server/email/deliver";
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -11,7 +12,7 @@ const EMAIL_ENV = {
   TURNSTILE_SECRET_KEY: "secret-key",
 };
 
-async function call(method: string, path: string, body?: unknown, extraEnv: Record<string, string> = EMAIL_ENV) {
+async function call(method: string, path: string, body?: unknown, extraEnv: Record<string, unknown> = EMAIL_ENV) {
   const request = new Request(`https://events.test/api/${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -184,11 +185,46 @@ describe("replying to an event", () => {
     expect(await rows("rsvps")).toHaveLength(1);
   });
 
+  it("saves nothing if the event details for the email can't be read", async () => {
+    stubOutbound();
+    const event = (await call("POST", "create", newEvent())).body;
+    // A database that fails only the read the confirmation email needs.
+    const flakyDb = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop === "prepare") {
+          return (sql: string) => {
+            if (sql.includes("location_url FROM events")) throw new Error("injected read failure");
+            return target.prepare(sql);
+          };
+        }
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+
+    // The guest sees an error, so there must be no saved RSVP for a retry to duplicate.
+    const res = await call("POST", "rsvp", withEmail({ event_id: event.id, guest_name: "Ada" }), { ...EMAIL_ENV, DB: flakyDb });
+    expect(res.status).toBe(500);
+    expect(await rows("rsvps")).toHaveLength(0);
+  });
+
   it("sends nothing for a honeypot submission", async () => {
     const { spy } = stubOutbound();
     const event = (await call("POST", "create", newEvent())).body;
     await call("POST", "rsvp", withEmail({ event_id: event.id, guest_name: "Bot", honeypot: "x" }));
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("deliverEmail", () => {
+  it("reports failure instead of throwing when the email can't be composed", async () => {
+    const { spy } = stubOutbound();
+    const status = await deliverEmail(EMAIL_ENV, env.DB, "e1", "ada@example.com", () => {
+      throw new Error("render failed");
+    });
+    expect(status).toBe("failed");
+    expect(spy).not.toHaveBeenCalled();
+    expect(await rows("email_sends")).toHaveLength(0);
   });
 });
 

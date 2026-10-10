@@ -143,7 +143,8 @@ CREATE INDEX idx_email_sends_sent_at ON email_sends(sent_at);
 `address_hash` is HMAC-SHA256 of the trimmed, lower-cased address. The key is
 derived from `RESEND_API_KEY` with a fixed label, so no extra secret is needed
 and the hash cannot be reversed by guessing addresses without that key.
-The cleanup worker deletes rows older than 48 hours on its nightly run. This
+The cleanup worker deletes rows older than 24 hours on its nightly run, so no
+row lives longer than 48 hours. This
 is the only trace of an address the app keeps, and the privacy notice says so.
 
 ## Delivery
@@ -198,7 +199,7 @@ email. The retention figure comes from `RETENTION_DAYS`, not a literal.
 | `src/pages/CreateEvent.tsx`, `EventPage.tsx`, `EventCreated.tsx`, `src/components/RsvpSuccessScreen.tsx` | Field and outcome messages. |
 | `src/pages/PrivacyPage.tsx`, `src/App.tsx`, `LandingPage.tsx` | New page, route, footer link. |
 | `migrations/d1/0008_email_sends.sql` | New table. |
-| `cleanup-worker/src/index.ts` | Purge `email_sends` older than 48 hours. |
+| `cleanup-worker/src/index.ts` | Purge `email_sends` older than 24 hours. |
 | `public/_headers` | Add `https://challenges.cloudflare.com` to `script-src` and a `frame-src` for it. |
 | `wrangler.toml`, `.env.example`, `README.md` | Vars for production and preview; setup and security notes. |
 

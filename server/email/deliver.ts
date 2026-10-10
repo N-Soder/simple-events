@@ -22,14 +22,17 @@ function dailyCap(env: EmailEnv): number {
 }
 
 /**
- * Reserve a send slot and send one email. Never throws: the event or RSVP is
- * already saved by the time this runs, so the caller only reports the outcome.
- * Call only when `emailEnabled(env)`.
+ * Compose one email, reserve a send slot and send it. Never throws: the event
+ * or RSVP is already saved by the time this runs, so the caller only reports
+ * the outcome. The email is composed in here, rather than passed in, so that a
+ * failure to render it is caught too. Call only when `emailEnabled(env)`.
  */
 export async function deliverEmail(
-  env: EmailEnv, db: D1Database, eventId: string, to: string, email: RenderedEmail, attachments?: EmailAttachment[],
+  env: EmailEnv, db: D1Database, eventId: string, to: string,
+  compose: () => { email: RenderedEmail; attachments?: EmailAttachment[] },
 ): Promise<EmailStatus> {
   try {
+    const { email, attachments } = compose();
     const sendId = await reserveSend(db, env.RESEND_API_KEY!, to, eventId, dailyCap(env));
     if (!sendId) return "limited";
     const ok = await sendEmail(env.RESEND_API_KEY!, `simple-events/${sendId}`, {
@@ -37,8 +40,8 @@ export async function deliverEmail(
     });
     return ok ? "sent" : "failed";
   } catch (e) {
-    // Only D1 can throw here, and its errors carry the SQL, not the address.
-    console.error("Email reservation error:", e);
+    // Rendering and D1 can throw here. Neither error carries the address.
+    console.error("Email delivery error:", e);
     return "failed";
   }
 }

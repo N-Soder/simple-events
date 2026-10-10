@@ -3,14 +3,16 @@ import { ArrowRight, Check, ExternalLink, Laptop, LockKeyhole, Send, ShieldCheck
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { CopyableLink } from "@/components/CopyButton";
-import type { EmailNotice } from "@/lib/email";
+import { emailNoticeFor } from "@/lib/email";
 
 const EventCreated = () => {
   const [params] = useSearchParams();
   const eventId = params.get("id");
   const adminToken = params.get("token");
   // Handed over in router state by CreateEvent, never in the URL.
-  const { password, embed, email } = (useLocation().state ?? {}) as { password?: string; embed?: boolean; email?: EmailNotice };
+  const { password, embed } = (useLocation().state ?? {}) as { password?: string; embed?: boolean };
+  // Held in memory by CreateEvent, so it is gone after a reload.
+  const email = eventId ? emailNoticeFor(eventId) : null;
 
   if (!eventId || !adminToken) {
     return (

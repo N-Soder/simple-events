@@ -85,7 +85,7 @@ unless the deployment is configured to send (see `GET /api/config`).
 
 - **Addresses are not stored.** The address travels with the create or RSVP
   request, is handed to Resend, and is never written to D1. The one trace kept is
-  a keyed hash in `email_sends`, used for the send caps and purged after 48 hours
+  a keyed hash in `email_sends`, used for the send caps and purged within 48 hours
   by the cleanup worker. Resend keeps its own delivery log for up to 30 days. The
   notice at `/privacy` says all of this in plain English; keep it in step with the
   code.
